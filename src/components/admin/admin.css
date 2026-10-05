@@ -1,0 +1,398 @@
+.admin-shell .admin-brand {
+  margin-bottom: 35px;
+  align-items: flex-start;
+}
+.admin-shell .admin-brand > svg {
+  margin-top: 4px;
+}
+.admin-shell .admin-brand small {
+  display: block;
+  font-family: var(--sans);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  line-height: 1.4;
+  color: #aab99c;
+  margin-top: 10px;
+}
+.admin-shell .brand-dot {
+  font-weight: 400;
+  color: #c5d0b8;
+}
+.admin-shell .admin-user strong,
+.admin-shell .admin-user small {
+  display: block;
+  line-height: 1.65;
+}
+.admin-shell .admin-user strong {
+  font-weight: 500;
+}
+.admin-shell .admin-user small {
+  color: #a9ba9d;
+  font-size: 10px;
+}
+.admin-shell .admin-sidebar {
+  overflow-y: auto;
+}
+.admin-shell .admin-sidebar :focus-visible {
+  outline-color: #c5d4b4;
+}
+.admin-shell .admin-heading-actions {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.admin-shell .section-heading {
+  display: block;
+  margin-bottom: 24px;
+}
+.admin-shell .section-heading h2 {
+  margin-top: 0;
+  margin-bottom: 7px;
+}
+.admin-shell .section-heading p {
+  font-size: 12px;
+  max-width: 670px;
+}
+.admin-shell .stat-card {
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.admin-shell .stat-card:hover {
+  border-color: #a4b294;
+  box-shadow: 0 4px 14px #35463208;
+}
+.admin-shell .stat-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 13px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.admin-shell .stat-card-top svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-shell .stat-value {
+  margin-top: 18px;
+  margin-bottom: 13px;
+}
+.admin-shell .stat-card > small {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--olive);
+  font-size: 9px;
+}
+.admin-shell .stat-card > small svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-shell .dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.admin-shell .section-heading-with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.admin-shell .section-heading-with-action > .text-link {
+  white-space: nowrap;
+  padding-top: 9px;
+  font-size: 10px;
+}
+.admin-shell .quick-actions > a {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid var(--line);
+  padding-block: 18px;
+}
+.admin-shell .quick-actions > a > svg:first-child {
+  color: var(--olive);
+}
+.admin-shell .quick-actions > a > svg:last-child {
+  margin-left: auto;
+  color: #88967a;
+}
+.admin-shell .quick-actions > a:hover strong {
+  color: var(--olive);
+}
+.admin-shell .quick-actions strong,
+.admin-shell .quick-actions small {
+  display: block;
+}
+.admin-shell .quick-actions strong {
+  font-size: 11px;
+  font-weight: 550;
+}
+.admin-shell .quick-actions small {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.admin-shell .quick-actions > a:last-child {
+  padding-bottom: 0;
+}
+.admin-shell .admin-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  margin-top: 26px;
+  padding: 22px 25px;
+  border: 1px solid #dce3cf;
+  border-radius: 7px;
+  background: #eaf0df;
+}
+.admin-shell .admin-tip > svg {
+  color: var(--olive);
+  margin-top: 3px;
+}
+.admin-shell .admin-tip strong {
+  font-size: 12px;
+  font-weight: 550;
+  color: #536348;
+}
+.admin-shell .admin-tip p {
+  font-size: 11px;
+  margin-top: 5px;
+  color: #758067;
+}
+.admin-shell .table-description {
+  display: block;
+  max-width: 360px;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 5px;
+}
+.admin-shell .admin-filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.admin-shell .admin-filter-tabs .button {
+  gap: 7px;
+}
+.admin-shell .admin-filter-tabs .button span {
+  opacity: 0.7;
+}
+.admin-shell .lesson-card {
+  padding: 0;
+  background: #fcfcf7;
+  overflow: hidden;
+}
+.admin-shell .lesson-card summary {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 19px 22px;
+  cursor: pointer;
+  list-style: none;
+}
+.admin-shell .lesson-card summary::-webkit-details-marker {
+  display: none;
+}
+.admin-shell .lesson-card summary > strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.admin-shell .lesson-card summary > .muted {
+  margin-left: auto;
+  font-size: 10px;
+}
+.admin-shell .lesson-card summary::after {
+  content: "+";
+  color: var(--olive);
+  font-size: 19px;
+}
+.admin-shell .lesson-card[open] summary::after {
+  content: "−";
+}
+.admin-shell .lesson-card[open] summary {
+  background: #eef2e5;
+  border-bottom: 1px solid var(--line);
+}
+.admin-shell .lesson-number {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d7dfcb;
+  border-radius: 50%;
+  background: #edf1e6;
+  font-size: 11px;
+}
+.admin-shell .lesson-editor {
+  padding: 25px;
+  max-width: 840px;
+}
+.admin-shell .lesson-delete {
+  margin-top: 25px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.admin-shell .payment-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 17px;
+  padding: 22px 0;
+}
+.admin-shell .payment-option + .payment-option {
+  border-top: 1px solid var(--line);
+}
+.admin-shell .payment-option > svg {
+  color: var(--olive);
+  margin-top: 4px;
+}
+.admin-shell .payment-option > div {
+  flex: 1;
+  min-width: 0;
+}
+.admin-shell .payment-option h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-shell .payment-option p {
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+.admin-shell .credential-status {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0 0 20px;
+  padding: 17px;
+  font-size: 11px;
+}
+.admin-shell .credential-status li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.admin-shell .credential-status li svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-shell input:disabled {
+  cursor: not-allowed;
+}
+.admin-shell .field label {
+  font-weight: 550;
+}
+.admin-shell .detail-list {
+  margin: 0;
+}
+.admin-shell .admin-submit-spinner {
+  animation: admin-submit-spin 1s linear infinite;
+}
+@keyframes admin-submit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1200px) {
+  .admin-shell .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-shell .quick-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 28px;
+  }
+  .admin-shell .quick-actions > .section-heading {
+    grid-column: 1 / -1;
+  }
+  .admin-shell .quick-actions > a:last-child {
+    padding-bottom: 18px;
+  }
+}
+@media (max-width: 850px) {
+  .admin-shell .stat-card-top {
+    font-size: 10px;
+  }
+  .admin-shell .quick-actions {
+    display: block;
+  }
+  .admin-shell .quick-actions > a:last-child {
+    padding-bottom: 0;
+  }
+  .admin-shell .section-heading-with-action {
+    flex-wrap: wrap;
+    gap: 0;
+    margin-bottom: 20px;
+  }
+  .admin-shell .section-heading-with-action .section-heading {
+    margin-bottom: 8px;
+  }
+}
+@media (max-width: 650px) {
+  .admin-shell .admin-brand {
+    align-items: center;
+    margin-bottom: 0;
+    font-size: 28px;
+  }
+  .admin-shell .admin-brand > svg {
+    margin-top: 0;
+  }
+  .admin-shell .admin-brand small {
+    display: inline;
+    margin-left: 16px;
+    font-size: 7px;
+    letter-spacing: 1.5px;
+  }
+  .admin-shell .stat-card-top {
+    gap: 9px;
+  }
+  .admin-shell .stat-card-top svg {
+    width: 16px;
+    height: 16px;
+  }
+  .admin-shell .stat-card > small {
+    font-size: 8px;
+    gap: 5px;
+  }
+  .admin-shell .stat-value {
+    margin-top: 10px;
+  }
+  .admin-shell .admin-tip {
+    padding: 18px;
+  }
+  .admin-shell .lesson-editor {
+    padding: 19px;
+  }
+  .admin-shell .lesson-card summary {
+    padding: 17px;
+    gap: 10px;
+  }
+  .admin-shell .lesson-card summary > strong {
+    font-size: 12px;
+  }
+  .admin-shell .lesson-card summary > .muted {
+    display: none;
+  }
+  .admin-shell .payment-option {
+    gap: 12px;
+  }
+  .admin-shell .payment-option > svg {
+    width: 20px;
+  }
+  .admin-shell .admin-filter-tabs .button {
+    font-size: 10px;
+    min-height: 33px;
+    padding: 7px 10px;
+  }
+}

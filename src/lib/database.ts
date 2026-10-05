@@ -1,0 +1,238 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createClient as createRemoteClient } from "@libsql/client/http";
+import type { Client, InValue, ResultSet, Transaction } from "@libsql/client";
+import { SCHEMA } from "./schema";
+import { databaseConfigured } from "./database-config";
+export { databaseConfigured } from "./database-config";
+
+export class DatabaseConfigurationError extends Error {
+  constructor() {
+    super(
+      "Databasen är inte konfigurerad. Lägg till TURSO_DATABASE_URL och TURSO_AUTH_TOKEN i Vercels miljövariabler och gör en ny deployment.",
+    );
+  }
+}
+const context = new AsyncLocalStorage<Transaction>();
+class Mutex {
+  private tail: Promise<void> = Promise.resolve();
+  async run<T>(work: () => Promise<T>): Promise<T> {
+    const previous = this.tail;
+    let release!: () => void;
+    this.tail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await work();
+    } finally {
+      release();
+    }
+  }
+}
+type Row = Record<string, unknown>;
+export class DatabaseAdapter {
+  private clientPromise?: Promise<Client>;
+  private readyPromise?: Promise<void>;
+  private localMutex = new Mutex();
+  private readonly remote = !!process.env.TURSO_DATABASE_URL;
+  private async client(): Promise<Client> {
+    if (!databaseConfigured()) throw new DatabaseConfigurationError();
+    this.clientPromise ??= (async () => {
+      if (this.remote)
+        return createRemoteClient({
+          url: process.env.TURSO_DATABASE_URL!,
+          authToken: process.env.TURSO_AUTH_TOKEN!,
+          intMode: "number",
+        });
+      // Never import the local SQLite driver or create files on Vercel.
+      const [
+        { createClient },
+        { mkdir },
+        { dirname, resolve },
+        { pathToFileURL },
+      ] = await Promise.all([
+        import("@libsql/client/node"),
+        import("node:fs/promises"),
+        import("node:path"),
+        import("node:url"),
+      ]);
+      const path =
+        process.env.TIBB_DATABASE_PATH ||
+        resolve(process.cwd(), "data/tibb.sqlite");
+      if (path !== ":memory:")
+        await mkdir(dirname(resolve(path)), { recursive: true });
+      return createClient({
+        url:
+          path === ":memory:"
+            ? "file::memory:"
+            : pathToFileURL(resolve(path)).href,
+        intMode: "number",
+        concurrency: 1,
+        timeout: 5000,
+      });
+    })();
+    try {
+      return await this.clientPromise;
+    } catch (error) {
+      this.clientPromise = undefined;
+      throw error;
+    }
+  }
+  private gate<T>(work: () => Promise<T>) {
+    return this.remote ? work() : this.localMutex.run(work);
+  }
+  async initialize(): Promise<void> {
+    this.readyPromise ??= this.gate(async () => {
+      const client = await this.client();
+      if (!this.remote) {
+        await client.execute("PRAGMA foreign_keys=ON");
+        await client.execute("PRAGMA journal_mode=WAL");
+      }
+      const tx = await client.transaction("write");
+      try {
+        await tx.executeMultiple(SCHEMA);
+        const columns = await tx.execute("PRAGMA table_info(slots)");
+        if (!columns.rows.some((row) => row.name === "archived"))
+          await tx.execute(
+            "ALTER TABLE slots ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+          );
+        const seeded = await tx.execute(
+          "SELECT value FROM app_meta WHERE key='seeded'",
+        );
+        if (!seeded.rows.length) await this.seed(tx);
+        await tx.commit();
+      } catch (error) {
+        try {
+          await tx.rollback();
+        } catch {}
+        throw error;
+      } finally {
+        tx.close();
+      }
+    });
+    try {
+      await this.readyPromise;
+    } catch (error) {
+      this.readyPromise = undefined;
+      throw error;
+    }
+  }
+  private async seed(tx: Transaction) {
+    await tx.execute({
+      sql: "INSERT INTO treatments(name,description,duration_minutes,price_ore,active) VALUES(?,?,?,?,0)",
+      args: [
+        "Första konsultation",
+        "Exempelbehandling. Anpassa beskrivning, längd och pris innan du aktiverar behandlingen.",
+        60,
+        85000,
+      ],
+    });
+    await tx.execute({
+      sql: "INSERT INTO treatments(name,description,duration_minutes,price_ore,active) VALUES(?,?,?,?,0)",
+      args: [
+        "Återbesök",
+        "Exempelbehandling. Anpassa innehållet i admin innan du aktiverar behandlingen.",
+        45,
+        65000,
+      ],
+    });
+    const now = new Date().toISOString();
+    await tx.execute({
+      sql: "INSERT INTO articles(title,slug,excerpt,body,published,created_at,updated_at) VALUES(?,?,?,?,0,?,?)",
+      args: [
+        "Välkommen till Tibb.nu",
+        "valkommen-till-tibb",
+        "En introduktion till verksamhetens perspektiv.",
+        "Här kan du presentera ditt arbete med klassisk kinesisk medicin i ljuset av den Profetiska vägledningen. Detta är ett utkast som du kan redigera och publicera från admin.",
+        now,
+        now,
+      ],
+    });
+    const course = await tx.execute({
+      sql: "INSERT INTO courses(title,slug,description,price_ore,published,created_at,updated_at) VALUES(?,?,?,0,0,?,?)",
+      args: [
+        "Introduktion till Tibb",
+        "introduktion-till-tibb",
+        "Ett redigerbart kursutkast. Lägg till dina lektioner och publicera när kursen är klar.",
+        now,
+        now,
+      ],
+    });
+    await tx.execute({
+      sql: "INSERT INTO lessons(course_id,title,body,position) VALUES(?,?,?,1)",
+      args: [
+        Number(course.lastInsertRowid),
+        "Välkommen",
+        "Skriv din introduktion här. Du kan lägga till text, videolänkar och kursmaterial.",
+      ],
+    });
+    await tx.execute("INSERT INTO app_meta(key,value) VALUES('seeded','1')");
+  }
+  private async execute(sql: string, args: InValue[]): Promise<ResultSet> {
+    const tx = context.getStore();
+    if (tx) return tx.execute({ sql, args });
+    await this.initialize();
+    return this.gate(async () => (await this.client()).execute({ sql, args }));
+  }
+  prepare(sql: string) {
+    return {
+      get: async (...args: InValue[]): Promise<Row | undefined> =>
+        (await this.execute(sql, args)).rows[0],
+      all: async (...args: InValue[]): Promise<Row[]> =>
+        (await this.execute(sql, args)).rows,
+      run: async (...args: InValue[]) => {
+        const result = await this.execute(sql, args);
+        return {
+          lastInsertRowid: result.lastInsertRowid,
+          changes: result.rowsAffected,
+        };
+      },
+    };
+  }
+  async exec(sql: string): Promise<void> {
+    const tx = context.getStore();
+    if (tx) {
+      await tx.executeMultiple(sql);
+      return;
+    }
+    await this.initialize();
+    await this.gate(async () => {
+      await (await this.client()).executeMultiple(sql);
+    });
+  }
+  async transaction<T>(work: () => T | Promise<T>): Promise<T> {
+    if (context.getStore()) return work();
+    await this.initialize();
+    return this.gate(async () => {
+      const tx = await (await this.client()).transaction("write");
+      try {
+        const result = await context.run(tx, work);
+        await tx.commit();
+        return result;
+      } catch (error) {
+        try {
+          await tx.rollback();
+        } catch {}
+        throw error;
+      } finally {
+        tx.close();
+      }
+    });
+  }
+  async close(): Promise<void> {
+    if (this.clientPromise) (await this.clientPromise).close();
+    this.clientPromise = undefined;
+    this.readyPromise = undefined;
+  }
+}
+let database: DatabaseAdapter | undefined;
+export function getDb(): DatabaseAdapter {
+  if (!databaseConfigured()) throw new DatabaseConfigurationError();
+  return (database ??= new DatabaseAdapter());
+}
+export function transaction<T>(work: () => T | Promise<T>): Promise<T> {
+  return getDb().transaction(work);
+}
+export async function initializeDatabase() {
+  await getDb().initialize();
+}

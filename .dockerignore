@@ -1,0 +1,11 @@
+node_modules
+.next
+.next-qa
+.next-*
+.vercel
+.git
+data
+.env*
+tests
+test-results
+*.tsbuildinfo

@@ -5,6 +5,9 @@ En fungerande Next.js-tjänst för behandlingar, bokning, artiklar, kurser och e
 ## Publicera på Vercel och skapa första admin
 
 1. Importera GitHub-repot `yahyaSWE/tibb.nu` som ett nytt Vercel-projekt. Välj **Next.js** och **Node.js 24.x**. Behåll standardkommandona för installation och build.
+
+   `vercel.json` anger Next.js, `npm run build` och `.next` även om projektet tidigare har identifierats som **Other**. Projektets **Root Directory** ska vara projektroten (`./`). Om en gammal deployment visar Vercels `404: NOT_FOUND`, publicera den senaste committen på `main`; kör inte bara om en äldre commit utan konfigurationsfilen.
+
 2. Anslut **Turso** via Vercel Marketplace/Storage, eller skapa en libSQL-databas hos Turso och lägg in anslutningen själv. Välj gärna en europeisk databasregion. [Turso-integrationen](https://vercel.com/marketplace/tursocloud/database) använder miljövariablerna `TURSO_DATABASE_URL` och `TURSO_AUTH_TOKEN`.
 3. Lägg in följande under projektets **Settings → Environment Variables**, för **Production**:
 

@@ -7,6 +7,7 @@ import {
   getPractitioner,
   getSettings,
   getTreatment,
+  getUpload,
   getUser,
   getUserByEmail,
   hasCourseAccess,
@@ -26,7 +27,13 @@ export async function assertAdmin(actorId: number) {
 }
 export async function savePractitioner(
   actorId: number,
-  input: { id?: number; name: string; description: string; active: boolean },
+  input: {
+    id?: number;
+    name: string;
+    description: string;
+    active: boolean;
+    photoUploadId?: string | null;
+  },
 ): Promise<number> {
   return transaction(async () => {
     await assertAdmin(actorId);
@@ -36,8 +43,14 @@ export async function savePractitioner(
         name: text(150, 2),
         description: text(6000),
         active: z.boolean(),
+        photoUploadId: z.uuid().nullable().optional(),
       })
       .parse(input);
+    if (value.photoUploadId) {
+      const upload = await getUpload(value.photoUploadId);
+      if (!upload || upload.kind !== "practitioner-photo")
+        throw new DomainError("Välj en uppladdad profilbild.");
+    }
     if (value.id) {
       if (!(await getPractitioner(value.id)))
         throw new DomainError("Behandlaren finns inte.");
@@ -46,15 +59,24 @@ export async function savePractitioner(
           "UPDATE practitioners SET name=?,description=?,active=? WHERE id=?",
         )
         .run(value.name, value.description, value.active ? 1 : 0, value.id);
+      if (value.photoUploadId !== undefined)
+        await getDb()
+          .prepare("UPDATE practitioners SET photo_upload_id=? WHERE id=?")
+          .run(value.photoUploadId, value.id);
       return value.id;
     }
     return Number(
       (
         await getDb()
           .prepare(
-            "INSERT INTO practitioners(name,description,active) VALUES(?,?,?)",
+            "INSERT INTO practitioners(name,description,active,photo_upload_id) VALUES(?,?,?,?)",
           )
-          .run(value.name, value.description, value.active ? 1 : 0)
+          .run(
+            value.name,
+            value.description,
+            value.active ? 1 : 0,
+            value.photoUploadId ?? null,
+          )
       ).lastInsertRowid,
     );
   });
@@ -449,6 +471,7 @@ export async function saveLesson(
     videoUrl: string;
     materialUrl: string;
     position: number;
+    materialUploadIds?: string[];
   },
 ) {
   return await transaction(async () => {
@@ -462,24 +485,52 @@ export async function saveLesson(
         videoUrl: text(2000),
         materialUrl: text(2000),
         position: z.number().int().min(1).max(10000),
+        materialUploadIds: z
+          .array(z.uuid())
+          .max(20, "En lektion får ha högst 20 uppladdade filer.")
+          .optional(),
       })
       .parse(input);
     const video = safeUrl(value.videoUrl),
       material = safeUrl(value.materialUrl);
-    if (!value.body && !video && !material)
-      throw new DomainError(
-        "Lägg till text, en videolänk eller kursmaterial i lektionen.",
-      );
     if (
       !(await getDb()
         .prepare("SELECT id FROM courses WHERE id=?")
         .get(value.courseId))
     )
       throw new DomainError("Kursen finns inte.");
+    const current = value.id ? await getLesson(value.id) : undefined;
+    if (value.id && (!current || current.courseId !== value.courseId))
+      throw new DomainError("Lektionen tillhör inte denna kurs.");
+    const materialIds =
+      value.materialUploadIds === undefined
+        ? (current?.materials.map((upload) => upload.id) ?? [])
+        : [...new Set(value.materialUploadIds)];
+    if (materialIds.length) {
+      const records = await getDb()
+        .prepare(
+          `SELECT id,kind,course_id FROM uploads WHERE id IN (${materialIds.map(() => "?").join(",")})`,
+        )
+        .all(...materialIds);
+      if (
+        records.length !== materialIds.length ||
+        records.some(
+          (record) =>
+            record.kind !== "lesson-material" ||
+            Number(record.course_id) !== value.courseId,
+        )
+      )
+        throw new DomainError(
+          "Välj uppladdat kursmaterial som tillhör den här kursen.",
+        );
+    }
+    if (!value.body && !video && !material && !materialIds.length)
+      throw new DomainError(
+        "Lägg till text, en videolänk eller kursmaterial i lektionen.",
+      );
+    let lessonId: number;
     if (value.id) {
-      const current = await getLesson(value.id);
-      if (!current || current.courseId !== value.courseId)
-        throw new DomainError("Lektionen tillhör inte denna kurs.");
+      lessonId = value.id;
       await getDb()
         .prepare(
           "UPDATE lessons SET title=?,body=?,video_url=?,material_url=?,position=? WHERE id=? AND course_id=?",
@@ -493,8 +544,8 @@ export async function saveLesson(
           value.id,
           value.courseId,
         );
-    } else
-      await getDb()
+    } else {
+      const result = await getDb()
         .prepare(
           "INSERT INTO lessons(course_id,title,body,video_url,material_url,position) VALUES(?,?,?,?,?,?)",
         )
@@ -506,6 +557,19 @@ export async function saveLesson(
           material,
           value.position,
         );
+      lessonId = Number(result.lastInsertRowid);
+    }
+    if (value.materialUploadIds !== undefined) {
+      await getDb()
+        .prepare("DELETE FROM lesson_materials WHERE lesson_id=?")
+        .run(lessonId);
+      if (materialIds.length)
+        await getDb()
+          .prepare(
+            `INSERT INTO lesson_materials(lesson_id,upload_id) VALUES ${materialIds.map(() => "(?,?)").join(",")}`,
+          )
+          .run(...materialIds.flatMap((uploadId) => [lessonId, uploadId]));
+    }
   });
 }
 export async function deleteLesson(

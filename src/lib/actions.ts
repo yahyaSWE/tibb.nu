@@ -210,6 +210,9 @@ export async function savePractitionerAction(form: FormData): Promise<void> {
       name: field(form, "name"),
       description: field(form, "description"),
       active: field(form, "active") === "on",
+      photoUploadId: form.has("photoUploadId")
+        ? field(form, "photoUploadId") || null
+        : undefined,
     });
   });
 }
@@ -431,6 +434,9 @@ export async function saveLessonAction(form: FormData): Promise<void> {
         body: field(form, "body"),
         videoUrl: field(form, "videoUrl"),
         materialUrl: field(form, "materialUrl"),
+        materialUploadIds: form.has("materialUploadIdsPresent")
+          ? form.getAll("materialUploadIds").map(String)
+          : undefined,
         position: Number(field(form, "position")),
       }),
   );

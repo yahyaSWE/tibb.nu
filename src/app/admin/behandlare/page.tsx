@@ -13,6 +13,8 @@ import {
   SectionHeading,
 } from "@/components/admin/common";
 import { SubmitButton } from "@/components/admin/submit-button";
+import { FileUpload } from "@/components/admin/file-upload";
+import { UserRound } from "lucide-react";
 import type { Practitioner } from "@/lib/types";
 
 function PractitionerForm({ practitioner }: { practitioner?: Practitioner }) {
@@ -48,6 +50,19 @@ function PractitionerForm({ practitioner }: { practitioner?: Practitioner }) {
           placeholder="Kort presentation av behandlaren"
         />
       </Field>
+      <div className="practitioner-photo-field">
+        <p className="practitioner-photo-label">Porträttbild (valfritt)</p>
+        <FileUpload
+          kind="practitioner-photo"
+          inputName="photoUploadId"
+          currentFiles={practitioner?.photo ? [practitioner.photo] : []}
+          multiple={false}
+        />
+        <p className="practitioner-photo-help">
+          Bilden visas när kunden väljer behandlare. Spara ändringarna för att
+          uppdatera eller ta bort den.
+        </p>
+      </div>
       <label className="form-check">
         <input
           type="checkbox"
@@ -89,6 +104,20 @@ export default async function PractitionersPage({
               {practitioners.map((person) => (
                 <details className="panel lesson-card" key={person.id}>
                   <summary>
+                    <span className="practitioner-admin-avatar">
+                      {person.photoUrl ? (
+                        <img
+                          src={person.photoUrl}
+                          alt={person.name}
+                          width={48}
+                          height={48}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <UserRound size={20} aria-hidden="true" />
+                      )}
+                    </span>
                     <strong>{person.name}</strong>
                     <span
                       className={`badge ${person.active ? "badge-green" : ""}`}
@@ -138,7 +167,7 @@ export default async function PractitionersPage({
             title="Ny behandlare"
             description="Lägg till personen här och publicera sedan tider i personens schema."
           />
-          <PractitionerForm />
+          <PractitionerForm key={`new-practitioner-${practitioners.length}`} />
         </section>
       </div>
     </>

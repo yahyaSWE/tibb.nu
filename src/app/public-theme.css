@@ -248,11 +248,19 @@
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   color: var(--green);
   background: #d6dfcb;
+  overflow: hidden;
+}
+.inner-page .practitioner-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
 }
 .inner-page .practitioner-copy {
   display: flex;
@@ -266,6 +274,7 @@
   font-weight: 400;
   font-size: 25px;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 .inner-page .practitioner-copy > span {
   font-size: 12px;

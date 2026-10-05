@@ -1,3 +1,42 @@
+.admin-shell .practitioner-admin-avatar {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--sage);
+  color: var(--green);
+}
+.admin-shell .practitioner-admin-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-shell .practitioner-admin-avatar + strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-shell .practitioner-photo-field {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+.admin-shell .practitioner-photo-label {
+  margin-bottom: 12px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 550;
+}
+.admin-shell .practitioner-photo-help {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
 .admin-shell .admin-brand {
   margin-bottom: 35px;
   align-items: flex-start;

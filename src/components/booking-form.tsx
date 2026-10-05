@@ -137,8 +137,23 @@ export function BookingForm({
                   ).length;
                   return (
                     <label className="practitioner-option" key={person.id}>
-                      <span className="practitioner-avatar" aria-hidden="true">
-                        <UserRound size={22} strokeWidth={1.4} />
+                      <span className="practitioner-avatar">
+                        {person.photoUrl ? (
+                          <img
+                            src={person.photoUrl}
+                            alt={person.name}
+                            width={64}
+                            height={64}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <UserRound
+                            size={26}
+                            strokeWidth={1.4}
+                            aria-hidden="true"
+                          />
+                        )}
                       </span>
                       <span className="practitioner-copy">
                         <strong>{person.name}</strong>

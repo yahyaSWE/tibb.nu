@@ -10,6 +10,8 @@ import type {
   Slot,
   Treatment,
   User,
+  UploadedMaterial,
+  UploadRecord,
 } from "./types";
 export type {
   Article,
@@ -22,6 +24,9 @@ export type {
   Slot,
   Treatment,
   User,
+  UploadedMaterial,
+  UploadRecord,
+  UploadKind,
 } from "./types";
 export class DomainError extends Error {}
 export {
@@ -56,13 +61,35 @@ function treatment(row: Row): Treatment {
   };
 }
 function practitioner(row: Row): Practitioner {
+  const photo = row.upload_id
+    ? uploadedMaterial({
+        id: row.upload_id,
+        filename: row.upload_filename,
+        content_type: row.upload_content_type,
+        size: row.upload_size,
+      })
+    : null;
   return {
     id: integer(row.id),
     name: str(row.name),
     description: str(row.description),
     active: !!row.active,
+    photoUrl: photo?.url ?? null,
+    photo,
   };
 }
+function uploadedMaterial(row: Row): UploadedMaterial {
+  const id = str(row.id);
+  return {
+    id,
+    name: str(row.filename),
+    contentType: str(row.content_type),
+    size: integer(row.size),
+    url: `/api/uploads/${id}`,
+  };
+}
+const PRACTITIONER_SELECT =
+  "SELECT p.*,u.id AS upload_id,u.filename AS upload_filename,u.content_type AS upload_content_type,u.size AS upload_size FROM practitioners p LEFT JOIN uploads u ON u.id=p.photo_upload_id AND u.kind='practitioner-photo'";
 function user(row: Row): User {
   return {
     id: integer(row.id),
@@ -96,7 +123,7 @@ function course(row: Row): Course {
     updatedAt: str(row.updated_at),
   };
 }
-function lesson(row: Row): Lesson {
+function lesson(row: Row, materials: UploadedMaterial[] = []): Lesson {
   return {
     id: integer(row.id),
     courseId: integer(row.course_id),
@@ -104,6 +131,7 @@ function lesson(row: Row): Lesson {
     body: str(row.body),
     videoUrl: str(row.video_url),
     materialUrl: str(row.material_url),
+    materials,
     position: integer(row.position),
   };
 }
@@ -152,7 +180,7 @@ export async function getPractitioners(
   return (
     await getDb()
       .prepare(
-        `SELECT * FROM practitioners ${options.activeOnly ? "WHERE active=1" : ""} ORDER BY id`,
+        `${PRACTITIONER_SELECT} ${options.activeOnly ? "WHERE p.active=1" : ""} ORDER BY p.id`,
       )
       .all()
   ).map(practitioner);
@@ -161,7 +189,7 @@ export async function getPractitioner(
   id: number,
 ): Promise<Practitioner | undefined> {
   const row = await getDb()
-    .prepare("SELECT * FROM practitioners WHERE id=?")
+    .prepare(`${PRACTITIONER_SELECT} WHERE p.id=?`)
     .get(id);
   return row ? practitioner(row) : undefined;
 }
@@ -314,15 +342,50 @@ export async function getCourseById(id: number) {
   return row ? course(row) : undefined;
 }
 export async function getLessons(courseId: number) {
-  return (
-    await getDb()
+  const [rows, materials] = await Promise.all([
+    getDb()
       .prepare("SELECT * FROM lessons WHERE course_id=? ORDER BY position,id")
-      .all(courseId)
-  ).map(lesson);
+      .all(courseId),
+    getDb()
+      .prepare(
+        "SELECT m.lesson_id,u.id,u.filename,u.content_type,u.size FROM lesson_materials m JOIN lessons l ON l.id=m.lesson_id JOIN uploads u ON u.id=m.upload_id WHERE l.course_id=? ORDER BY u.created_at,u.id",
+      )
+      .all(courseId),
+  ]);
+  const byLesson = new Map<number, UploadedMaterial[]>();
+  for (const material of materials) {
+    const lessonId = integer(material.lesson_id);
+    const list = byLesson.get(lessonId) ?? [];
+    list.push(uploadedMaterial(material));
+    byLesson.set(lessonId, list);
+  }
+  return rows.map((row) => lesson(row, byLesson.get(integer(row.id)) ?? []));
 }
 export async function getLesson(id: number) {
   const row = await getDb().prepare("SELECT * FROM lessons WHERE id=?").get(id);
-  return row ? lesson(row) : undefined;
+  if (!row) return undefined;
+  const materials = await getDb()
+    .prepare(
+      "SELECT u.id,u.filename,u.content_type,u.size FROM lesson_materials m JOIN uploads u ON u.id=m.upload_id WHERE m.lesson_id=? ORDER BY u.created_at,u.id",
+    )
+    .all(id);
+  return lesson(row, materials.map(uploadedMaterial));
+}
+export async function getUpload(id: string): Promise<UploadRecord | undefined> {
+  const row = await getDb().prepare("SELECT * FROM uploads WHERE id=?").get(id);
+  if (!row) return undefined;
+  return {
+    id: str(row.id),
+    kind: row.kind as UploadRecord["kind"],
+    filename: str(row.filename),
+    contentType: str(row.content_type),
+    size: integer(row.size),
+    storagePath: str(row.storage_path),
+    storageProvider: row.storage_provider as UploadRecord["storageProvider"],
+    uploaderId: integer(row.uploader_id),
+    courseId: row.course_id == null ? null : integer(row.course_id),
+    createdAt: str(row.created_at),
+  };
 }
 export async function getUsers() {
   return (

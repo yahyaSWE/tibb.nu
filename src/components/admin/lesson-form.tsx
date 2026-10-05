@@ -2,6 +2,7 @@ import { saveLessonAction } from "@/lib/actions";
 import type { Lesson } from "@/lib/types";
 import { Field, ReturnTo } from "./common";
 import { SubmitButton } from "./submit-button";
+import { FileUpload } from "./file-upload";
 
 export function LessonForm({
   lesson,
@@ -50,7 +51,7 @@ export function LessonForm({
       <Field
         label="Lektionstext"
         name={`${prefix}-body`}
-        help="Du kan kombinera text med video och material. Minst en av dem behövs."
+        help="Du kan kombinera text, video och material. En lektion kan också bestå enbart av uppladdade filer."
       >
         <textarea
           id={`${prefix}-body`}
@@ -75,10 +76,18 @@ export function LessonForm({
           placeholder="https://…"
         />
       </Field>
+      <FileUpload
+        key={lesson ? `lesson-${lesson.id}` : `new-lesson-${position}`}
+        kind="lesson-material"
+        inputName="materialUploadIds"
+        courseId={courseId}
+        currentFiles={lesson?.materials || []}
+        multiple
+      />
       <Field
         label="Länk till kursmaterial"
         name={`${prefix}-materialUrl`}
-        help="Till exempel ett arbetsblad eller en PDF på en säker webbadress."
+        help="Valfritt alternativ eller komplement till uppladdade filer: ett arbetsblad eller annat material på en säker webbadress."
       >
         <input
           id={`${prefix}-materialUrl`}

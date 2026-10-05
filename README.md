@@ -47,6 +47,18 @@ npm run dev
 
 Öppna http://localhost:3000. En `.env.local` med en slumpmässig konfigurationstoken finns redan i den här arbetsmappen och är undantagen från Git. Vid en ny installation kopierar du `.env.example` till `.env.local` och fyller i `APP_URL`.
 
+## Fillagring för bilder och kursmaterial
+
+På Vercel behöver uppladdningar **privat Vercel Blob-lagring** så att filerna finns kvar efter nya publiceringar. Under projektets **Storage → Create Storage → Blob** väljer du **Private**, ett namn och region, gärna Stockholm. Anslut lagringen till projektets Production och önskade Preview-miljöer. Kör sedan en ny publicering.
+
+Anslutningen skapar `BLOB_STORE_ID` och `BLOB_WEBHOOK_PUBLIC_KEY`. Båda behövs för uppladdningar; Vercel tillhandahåller automatiskt den tillfälliga OIDC-åtkomsten. En separat read-write-token behöver inte skapas. Om appen körs utanför Vercel och ska använda Blob kan `BLOB_READ_WRITE_TOKEN` användas tillsammans med `BLOB_WEBHOOK_PUBLIC_KEY`. Dessa servervariabler ska aldrig ha prefixet `NEXT_PUBLIC_`. Se [privat Blob-lagring](https://vercel.com/docs/vercel-blob/private-storage) och [Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk).
+
+Lokalt sparas filerna på beständig disk i `data/uploads`, eller sökvägen i `TIBB_UPLOAD_DIR`. Säkerhetskopiera både filerna och databasen. Lokala filer följer inte med en Git-push till Vercel.
+
+Behandlarbilder kan vara JPG, PNG eller WebP, högst **2 MB**. Appen skalar bilden till högst 600 × 600 pixlar och tar bort bildmetadata. Kursfiler kan vara **PDF, DOC eller DOCX**, högst **20 MB per fil** och 20 filer per lektion. Filen laddas upp när du väljer den; kopplingen till behandlaren eller lektionen sparas när du skickar formuläret. Borttagning i formuläret tar bort kopplingen när du sparar.
+
+Kursfiler hämtas genom appen efter en behörighetskontroll. En elev måste ha tillgång till den publicerade kursen och filen måste fortfarande vara kopplad till en lektion. Indragen tillgång eller avpublicering stoppar nya nedladdningar. Aktiva behandlarbilder visas på bokningssidan.
+
 ## Skapa ditt administratörskonto
 
 För **lokal utveckling**: kör följande i en separat terminal i projektmappen och ange ditt namn, din e-postadress och ett lösenord med minst 12 tecken. Lösenordet döljs när du skriver. På Vercel använder du webbsidan `/setup` enligt guiden ovan.
@@ -60,16 +72,16 @@ Logga sedan in på `/logga-in` och öppna `/admin`. Det finns inga förinställd
 ## Arbeta i admin
 
 - **Behandlingar:** skapa och ändra namn, beskrivning, längd och pris. Aktivera en behandling för att visa den på bokningssidan. Startbehandlingarna är inaktiva exempel.
-- **Behandlare:** lägg till namn och presentation för varje behandlare. Befintliga tider och bokningar kopplas vid uppgraderingen till behandlaren **Tibb.nu**, vars namn du kan ändra. Inaktiva behandlare visas inte för kunder; deras bokningar och historik behålls.
+- **Behandlare:** lägg till namn, presentation och en valfri bild för varje behandlare. Bilden visas när kunden väljer behandlare; välj **Ta bort** och spara för att dölja den. Befintliga tider och bokningar kopplas vid uppgraderingen till behandlaren **Tibb.nu**, vars namn du kan ändra. Inaktiva behandlare visas inte för kunder; deras bokningar och historik behålls.
 - **Tillgängliga tider:** välj behandling, behandlare, datumperiod, veckodagar och arbetstider. Tider skapas automatiskt utifrån behandlingens längd, med plats för återkommande raster. Du kan publicera upp till 90 dagar åt gången; nya perioder läggs till vid behov. Befintliga tider och bokningar dubbleras inte. Enstaka tider kan fortfarande läggas till separat. Varje behandlare har sitt eget schema och dubbelbokningsskydd.
 - **Raster och ledighet:** spärra hela dagar eller ett sammanhängande tidsintervall för en behandlare eller för alla. Spärrade tider går inte att boka, även från ett äldre öppet bokningsformulär. Ta bort spärren för att återöppna de publicerade tiderna. En spärr som överlappar en befintlig bokning avvisas; hantera bokningen först. Att ta bort en publicerad period tar bara bort dess framtida lediga tider och bevarar bokningshistoriken. Alla tider hanteras i Europe/Stockholm, även vid sommartid.
 - **Bokningar:** se kontaktuppgifter och betalningsstatus, hantera besöksstatus och avbokningar. Bokningens namn, längd och pris sparas separat så att senare prisändringar inte ändrar befintliga bokningar.
 - **Artiklar:** skriv titel, ingress och brödtext. Spara utkast eller publicera. Publicerade artiklar visas direkt på webbplatsen.
-- **Kurser:** skapa kursinformation och lägg till ordnade lektioner med text, video och länkar till material. Förhandsgranska i elevportalen och publicera när kursen är klar. Startkursen och startartikeln är utkast.
+- **Kurser:** skapa kursinformation och lägg till ordnade lektioner med text, video och material. Välj **Ladda upp PDF eller Word** för att bifoga filer direkt; externa materiallänkar fungerar också. En lektion kan bestå enbart av uppladdat material. Eleverna kan ladda ned filerna i elevportalen. Förhandsgranska där och publicera när kursen är klar. Startkursen och startartikeln är utkast.
 - **Elever:** eleven skapar sitt konto på `/registrera`. Tilldela en kurs med elevens e-postadress. Återkallad tillgång stoppar åtkomst men bevarar framsteg om du senare tilldelar kursen igen.
 - **Inställningar:** ändra namn, kontaktuppgifter, plats och betalningsalternativ.
 
-Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken. Bilder, filuppladdning och avancerade quiz är inte implementerade i kursbyggaren.
+Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken. Avancerade quiz och bilder i lektionstexten är inte implementerade i kursbyggaren.
 
 På bokningssidan visas lediga dagar i en månadskalender för vald behandling och behandlare. Kunden väljer datum och ser sedan bara den dagens klockslag. Det går att bläddra mellan månader eller välja månad direkt. Vald behandlare visas även på bokningsbekräftelsen.
 

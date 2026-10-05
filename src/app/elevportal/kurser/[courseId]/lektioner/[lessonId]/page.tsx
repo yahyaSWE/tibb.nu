@@ -116,7 +116,7 @@ export default async function LessonPage({
           )}
           <LessonVideo url={lesson.videoUrl} />
           <TextContent text={lesson.body} />
-          <LessonMaterial url={lesson.materialUrl} />
+          <LessonMaterial url={lesson.materialUrl} files={lesson.materials} />
           <div className="lesson-completion panel">
             {isComplete ? (
               <>

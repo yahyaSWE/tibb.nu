@@ -91,6 +91,24 @@ export class DatabaseAdapter {
       const tx = await client.transaction("write");
       try {
         await tx.executeMultiple(SCHEMA);
+        const uploadRequestColumns = await tx.execute(
+          "PRAGMA table_info(upload_requests)",
+        );
+        if (!uploadRequestColumns.rows.some((row) => row.name === "completing"))
+          await tx.execute(
+            "ALTER TABLE upload_requests ADD COLUMN completing INTEGER NOT NULL DEFAULT 0 CHECK(completing IN (0,1))",
+          );
+        const practitionerColumns = await tx.execute(
+          "PRAGMA table_info(practitioners)",
+        );
+        if (
+          !practitionerColumns.rows.some(
+            (row) => row.name === "photo_upload_id",
+          )
+        )
+          await tx.execute(
+            "ALTER TABLE practitioners ADD COLUMN photo_upload_id TEXT REFERENCES uploads(id)",
+          );
         const columns = await tx.execute("PRAGMA table_info(slots)");
         if (!columns.rows.some((row) => row.name === "archived"))
           await tx.execute(

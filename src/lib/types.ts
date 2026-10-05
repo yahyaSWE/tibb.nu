@@ -18,6 +18,30 @@ export type Practitioner = {
   name: string;
   description: string;
   active: boolean;
+  photoUrl: string | null;
+  photo: UploadedMaterial | null;
+};
+export type UploadKind = "practitioner-photo" | "lesson-material";
+export type UploadedMaterial = {
+  id: string;
+  name: string;
+  size: number;
+  contentType: string;
+  url: string;
+};
+// Internal metadata for authenticated storage routes; never serialize this
+// record to a public page or a browser response.
+export type UploadRecord = {
+  id: string;
+  kind: UploadKind;
+  filename: string;
+  contentType: string;
+  size: number;
+  storagePath: string;
+  storageProvider: "local" | "blob";
+  uploaderId: number;
+  courseId: number | null;
+  createdAt: string;
 };
 export type Slot = {
   id: number;
@@ -119,6 +143,7 @@ export type Lesson = {
   body: string;
   videoUrl: string;
   materialUrl: string;
+  materials: UploadedMaterial[];
   position: number;
 };
 export type Enrollment = {

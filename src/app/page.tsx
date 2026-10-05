@@ -5,7 +5,6 @@ import {
   ArrowUpRight,
   BookOpen,
   CalendarDays,
-  HeartHandshake,
   Leaf,
   MoveUpRight,
   Sprout,
@@ -24,17 +23,7 @@ export default async function HomePage() {
     <>
       <section className="home-hero container">
         <div className="hero-copy">
-          <span className="eyebrow">
-            <span className="tiny-leaf">
-              <Leaf size={14} />
-            </span>{" "}
-            TRADITION, KUNSKAP & OMTANKE
-          </span>
-          <h1>
-            En väg till balans.
-            <br />
-            En stund för <em>dig.</em>
-          </h1>
+          <h1>Traditionell medicin och behandlingar</h1>
           <p className="hero-intro">
             Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.
           </p>
@@ -50,16 +39,6 @@ export default async function HomePage() {
               Utforska våra kurser <ArrowRight size={17} />
             </Link>
           </div>
-          <div className="hero-footnote">
-            <span className="mini-olive">
-              <Sprout size={20} strokeWidth={1.3} />
-            </span>
-            <span>
-              Med rötter i det förflutna.
-              <br />
-              <strong>Med omtanke om nuet.</strong>
-            </span>
-          </div>
         </div>
         <div className="hero-image-wrap">
           <Image
@@ -70,35 +49,6 @@ export default async function HomePage() {
             sizes="(max-width: 760px) 100vw, 50vw"
             className="hero-image"
           />
-          <span className="image-caption">
-            <span className="caption-line" /> INSPIRERAD AV OLIVTRÄDET
-          </span>
-          <div className="hero-image-seal">
-            <Leaf size={23} strokeWidth={1.1} />
-            <span>
-              Kunskap
-              <br />
-              som får växa
-            </span>
-          </div>
-        </div>
-      </section>
-      <section className="values-strip">
-        <div className="container values-inner">
-          <div>
-            <Sprout />
-            <span>Rotad i tradition</span>
-          </div>
-          <span className="strip-divider" />
-          <div>
-            <HeartHandshake />
-            <span>Omtanke om hela människan</span>
-          </div>
-          <span className="strip-divider" />
-          <div>
-            <BookOpen />
-            <span>Kunskap för livet</span>
-          </div>
         </div>
       </section>
       <section className="section container paths-section">
@@ -292,7 +242,7 @@ export default async function HomePage() {
       <section className="visit-cta container">
         <div>
           <span className="eyebrow">ETT FÖRSTA STEG</span>
-          <h2>Ta en stund för dig själv.</h2>
+          <h2>Boka behandling</h2>
           <p>Se våra behandlingar och hitta en tid för ett personligt möte.</p>
         </div>
         <Link href="/boka" className="button button-primary">

@@ -160,9 +160,7 @@ export function SiteChrome({
           <div className="footer-note">
             <Leaf size={24} strokeWidth={1.2} />
             <p>
-              Rotad i tradition.
-              <br />
-              Med människan i centrum.
+              Traditionell kinesisk medicin i ljuset av profetisk medicin
             </p>
           </div>
         </div>

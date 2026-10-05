@@ -1,14 +1,15 @@
 :root {
-  --paper: #faf9f5;
-  --ivory: #f1efe7;
-  --sage: #e6e9dd;
-  --green: #354632;
-  --deep: #263924;
-  --olive: #687153;
-  --ink: #2e382c;
-  --muted: #77796f;
-  --line: #e0e2d7;
-  --sand: #ded3bd;
+  --paper: #f8f5ee;
+  --ivory: #f0eee5;
+  --sage: #e4ebdf;
+  --green: #36594d;
+  --deep: #243f35;
+  --olive: #587453;
+  --ink: #294336;
+  --muted: #61705f;
+  --line: #d4dfcc;
+  --sand: #e4d4bf;
+  --peach: #e8bea1;
   --serif: var(--font-serif, "Cormorant Garamond", Georgia, serif);
   --sans: var(--font-sans, "DM Sans", Arial, sans-serif);
 }
@@ -161,9 +162,9 @@ button {
   gap: 12px;
   min-height: 48px;
   border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 13px 21px;
-  font-size: 12px;
+  border-radius: 50px;
+  padding: 14px 22px;
+  font-size: 13px;
   font-weight: 550;
   line-height: 1.5;
   transition:
@@ -261,9 +262,10 @@ button {
   max-width: 650px;
 }
 .panel {
+  min-width: 0;
   border: 1px solid var(--line);
-  background: #fffefa;
-  border-radius: 8px;
+  background: #fffdf7;
+  border-radius: 22px;
   padding: 28px;
 }
 .panel h2,
@@ -273,10 +275,10 @@ button {
 .empty-state {
   text-align: center;
   padding: 45px 24px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
   color: var(--muted);
-  background: #f6f6f0;
+  background: var(--sage);
 }
 .empty-state > svg {
   width: 32px;
@@ -295,7 +297,7 @@ button {
 .notice {
   border: 1px solid #d6dfcb;
   background: #eef2e6;
-  border-radius: 5px;
+  border-radius: 12px;
   color: #48603c;
   padding: 13px 17px;
   font-size: 13px;
@@ -334,10 +336,10 @@ input.field,
 select.field,
 textarea.field {
   width: 100%;
-  min-height: 45px;
-  border: 1px solid #dce0d2;
-  background: #fffefa;
-  border-radius: 5px;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  background: #fffdf7;
+  border-radius: 12px;
   padding: 10px 12px;
   outline: none;
   color: var(--ink);
@@ -351,7 +353,7 @@ textarea.field {
 .field textarea:focus,
 .field select:focus {
   border-color: var(--olive);
-  box-shadow: 0 0 0 3px #68715315;
+  box-shadow: 0 0 0 3px #36594d20;
 }
 .field small {
   color: var(--muted);

@@ -304,6 +304,212 @@
   }
 }
 
+/* Administration uses the public palette with compact, readable work surfaces. */
+.admin-shell {
+  background: var(--paper);
+}
+
+.admin-shell .admin-sidebar {
+  background: var(--deep);
+  color: #e1e9dc;
+}
+
+.admin-shell .admin-brand,
+.admin-shell .admin-user {
+  color: var(--paper);
+}
+
+.admin-shell .admin-brand :is(.brand-dot, small),
+.admin-shell .admin-user small {
+  color: var(--peach);
+}
+
+.admin-shell .admin-nav-link {
+  color: #d2ddcc;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.admin-shell .admin-nav-link:hover {
+  background: #f8f5ee15;
+  color: var(--paper);
+}
+
+.admin-shell .admin-nav-link.active {
+  background: var(--peach);
+  color: var(--deep);
+}
+
+.admin-shell .admin-sidebar-footer {
+  border-color: #d2ddcc30;
+}
+
+.admin-shell .admin-sidebar-footer button {
+  padding: 9px 12px;
+  color: #d2ddcc;
+}
+
+.admin-shell .avatar-initial {
+  background: var(--green);
+  color: var(--peach);
+}
+
+.admin-shell .admin-sidebar :focus-visible {
+  outline-color: var(--peach);
+}
+
+.admin-shell .admin-heading {
+  background: var(--green);
+  background-image: radial-gradient(ellipse at 100% 10%, #90a48a35, transparent 65%);
+  border-radius: 24px;
+  color: var(--paper);
+  padding: 30px 34px;
+}
+
+.admin-shell .admin-heading .eyebrow {
+  color: var(--peach);
+}
+
+.admin-shell .admin-heading > div {
+  min-width: 0;
+}
+
+.admin-shell .admin-heading h1 {
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .admin-heading :is(.text-link, .back-link) {
+  color: var(--peach);
+}
+
+.admin-shell .admin-heading p {
+  color: #e1e9dc;
+  font-size: 13px;
+}
+
+.admin-shell .admin-heading .button-primary {
+  background: var(--peach);
+  color: var(--deep);
+}
+
+.admin-shell .admin-heading .button-primary:hover {
+  background: #f1cfb8;
+}
+
+.admin-shell .admin-heading .button-secondary {
+  color: var(--paper);
+  border-color: #f8f5ee50;
+}
+
+.admin-shell .admin-heading .button-secondary:hover {
+  background: #f8f5ee15;
+}
+
+.admin-shell .admin-heading :focus-visible {
+  outline-color: var(--peach);
+}
+
+.admin-shell .stat-card {
+  background: var(--sage);
+  border: 1px solid transparent;
+  border-radius: 20px;
+}
+
+.admin-shell .stat-card:nth-child(2) {
+  background: #efdfd0;
+}
+
+.admin-shell .stat-card:nth-child(3) {
+  background: #d5e3d8;
+}
+
+.admin-shell .stat-card-top {
+  font-size: 12px;
+}
+
+.admin-shell .stat-card > small {
+  font-size: 11px;
+}
+
+.admin-shell .stat-card:hover {
+  border-color: var(--olive);
+  box-shadow: 0 6px 18px #243f3510;
+}
+
+.admin-shell .panel {
+  background: #fffdf7;
+  border-radius: 22px;
+}
+
+.admin-shell .data-table th {
+  background: var(--sage);
+  color: var(--deep);
+  font-size: 11px;
+}
+
+.admin-shell .data-table td {
+  border-color: var(--line);
+}
+
+.admin-shell .data-table input,
+.admin-shell .data-table select {
+  border-radius: 9px;
+}
+
+.admin-shell .badge,
+.admin-shell .delete-button {
+  border-radius: 50px;
+}
+
+.admin-shell .quick-actions strong {
+  font-size: 13px;
+}
+
+.admin-shell .quick-actions small,
+.admin-shell .table-description {
+  font-size: 12px;
+}
+
+.admin-shell .admin-tip,
+.admin-shell .credential-status,
+.admin-shell .admin-starter-note {
+  border-color: var(--line);
+  background: var(--sage);
+  border-radius: 16px;
+}
+
+.admin-shell .admin-tip strong {
+  color: var(--green);
+}
+
+.admin-shell .admin-tip p,
+.admin-shell .admin-starter-note p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-shell .lesson-card {
+  border-radius: 16px;
+}
+
+.admin-shell .lesson-card[open] summary {
+  background: var(--sage);
+}
+
+.admin-shell .lesson-number {
+  background: var(--green);
+  color: var(--paper);
+  border-color: var(--green);
+}
+
+.admin-shell .payment-option {
+  border-radius: 16px;
+}
+
+.admin-shell .field :is(input, select, textarea) {
+  font-size: 14px;
+}
+
 @media (max-width: 1200px) {
   .admin-shell .dashboard-grid {
     grid-template-columns: 1fr;
@@ -394,5 +600,21 @@
     font-size: 10px;
     min-height: 33px;
     padding: 7px 10px;
+  }
+  .admin-shell .admin-heading {
+    padding: 26px;
+    border-radius: 22px;
+  }
+  .admin-shell .admin-nav-link {
+    font-size: 11px;
+  }
+  .admin-shell .stat-card-top {
+    font-size: 11px;
+  }
+  .admin-shell .stat-card > small {
+    font-size: 10px;
+  }
+  .admin-shell .admin-brand small {
+    margin-left: 10px;
   }
 }

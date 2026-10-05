@@ -113,14 +113,15 @@
   margin-top: 35px;
 }
 .course-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   color: inherit;
   text-decoration: none;
   border: 1px solid var(--line, #dedfd3);
-  border-radius: 8px;
+  border-radius: 22px;
   overflow: hidden;
-  background: #fff;
+  background: #fffdf7;
   transition:
     transform 0.2s,
     border-color 0.2s;
@@ -138,16 +139,16 @@
   overflow: hidden;
 }
 .course-art-0 {
-  background: #e4e8da;
-  color: #506139;
+  background: var(--green);
+  color: var(--paper);
 }
 .course-art-1 {
-  background: #edddc1;
-  color: #816842;
+  background: var(--peach);
+  color: var(--deep);
 }
 .course-art-2 {
-  background: #d5ddd3;
-  color: #496954;
+  background: var(--sage);
+  color: var(--green);
 }
 .course-art > svg {
   z-index: 1;
@@ -180,7 +181,8 @@
   gap: 6px;
   background: rgba(255, 255, 255, 0.72);
   padding: 6px 9px;
-  border-radius: 3px;
+  border-radius: 50px;
+  color: var(--deep);
   font-size: 10px;
 }
 .course-card-body {
@@ -194,8 +196,9 @@
   margin: 0 0 10px;
 }
 .course-card h3 {
+  overflow-wrap: anywhere;
   font-family: var(--font-serif, Georgia), serif;
-  font-size: 25px;
+  font-size: 29px;
   line-height: 1.25;
   font-weight: 400;
   margin: 0 0 13px;
@@ -232,14 +235,14 @@
 }
 .progress-track {
   height: 5px;
-  background: #e9ecdf;
+  background: var(--sage);
   border-radius: 9px;
   overflow: hidden;
 }
 .progress-track > span {
   display: block;
   height: 100%;
-  background: var(--olive, #5d693e);
+  background: var(--green);
   border-radius: 9px;
   transition: width 0.2s;
 }
@@ -336,9 +339,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #e4e8da;
-  color: #506139;
-  border-radius: 4px;
+  background: var(--green);
+  color: var(--peach);
+  border-radius: 16px;
   margin-bottom: 25px;
 }
 .course-enrollment > .eyebrow {
@@ -407,11 +410,12 @@
   padding-bottom: 85px !important;
 }
 .article-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line, #dedfd3);
-  background: #fff;
-  border-radius: 7px;
+  background: #fffdf7;
+  border-radius: 22px;
   overflow: hidden;
   text-decoration: none;
   color: inherit;
@@ -437,16 +441,16 @@
   letter-spacing: 0.2em;
 }
 .article-art-olive {
-  background: #e1e5d3;
-  color: #606c42;
+  background: var(--green);
+  color: var(--paper);
 }
 .article-art-sand {
-  background: #eddfc8;
-  color: #89744f;
+  background: var(--peach);
+  color: var(--deep);
 }
 .article-art-sage {
-  background: #dde6de;
-  color: #526c58;
+  background: var(--sage);
+  color: var(--green);
 }
 .article-card-body {
   padding: 25px;
@@ -459,8 +463,9 @@
   margin: 0 0 13px;
 }
 .article-card h3 {
+  overflow-wrap: anywhere;
   font-family: var(--font-serif, Georgia), serif;
-  font-size: 25px;
+  font-size: 29px;
   font-weight: 400;
   line-height: 1.3;
   margin: 0 0 14px;
@@ -505,14 +510,14 @@
 }
 .article-detail-art {
   height: 260px;
-  background: #e4e8da;
-  color: #637346;
+  background: var(--sage);
+  color: var(--green);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 20px;
-  border-radius: 5px;
+  border-radius: 22px;
   margin: 40px 0;
 }
 .article-detail-art > span {
@@ -604,7 +609,7 @@
 }
 .portal-shell {
   min-height: 100vh;
-  background: #f7f8f2;
+  background: var(--paper);
   color: var(--ink, #263024);
   display: flex;
   flex-direction: column;
@@ -772,7 +777,9 @@
   list-style: none;
   padding: 0;
   border-top: 1px solid var(--line, #dedfd3);
-  background: #fff;
+  background: #fffdf7;
+  border-radius: 18px;
+  overflow: hidden;
 }
 .portal-lesson-list li {
   border-bottom: 1px solid var(--line, #dedfd3);
@@ -853,7 +860,7 @@
   padding: 12px 10px;
   font-size: 12px;
   line-height: 1.5;
-  border-radius: 4px;
+  border-radius: 12px;
 }
 .lesson-sidebar nav > a.active {
   background: #edf1e3;
@@ -889,7 +896,7 @@
   aspect-ratio: 16/9;
   width: 100%;
   margin: 25px 0 32px;
-  border-radius: 7px;
+  border-radius: 18px;
   overflow: hidden;
   background: #e4e8da;
 }
@@ -930,7 +937,7 @@
   font-size: 11px;
 }
 .lesson-completion {
-  background: #eef2e5 !important;
+  background: var(--sage) !important;
   padding: 25px !important;
   margin-top: 40px;
   display: flex;
@@ -1231,4 +1238,275 @@
 }
 .course-detail .prose {
   max-width: 670px;
+}
+
+/* Public learning pages share the forest, sage and warm cream palette. */
+.inner-page .learning-hero,
+.inner-page .journal-heading,
+.inner-page .auth-layout {
+  background: var(--green);
+  background-image: radial-gradient(ellipse at 95% 15%, #90a48a35, transparent 65%);
+  border: 0;
+  border-radius: 26px;
+  color: var(--paper);
+  padding: 48px !important;
+  margin-block: 48px;
+}
+
+.inner-page .learning-hero {
+  gap: 48px;
+}
+
+.inner-page :is(.learning-hero, .journal-heading, .auth-intro) .eyebrow {
+  color: #d3dec6;
+}
+
+.inner-page :is(.learning-hero, .journal-heading, .auth-intro) .page-title em {
+  color: var(--peach);
+}
+
+.inner-page :is(.learning-hero, .journal-heading, .auth-intro) .lead {
+  color: #e1e9dc;
+}
+
+.inner-page .learning-hero .button {
+  background: var(--peach);
+  color: var(--deep);
+}
+
+.inner-page .learning-hero .button:hover {
+  background: #f1cfb8;
+}
+
+.inner-page :is(.learning-hero, .journal-heading) :focus-visible {
+  outline-color: var(--peach);
+}
+
+.inner-page .learning-hero-visual {
+  background: var(--sage);
+  color: var(--green);
+  min-height: 350px;
+  border-radius: 180px 180px 18px 18px;
+}
+
+.inner-page .learning-hero-visual > p {
+  color: var(--green);
+  font-size: 30px;
+}
+
+.inner-page .learning-values {
+  border: 0;
+  background: var(--sage);
+  border-radius: 22px;
+  padding: 28px 34px !important;
+}
+
+.inner-page .journal-heading {
+  padding-right: 170px !important;
+}
+
+.inner-page .journal-heading-sprout {
+  color: var(--peach);
+  right: 42px;
+  bottom: 60px;
+}
+
+.inner-page .auth-layout {
+  gap: 48px;
+  min-height: 560px;
+}
+
+.inner-page .auth-card {
+  color: var(--ink);
+  border: 0;
+  box-shadow: 0 15px 35px #1e342b20;
+}
+
+.inner-page .auth-leaf {
+  color: var(--peach);
+}
+
+.inner-page .course-detail-grid > div:first-child > .eyebrow {
+  background: var(--sage);
+  border-radius: 50px;
+  padding: 7px 13px;
+}
+
+.inner-page .course-detail-meta {
+  background: var(--sage);
+  padding: 20px;
+  border: 0;
+  border-radius: 16px;
+}
+
+.inner-page .course-outline li {
+  padding: 21px 18px;
+  background: #fffdf7;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 10px;
+}
+
+.inner-page .article-detail-header {
+  background: var(--green);
+  color: var(--paper);
+  padding: 36px;
+  border-radius: 22px;
+}
+
+.inner-page .article-detail-header .eyebrow {
+  color: var(--peach);
+}
+
+.inner-page .article-detail-header > .lead {
+  color: #e1e9dc;
+}
+
+/* The portal keeps a quiet reading surface framed by the same green chrome. */
+.portal-shell .portal-header,
+.portal-shell .portal-nav {
+  background: var(--green);
+  color: var(--paper);
+  border-color: #f8f5ee25;
+}
+
+.portal-shell .portal-brand,
+.portal-shell .portal-header .back-link,
+.portal-shell .portal-user {
+  color: var(--paper);
+}
+
+.portal-shell .portal-brand .brand-dot,
+.portal-shell .portal-brand small {
+  color: var(--peach);
+}
+
+.portal-shell .portal-header .button-secondary {
+  color: var(--paper);
+  border-color: #f8f5ee50;
+}
+
+.portal-shell .portal-header .button-secondary:hover {
+  background: #f8f5ee15;
+}
+
+.portal-shell .portal-nav > a {
+  color: #e1e9dc;
+}
+
+.portal-shell .portal-nav > a.active {
+  color: var(--peach);
+  border-color: var(--peach);
+}
+
+.portal-shell :is(.portal-header, .portal-nav, .lesson-sidebar) :focus-visible {
+  outline-color: var(--peach);
+}
+
+.portal-shell .portal-welcome {
+  background: var(--green);
+  color: var(--paper);
+  padding: 34px 38px;
+  border: 0;
+  border-radius: 24px;
+}
+
+.portal-shell .portal-welcome :is(.eyebrow, .brand-dot),
+.portal-shell .portal-welcome > svg {
+  color: var(--peach);
+}
+
+.portal-shell .portal-welcome .muted {
+  color: #e1e9dc;
+}
+
+.portal-shell .portal-course-progress {
+  background: var(--sage);
+}
+
+.portal-shell .portal-footer {
+  background: var(--deep);
+  color: #d2ddcc;
+  border: 0;
+}
+
+.portal-shell .lesson-sidebar {
+  background: var(--green);
+  color: var(--paper);
+  border: 0;
+  border-radius: 22px;
+}
+
+.portal-shell .lesson-sidebar :is(.eyebrow, .small) {
+  color: #e1e9dc;
+}
+
+.portal-shell .lesson-sidebar .progress-track {
+  background: #f8f5ee35;
+}
+
+.portal-shell .lesson-sidebar .progress-track > span {
+  background: var(--peach);
+}
+
+.portal-shell .lesson-sidebar nav > a {
+  color: #e1e9dc;
+}
+
+.portal-shell .lesson-sidebar nav > a:hover {
+  background: #f8f5ee15;
+}
+
+.portal-shell .lesson-sidebar nav > a.active {
+  background: var(--peach);
+  color: var(--deep);
+}
+
+.portal-shell .lesson-material {
+  background: var(--sage);
+}
+
+@media (max-width: 1000px) {
+  .inner-page :is(.learning-hero, .auth-layout) {
+    gap: 32px;
+    padding: 36px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .inner-page :is(.learning-hero, .journal-heading, .auth-layout) {
+    margin-block: 28px;
+    padding: 30px 25px !important;
+    border-radius: 22px;
+  }
+
+  .inner-page .learning-hero-visual {
+    min-height: 280px;
+  }
+
+  .inner-page .learning-values {
+    padding: 26px !important;
+  }
+
+  .inner-page .auth-card {
+    padding: 25px !important;
+  }
+
+  .inner-page .article-detail-header {
+    padding: 28px 25px;
+  }
+
+  .portal-shell .portal-welcome {
+    padding: 27px 25px;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .portal-shell .portal-welcome > div {
+    min-width: 0;
+  }
+
+  .portal-shell .portal-welcome h1 {
+    overflow-wrap: anywhere;
+  }
 }

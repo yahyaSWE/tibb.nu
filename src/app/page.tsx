@@ -10,6 +10,7 @@ import {
   Sprout,
 } from "lucide-react";
 import { getArticles, getCourses, getTreatments } from "@/lib/db";
+import "./home.css";
 
 export default async function HomePage() {
   const [allCourses, allArticles, treatments] = await Promise.all([
@@ -20,35 +21,39 @@ export default async function HomePage() {
   const courses = allCourses.slice(0, 2);
   const articles = allArticles.slice(0, 3);
   return (
-    <>
-      <section className="home-hero container">
-        <div className="hero-copy">
-          <h1>Traditionell medicin och behandlingar</h1>
-          <p className="hero-intro">
-            Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.
-          </p>
-          <p className="hero-description">
-            En plats där traditionell kunskap möter omtanke om hela människan.
-            Välkommen att utforska, lära och ta tid för dig själv.
-          </p>
-          <div className="hero-actions">
-            <Link href="/boka" className="button button-primary">
-              Boka en behandling <ArrowUpRight size={18} />
-            </Link>
-            <Link href="/kurser" className="text-link">
-              Utforska våra kurser <ArrowRight size={17} />
-            </Link>
+    <div className="home-page">
+      <section className="home-hero-section">
+        <div className="home-hero container">
+          <div className="hero-copy">
+            <h1>Traditionell medicin och behandlingar</h1>
+            <p className="hero-intro">
+              Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.
+            </p>
+            <p className="hero-description">
+              En plats där traditionell kunskap möter omtanke om hela människan.
+              Välkommen att utforska, lära och ta tid för dig själv.
+            </p>
+            <div className="hero-actions">
+              <Link href="/boka" className="button button-primary">
+                Boka en behandling <ArrowUpRight size={18} />
+              </Link>
+              <Link href="/kurser" className="text-link">
+                Utforska våra kurser <ArrowRight size={17} />
+              </Link>
+            </div>
           </div>
-        </div>
-        <div className="hero-image-wrap">
-          <Image
-            src="/images/olive-still-life.png"
-            alt="Olivkvistar i en handgjord keramikvas i varmt solljus"
-            fill
-            priority
-            sizes="(max-width: 760px) 100vw, 50vw"
-            className="hero-image"
-          />
+          <div className="hero-image-stage">
+            <div className="hero-image-wrap">
+              <Image
+                src="/images/olive-still-life.png"
+                alt="Olivkvistar i en handgjord keramikvas i varmt solljus"
+                fill
+                priority
+                sizes="(max-width: 650px) calc(100vw - 48px), (max-width: 850px) 44vw, 470px"
+                className="hero-image"
+              />
+            </div>
+          </div>
         </div>
       </section>
       <section className="section container paths-section">
@@ -148,7 +153,7 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-      <section className="section container">
+      <section className="section container home-learning-section">
         <div className="section-heading">
           <div>
             <span className="eyebrow">GE DIN KUNSKAP UTRYMME</span>
@@ -249,6 +254,6 @@ export default async function HomePage() {
           <CalendarDays size={18} /> Hitta din tid <ArrowUpRight size={18} />
         </Link>
       </section>
-    </>
+    </div>
   );
 }

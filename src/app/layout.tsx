@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { databaseConfigured } from "@/lib/database-config";
 import "./globals.css";
 import "@/components/learning/learning.css";
+import "./public-theme.css";
 
 const serif = Cormorant_Garamond({
   subsets: ["latin"],

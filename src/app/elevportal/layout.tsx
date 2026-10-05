@@ -28,7 +28,7 @@ export default async function PortalLayout({
           </span>
         </Link>
         <div className="portal-header-actions">
-          <Link href="/" className="back-link">
+          <Link href="/" className="back-link" aria-label="Till hemsidan">
             <ArrowLeft size={15} />
             <span>Till hemsidan</span>
           </Link>
@@ -37,6 +37,7 @@ export default async function PortalLayout({
             <button
               type="submit"
               className="button button-secondary button-small"
+              aria-label="Logga ut"
             >
               <LogOut size={15} />
               <span>Logga ut</span>

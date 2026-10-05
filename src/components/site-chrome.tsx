@@ -51,7 +51,7 @@ export function SiteChrome({
   ];
   const brandName = siteName.endsWith(".nu") ? siteName.slice(0, -3) : siteName;
   return (
-    <>
+    <div className="public-site">
       <a className="skip-link" href="#main-content">
         Hoppa till innehållet
       </a>
@@ -125,7 +125,12 @@ export function SiteChrome({
           </nav>
         )}
       </header>
-      <main id="main-content">{children}</main>
+      <main
+        id="main-content"
+        className={pathname === "/" ? "public-main" : "public-main inner-page"}
+      >
+        {children}
+      </main>
       <footer className="site-footer">
         <div className="footer-top">
           <div>
@@ -172,6 +177,6 @@ export function SiteChrome({
           <Link href="/admin">Administration</Link>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

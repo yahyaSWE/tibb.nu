@@ -304,6 +304,431 @@
   }
 }
 
+/* Availability planning uses the same forest, cream and peach work surfaces. */
+.admin-shell .availability-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(310px, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 26px;
+}
+.admin-shell .availability-builder-grid > .panel {
+  min-width: 0;
+  padding: 30px;
+}
+.admin-shell .availability-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+.admin-shell .availability-panel-icon {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: var(--green);
+  background: var(--sage);
+}
+.admin-shell .availability-block-panel .availability-panel-icon {
+  background: #efdfd0;
+}
+.admin-shell .availability-panel-heading .section-heading {
+  margin-bottom: 26px;
+}
+.admin-shell .availability-panel-heading h2 {
+  font-size: 32px;
+}
+.admin-shell .availability-heading-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 50px;
+  border: 1px solid #f8f5ee40;
+  background: #f8f5ee0d;
+  color: var(--paper);
+  padding: 12px 17px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.admin-shell .availability-heading-stat strong {
+  color: var(--peach);
+  font-size: 16px;
+}
+.admin-shell .availability-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.admin-shell .availability-fieldset legend {
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 10px;
+}
+.admin-shell .availability-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+}
+.admin-shell .availability-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.admin-shell .availability-day:hover {
+  border-color: var(--green);
+}
+.admin-shell .availability-day.selected {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--paper);
+}
+.admin-shell .availability-day:has(input:focus-visible) {
+  outline: 2px solid var(--olive);
+  outline-offset: 3px;
+}
+.admin-shell .availability-help {
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 9px;
+}
+.admin-shell .availability-breaks {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f8f5ee;
+}
+.admin-shell .availability-subheading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-shell .availability-subheading > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--green);
+}
+.admin-shell .availability-break {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+  align-items: end;
+  gap: 12px;
+  margin-top: 18px;
+}
+.admin-shell .availability-icon-button {
+  width: 34px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  color: #98604b;
+  background: transparent;
+}
+.admin-shell .availability-icon-button:hover {
+  background: #ead9ce;
+}
+.admin-shell .availability-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 19px;
+  border-radius: 16px;
+  color: var(--green);
+  background: var(--sage);
+}
+.admin-shell .availability-summary > svg {
+  margin-top: 2px;
+}
+.admin-shell .availability-summary strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.admin-shell .availability-summary p {
+  font-size: 11px;
+  margin-top: 5px;
+  color: #566a5b;
+}
+.admin-shell .availability-submit {
+  align-self: flex-start;
+  min-height: 47px;
+  font-size: 12px;
+  padding-inline: 23px;
+}
+.admin-shell .availability-all-day {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: var(--sage);
+  border-radius: 16px;
+  padding: 17px;
+  cursor: pointer;
+}
+.admin-shell .availability-all-day input {
+  accent-color: var(--green);
+  width: 17px;
+  height: 17px;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.admin-shell .availability-all-day strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+}
+.admin-shell .availability-all-day small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.admin-shell .availability-block-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 16px;
+  background: #efdfd075;
+  border-radius: 14px;
+  color: #7f614a;
+}
+.admin-shell .availability-block-note svg {
+  margin-top: 2px;
+}
+.admin-shell .availability-block-note p {
+  font-size: 11px;
+  color: #765c47;
+}
+.admin-shell
+  :is(
+    .availability-periods-panel,
+    .availability-blocks-panel,
+    .availability-upcoming-panel,
+    .availability-single-slot
+  ) {
+  margin-top: 24px;
+}
+.admin-shell .availability-period-list {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.admin-shell .availability-period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 22px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.admin-shell .availability-period-info {
+  min-width: 0;
+}
+.admin-shell .availability-period-info .eyebrow {
+  font-size: 9px;
+}
+.admin-shell .availability-period-info h3 {
+  font-size: 24px;
+  margin-top: 8px;
+  margin-bottom: 11px;
+}
+.admin-shell .availability-period-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 23px;
+  color: var(--green);
+}
+.admin-shell .availability-period-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.admin-shell .availability-period > form {
+  flex-shrink: 0;
+}
+.admin-shell .availability-time-cell {
+  white-space: nowrap;
+}
+.admin-shell .availability-slot-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+.admin-shell .availability-slot-filters .button {
+  min-height: 45px;
+}
+.admin-shell .availability-results-count {
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-shell .availability-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.admin-shell .availability-pagination > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.admin-shell .availability-pagination button:disabled {
+  cursor: not-allowed;
+}
+.admin-shell .availability-blocked-badge {
+  color: #765841;
+  background: #efdfd0;
+  border-color: #e2cdbb;
+}
+.admin-shell .availability-single-slot > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+.admin-shell .availability-single-slot > summary::-webkit-details-marker {
+  display: none;
+}
+.admin-shell .availability-single-slot > summary > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 550;
+}
+.admin-shell .availability-single-slot > summary > .muted {
+  font-size: 11px;
+}
+.admin-shell .availability-single-slot > summary::after {
+  content: "+";
+  font-size: 20px;
+  color: var(--olive);
+}
+.admin-shell .availability-single-slot[open] > summary::after {
+  content: "−";
+}
+.admin-shell .availability-single-content {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  max-width: 800px;
+}
+
+@media (max-width: 1100px) {
+  .admin-shell .availability-builder-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-shell .availability-builder-grid .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 650px) {
+  .admin-shell .availability-builder-grid {
+    gap: 19px;
+  }
+  .admin-shell .availability-builder-grid > .panel {
+    padding: 22px;
+  }
+  .admin-shell .availability-builder-grid .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-shell .availability-panel-heading {
+    gap: 12px;
+  }
+  .admin-shell .availability-panel-icon {
+    flex-basis: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+  .admin-shell .availability-panel-icon svg {
+    width: 18px;
+  }
+  .admin-shell .availability-panel-heading h2 {
+    font-size: 28px;
+  }
+  .admin-shell .availability-weekdays {
+    gap: 5px;
+  }
+  .admin-shell .availability-day {
+    font-size: 10px;
+    min-height: 40px;
+    border-radius: 9px;
+  }
+  .admin-shell .availability-breaks {
+    padding: 14px;
+  }
+  .admin-shell .availability-break {
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+  }
+  .admin-shell .availability-icon-button {
+    width: 28px;
+  }
+  .admin-shell .availability-summary {
+    padding: 16px;
+  }
+  .admin-shell .availability-submit {
+    width: 100%;
+    padding-inline: 12px;
+  }
+  .admin-shell .availability-period {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px;
+    gap: 17px;
+  }
+  .admin-shell .availability-slot-filters {
+    grid-template-columns: 1fr 1fr;
+    gap: 13px;
+  }
+  .admin-shell .availability-slot-filters > .field:first-child {
+    grid-column: 1 / -1;
+  }
+  .admin-shell .availability-slot-filters > .button {
+    justify-self: start;
+  }
+  .admin-shell .availability-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .admin-shell .availability-pagination > span {
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+  .admin-shell .availability-single-slot > summary > .muted {
+    display: none;
+  }
+}
+
 /* Administration uses the public palette with compact, readable work surfaces. */
 .admin-shell {
   background: var(--paper);
@@ -360,7 +785,11 @@
 
 .admin-shell .admin-heading {
   background: var(--green);
-  background-image: radial-gradient(ellipse at 100% 10%, #90a48a35, transparent 65%);
+  background-image: radial-gradient(
+    ellipse at 100% 10%,
+    #90a48a35,
+    transparent 65%
+  );
   border-radius: 24px;
   color: var(--paper);
   padding: 30px 34px;

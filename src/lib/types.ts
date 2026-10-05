@@ -13,13 +13,62 @@ export type Treatment = {
   priceOre: number;
   active: boolean;
 };
+export type Practitioner = {
+  id: number;
+  name: string;
+  description: string;
+  active: boolean;
+};
 export type Slot = {
   id: number;
   treatmentId: number;
   treatmentName: string;
+  practitionerId: number;
+  practitionerName: string;
   start: string;
   end: string;
   booked: boolean;
+  blocked: boolean;
+  scheduleId: number | null;
+};
+export type AvailabilityBreak = { startTime: string; endTime: string };
+export type AvailabilityScheduleInput = {
+  treatmentId: number;
+  practitionerId?: number;
+  startDate: string;
+  endDate: string;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  breaks: AvailabilityBreak[];
+};
+export type AvailabilitySchedule = AvailabilityScheduleInput & {
+  id: number;
+  practitionerId: number;
+  practitionerName: string;
+  treatmentName: string;
+  createdAt: string;
+  created: number;
+  skipped: number;
+};
+export type AvailabilityBlockInput = {
+  practitionerId?: number | null;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  startTime?: string;
+  endTime?: string;
+  reason: string;
+};
+export type AvailabilityBlock = {
+  id: number;
+  practitionerId: number | null;
+  practitionerName: string | null;
+  start: string;
+  end: string;
+  allDay: boolean;
+  reason: string;
+  createdAt: string;
 };
 export type Booking = {
   id: number;
@@ -27,6 +76,8 @@ export type Booking = {
   treatmentId: number;
   slotId: number;
   treatmentName: string;
+  practitionerId: number;
+  practitionerName: string;
   durationMinutes: number;
   priceOre: number;
   start: string;

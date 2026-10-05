@@ -68,6 +68,7 @@ export default async function BookingsPage({
                   <th>Kund</th>
                   <th>Datum och tid</th>
                   <th>Behandling</th>
+                  <th>Behandlare</th>
                   <th>Betalning</th>
                   <th>Status</th>
                   <th>
@@ -91,6 +92,7 @@ export default async function BookingsPage({
                         {booking.durationMinutes} minuter
                       </small>
                     </td>
+                    <td>{booking.practitionerName}</td>
                     <td>
                       <strong>{kronor(booking.priceOre)}</strong>
                       <small className="table-description">

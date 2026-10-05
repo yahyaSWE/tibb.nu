@@ -4,6 +4,7 @@ import {
   expireBookings,
   getDb,
   getLesson,
+  getPractitioner,
   getSettings,
   getTreatment,
   getUser,
@@ -13,9 +14,67 @@ import {
 } from "./db";
 import { stockholmToIso } from "./time";
 import { emailSchema, money, safeUrl, slug, text } from "./validation";
+export {
+  saveAvailabilitySchedule,
+  deleteAvailabilitySchedule,
+  saveAvailabilityBlock,
+  deleteAvailabilityBlock,
+} from "./availability";
 export async function assertAdmin(actorId: number) {
   if ((await getUser(actorId))?.role !== "admin")
     throw new DomainError("Du har inte behörighet för denna åtgärd.");
+}
+export async function savePractitioner(
+  actorId: number,
+  input: { id?: number; name: string; description: string; active: boolean },
+): Promise<number> {
+  return transaction(async () => {
+    await assertAdmin(actorId);
+    const value = z
+      .object({
+        id: z.number().int().positive().optional(),
+        name: text(150, 2),
+        description: text(6000),
+        active: z.boolean(),
+      })
+      .parse(input);
+    if (value.id) {
+      if (!(await getPractitioner(value.id)))
+        throw new DomainError("Behandlaren finns inte.");
+      await getDb()
+        .prepare(
+          "UPDATE practitioners SET name=?,description=?,active=? WHERE id=?",
+        )
+        .run(value.name, value.description, value.active ? 1 : 0, value.id);
+      return value.id;
+    }
+    return Number(
+      (
+        await getDb()
+          .prepare(
+            "INSERT INTO practitioners(name,description,active) VALUES(?,?,?)",
+          )
+          .run(value.name, value.description, value.active ? 1 : 0)
+      ).lastInsertRowid,
+    );
+  });
+}
+export async function archivePractitioner(
+  actorId: number,
+  id: number,
+): Promise<void> {
+  await transaction(async () => {
+    await assertAdmin(actorId);
+    z.number().int().positive().parse(id);
+    if (
+      !(
+        await getDb()
+          .prepare("UPDATE practitioners SET active=0 WHERE id=?")
+          .run(id)
+      ).changes
+    )
+      throw new DomainError("Behandlaren finns inte.");
+  });
 }
 export async function saveTreatment(
   actorId: number,
@@ -89,6 +148,7 @@ export async function saveSlot(
   actorId: number,
   treatmentId: number,
   localStart: string,
+  practitionerId = 1,
 ) {
   await assertAdmin(actorId);
   const start = stockholmToIso(localStart);
@@ -98,22 +158,37 @@ export async function saveSlot(
   )
     throw new DomainError("Välj en framtida tid inom två år.");
   return await transaction(async () => {
+    await assertAdmin(actorId);
     await expireBookings();
     const treatment = await getTreatment(treatmentId);
     if (!treatment || !treatment.active)
       throw new DomainError("Välj en aktiv behandling.");
+    z.number().int().positive().parse(practitionerId);
+    const practitioner = await getPractitioner(practitionerId);
+    if (!practitioner || !practitioner.active)
+      throw new DomainError("Välj en aktiv behandlare.");
     const end = new Date(
       Date.parse(start) + treatment.durationMinutes * 60000,
     ).toISOString();
     if (
-      (await getDb()
-        .prepare("SELECT id FROM slots WHERE archived=0 AND start<? AND end>?")
-        .get(end, start)) ||
+      await getDb()
+        .prepare(
+          "SELECT id FROM availability_blocks WHERE (practitioner_id IS NULL OR practitioner_id=?) AND start<? AND end>?",
+        )
+        .get(practitionerId, end, start)
+    )
+      throw new DomainError("Tiden överlappar en spärrad period.");
+    if (
       (await getDb()
         .prepare(
-          "SELECT id FROM bookings WHERE status IN ('pending','confirmed','completed') AND start<? AND end>?",
+          "SELECT id FROM slots WHERE practitioner_id=? AND archived=0 AND start<? AND end>?",
         )
-        .get(end, start))
+        .get(practitionerId, end, start)) ||
+      (await getDb()
+        .prepare(
+          "SELECT id FROM bookings WHERE practitioner_id=? AND status IN ('pending','confirmed','completed') AND start<? AND end>?",
+        )
+        .get(practitionerId, end, start))
     )
       throw new DomainError(
         "Tiden överlappar en annan tillgänglig tid eller bokning.",
@@ -121,8 +196,10 @@ export async function saveSlot(
     return Number(
       (
         await getDb()
-          .prepare("INSERT INTO slots(treatment_id,start,end) VALUES(?,?,?)")
-          .run(treatmentId, start, end)
+          .prepare(
+            "INSERT INTO slots(treatment_id,practitioner_id,start,end) VALUES(?,?,?,?)",
+          )
+          .run(treatmentId, practitionerId, start, end)
       ).lastInsertRowid,
     );
   });

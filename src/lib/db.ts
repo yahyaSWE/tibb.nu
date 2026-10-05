@@ -5,6 +5,7 @@ import type {
   Course,
   Enrollment,
   Lesson,
+  Practitioner,
   Settings,
   Slot,
   Treatment,
@@ -16,12 +17,24 @@ export type {
   Course,
   Enrollment,
   Lesson,
+  Practitioner,
   Settings,
   Slot,
   Treatment,
   User,
 } from "./types";
 export class DomainError extends Error {}
+export {
+  getAvailabilitySchedules,
+  getAvailabilityBlocks,
+} from "./availability";
+export type {
+  AvailabilitySchedule,
+  AvailabilityBlock,
+  AvailabilityBreak,
+  AvailabilityScheduleInput,
+  AvailabilityBlockInput,
+} from "./types";
 import { getDb, transaction } from "./database";
 export {
   getDb,
@@ -39,6 +52,14 @@ function treatment(row: Row): Treatment {
     description: str(row.description),
     durationMinutes: integer(row.duration_minutes),
     priceOre: integer(row.price_ore),
+    active: !!row.active,
+  };
+}
+function practitioner(row: Row): Practitioner {
+  return {
+    id: integer(row.id),
+    name: str(row.name),
+    description: str(row.description),
     active: !!row.active,
   };
 }
@@ -93,6 +114,8 @@ function booking(row: Row): Booking {
     treatmentId: integer(row.treatment_id),
     slotId: integer(row.slot_id),
     treatmentName: str(row.treatment_name),
+    practitionerId: integer(row.practitioner_id),
+    practitionerName: str(row.practitioner_name),
     durationMinutes: integer(row.duration_minutes),
     priceOre: integer(row.price_ore),
     start: str(row.start),
@@ -123,6 +146,25 @@ export async function getTreatments(
       .all()
   ).map((row) => treatment(row));
 }
+export async function getPractitioners(
+  options: { activeOnly?: boolean } = {},
+): Promise<Practitioner[]> {
+  return (
+    await getDb()
+      .prepare(
+        `SELECT * FROM practitioners ${options.activeOnly ? "WHERE active=1" : ""} ORDER BY id`,
+      )
+      .all()
+  ).map(practitioner);
+}
+export async function getPractitioner(
+  id: number,
+): Promise<Practitioner | undefined> {
+  const row = await getDb()
+    .prepare("SELECT * FROM practitioners WHERE id=?")
+    .get(id);
+  return row ? practitioner(row) : undefined;
+}
 export async function getTreatment(id: number) {
   const row = await getDb()
     .prepare("SELECT * FROM treatments WHERE id=?")
@@ -140,10 +182,16 @@ export async function getSlots(
   options: {
     futureOnly?: boolean;
     treatmentId?: number;
+    practitionerId?: number;
+    includeBlocked?: boolean;
   } = {},
 ) {
   await expireBookings();
   const conditions: string[] = ["s.archived=0"];
+  if (!options.includeBlocked)
+    conditions.push(
+      "NOT EXISTS(SELECT 1 FROM availability_blocks a WHERE (a.practitioner_id IS NULL OR a.practitioner_id=s.practitioner_id) AND a.start<s.end AND a.end>s.start)",
+    );
   const values: (string | number)[] = [];
   if (options.futureOnly) {
     conditions.push("s.start>?");
@@ -153,10 +201,14 @@ export async function getSlots(
     conditions.push("s.treatment_id=?");
     values.push(options.treatmentId);
   }
+  if (options.practitionerId !== undefined) {
+    conditions.push("s.practitioner_id=?");
+    values.push(options.practitionerId);
+  }
   return (
     await getDb()
       .prepare(
-        `SELECT s.*,t.name AS treatment_name, EXISTS(SELECT 1 FROM bookings b WHERE b.status IN ('pending','confirmed','completed') AND b.start<s.end AND b.end>s.start) AS booked FROM slots s JOIN treatments t ON t.id=s.treatment_id WHERE ${conditions.join(" AND ")} ORDER BY s.start`,
+        `SELECT s.*,t.name AS treatment_name,p.name AS practitioner_name, EXISTS(SELECT 1 FROM bookings b WHERE b.practitioner_id=s.practitioner_id AND b.status IN ('pending','confirmed','completed') AND b.start<s.end AND b.end>s.start) AS booked, EXISTS(SELECT 1 FROM availability_blocks a WHERE (a.practitioner_id IS NULL OR a.practitioner_id=s.practitioner_id) AND a.start<s.end AND a.end>s.start) AS blocked FROM slots s JOIN treatments t ON t.id=s.treatment_id JOIN practitioners p ON p.id=s.practitioner_id WHERE ${conditions.join(" AND ")} ORDER BY s.start,s.id`,
       )
       .all(...values)
   ).map(
@@ -165,9 +217,16 @@ export async function getSlots(
         id: integer(row.id),
         treatmentId: integer(row.treatment_id),
         treatmentName: str(row.treatment_name),
+        practitionerId: integer(row.practitioner_id),
+        practitionerName: str(row.practitioner_name),
         start: str(row.start),
         end: str(row.end),
         booked: !!row.booked,
+        blocked: !!row.blocked,
+        scheduleId:
+          row.schedule_id === null || row.schedule_id === undefined
+            ? null
+            : integer(row.schedule_id),
       }) satisfies Slot,
   );
 }
@@ -398,12 +457,13 @@ export async function reserveBooking(input: {
     await expireBookings();
     const row = await getDb()
       .prepare(
-        "SELECT s.*,t.name,t.description,t.active,t.duration_minutes,t.price_ore FROM slots s JOIN treatments t ON t.id=s.treatment_id WHERE s.id=?",
+        "SELECT s.*,t.name,t.description,t.active,t.duration_minutes,t.price_ore,p.name AS practitioner_name,p.active AS practitioner_active FROM slots s JOIN treatments t ON t.id=s.treatment_id JOIN practitioners p ON p.id=s.practitioner_id WHERE s.id=?",
       )
       .get(input.slotId);
     if (
       !row ||
       !row.active ||
+      !row.practitioner_active ||
       row.archived ||
       str(row.start) <= new Date().toISOString()
     )
@@ -411,9 +471,19 @@ export async function reserveBooking(input: {
     if (
       await getDb()
         .prepare(
-          "SELECT id FROM bookings WHERE status IN ('pending','confirmed','completed') AND start<? AND end>?",
+          "SELECT id FROM availability_blocks WHERE (practitioner_id IS NULL OR practitioner_id=?) AND start<? AND end>?",
         )
-        .get(str(row.end), str(row.start))
+        .get(integer(row.practitioner_id), str(row.end), str(row.start))
+    )
+      throw new DomainError(
+        "Den valda tiden är spärrad och kan inte bokas. Välj en annan tid.",
+      );
+    if (
+      await getDb()
+        .prepare(
+          "SELECT id FROM bookings WHERE practitioner_id=? AND status IN ('pending','confirmed','completed') AND start<? AND end>?",
+        )
+        .get(integer(row.practitioner_id), str(row.end), str(row.start))
     )
       throw new DomainError(
         "Tiden hann bokas av någon annan. Välj en annan tid.",
@@ -437,11 +507,13 @@ export async function reserveBooking(input: {
         : null;
     await getDb()
       .prepare(
-        "INSERT INTO bookings(reference,treatment_id,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO bookings(reference,treatment_id,practitioner_id,practitioner_name,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .run(
         reference,
         integer(row.treatment_id),
+        integer(row.practitioner_id),
+        str(row.practitioner_name),
         input.slotId,
         str(row.name),
         integer(row.duration_minutes),
@@ -493,6 +565,23 @@ export async function completeStripeBooking(
     if (row.payment_status === "paid") return "already-paid";
     if (row.payment_status === "refunded") return "already-refunded";
     if (row.status !== "pending") return "needs-refund";
+    if (
+      await getDb()
+        .prepare(
+          "SELECT id FROM bookings WHERE id<>? AND practitioner_id=? AND status IN ('pending','confirmed','completed') AND start<? AND end>?",
+        )
+        .get(
+          integer(row.id),
+          integer(row.practitioner_id),
+          str(row.end),
+          str(row.start),
+        )
+    ) {
+      await getDb()
+        .prepare("UPDATE bookings SET status='cancelled' WHERE id=?")
+        .run(integer(row.id));
+      return "needs-refund";
+    }
     await getDb()
       .prepare(
         "UPDATE bookings SET status='confirmed',payment_status='paid',expires_at=NULL WHERE id=?",

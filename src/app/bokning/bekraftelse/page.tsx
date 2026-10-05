@@ -58,6 +58,10 @@ export default async function ConfirmationPage({
             <dd>{booking.treatmentName}</dd>
           </div>
           <div>
+            <dt>Behandlare</dt>
+            <dd>{booking.practitionerName}</dd>
+          </div>
+          <div>
             <dt>Tid</dt>
             <dd>{formatDateTime(booking.start)}</dd>
           </div>

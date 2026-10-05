@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createClient as createRemoteClient } from "@libsql/client/http";
 import type { Client, InValue, ResultSet, Transaction } from "@libsql/client";
-import { SCHEMA } from "./schema";
+import { SCHEMA, SLOT_SCHEDULE_SCHEMA } from "./schema";
 import { databaseConfigured } from "./database-config";
 export { databaseConfigured } from "./database-config";
 
@@ -96,6 +96,37 @@ export class DatabaseAdapter {
           await tx.execute(
             "ALTER TABLE slots ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
           );
+        if (!columns.rows.some((row) => row.name === "schedule_id"))
+          await tx.execute(
+            "ALTER TABLE slots ADD COLUMN schedule_id INTEGER REFERENCES availability_schedules(id)",
+          );
+        // Existing SQLite tables cannot add a REFERENCES column with a non-null
+        // default while FK enforcement is on. The migration adds the stable
+        // default id; the post-migration triggers enforce all references on both
+        // local and HTTP connections without rebuilding historical tables.
+        for (const table of [
+          "slots",
+          "availability_schedules",
+          "bookings",
+          "availability_blocks",
+        ]) {
+          const tableColumns =
+            table === "slots"
+              ? columns
+              : await tx.execute(`PRAGMA table_info(${table})`);
+          if (!tableColumns.rows.some((row) => row.name === "practitioner_id"))
+            await tx.execute(
+              `ALTER TABLE ${table} ADD COLUMN practitioner_id INTEGER ${table === "availability_blocks" ? "REFERENCES practitioners(id)" : "NOT NULL DEFAULT 1"}`,
+            );
+          if (
+            table === "bookings" &&
+            !tableColumns.rows.some((row) => row.name === "practitioner_name")
+          )
+            await tx.execute(
+              "ALTER TABLE bookings ADD COLUMN practitioner_name TEXT NOT NULL DEFAULT 'Tibb.nu'",
+            );
+        }
+        await tx.executeMultiple(SLOT_SCHEDULE_SCHEMA);
         const seeded = await tx.execute(
           "SELECT value FROM app_meta WHERE key='seeded'",
         );

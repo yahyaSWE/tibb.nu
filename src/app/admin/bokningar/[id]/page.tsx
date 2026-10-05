@@ -71,6 +71,10 @@ export default async function BookingDetailPage({
               <dd>{booking.treatmentName}</dd>
             </div>
             <div>
+              <dt>Behandlare</dt>
+              <dd>{booking.practitionerName}</dd>
+            </div>
+            <div>
               <dt>Start</dt>
               <dd>{dateTime(booking.start)}</dd>
             </div>

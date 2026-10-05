@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Settings2,
   Sprout,
+  Stethoscope,
   Users,
 } from "lucide-react";
 
@@ -17,6 +18,7 @@ const links = [
   { href: "/admin", label: "Översikt", icon: LayoutDashboard },
   { href: "/admin/bokningar", label: "Bokningar", icon: CalendarDays },
   { href: "/admin/behandlingar", label: "Behandlingar", icon: Sprout },
+  { href: "/admin/behandlare", label: "Behandlare", icon: Stethoscope },
   { href: "/admin/tider", label: "Tillgängliga tider", icon: Clock3 },
   { href: "/admin/artiklar", label: "Artiklar", icon: FileText },
   { href: "/admin/kurser", label: "Kurser", icon: BookOpen },

@@ -9,10 +9,12 @@ import {
   CreditCard,
   Leaf,
   MapPin,
+  UserRound,
 } from "lucide-react";
-import type { Slot, Treatment } from "@/lib/types";
-import { formatDate, formatDateTime, formatMoney, TIME_ZONE } from "@/lib/time";
+import type { Practitioner, Slot, Treatment } from "@/lib/types";
+import { formatDateTime, formatMoney } from "@/lib/time";
 import { createBookingAction } from "@/lib/actions";
+import { BookingCalendar } from "./booking-calendar";
 
 function SubmitBooking() {
   const { pending } = useFormStatus();
@@ -25,6 +27,7 @@ function SubmitBooking() {
 }
 export function BookingForm({
   treatments,
+  practitioners,
   slots,
   initialTreatment,
   payOnSite,
@@ -33,6 +36,7 @@ export function BookingForm({
   contactEmail,
 }: {
   treatments: Treatment[];
+  practitioners: Practitioner[];
   slots: Slot[];
   initialTreatment?: number;
   payOnSite: boolean;
@@ -46,17 +50,16 @@ export function BookingForm({
       : treatments[0]?.id,
   );
   const [slotId, setSlotId] = useState<number | undefined>();
+  const [practitionerId, setPractitionerId] = useState(practitioners[0]?.id);
   const [payment, setPayment] = useState(
     payOnSite ? "onsite" : stripeEnabled ? "stripe" : "",
   );
   const treatment = treatments.find((t) => t.id === treatmentId);
-  const chosenSlot = slots.find((s) => s.id === slotId);
-  const treatmentSlots = slots.filter((s) => s.treatmentId === treatmentId);
-  const groups = new Map<string, Slot[]>();
-  treatmentSlots.forEach((slot) => {
-    const date = formatDate(slot.start);
-    groups.set(date, [...(groups.get(date) || []), slot]);
-  });
+  const practitioner = practitioners.find((p) => p.id === practitionerId);
+  const treatmentSlots = slots.filter(
+    (s) => s.treatmentId === treatmentId && s.practitionerId === practitionerId,
+  );
+  const chosenSlot = treatmentSlots.find((s) => s.id === slotId);
   if (!treatments.length)
     return (
       <div className="empty-state">
@@ -84,10 +87,13 @@ export function BookingForm({
             <b>1</b> Behandling
           </span>
           <span className={treatment ? "current" : ""}>
-            <b>2</b> Tid
+            <b>2</b> Behandlare
+          </span>
+          <span className={practitioner ? "current" : ""}>
+            <b>3</b> Tid
           </span>
           <span className={chosenSlot ? "current" : ""}>
-            <b>3</b> Dina uppgifter
+            <b>4</b> Dina uppgifter
           </span>
         </div>
         <form className="booking-form" action={createBookingAction}>
@@ -120,47 +126,71 @@ export function BookingForm({
             </div>
           </fieldset>
           <fieldset>
+            <legend>Välj behandlare</legend>
+            {practitioners.length ? (
+              <div className="practitioner-options">
+                {practitioners.map((person) => {
+                  const count = slots.filter(
+                    (slot) =>
+                      slot.treatmentId === treatmentId &&
+                      slot.practitionerId === person.id,
+                  ).length;
+                  return (
+                    <label className="practitioner-option" key={person.id}>
+                      <span className="practitioner-avatar" aria-hidden="true">
+                        <UserRound size={22} strokeWidth={1.4} />
+                      </span>
+                      <span className="practitioner-copy">
+                        <strong>{person.name}</strong>
+                        {person.description && (
+                          <span>{person.description}</span>
+                        )}
+                        <small>
+                          {count
+                            ? `${count} lediga tider för vald behandling`
+                            : "Inga lediga tider för vald behandling"}
+                        </small>
+                      </span>
+                      <input
+                        type="radio"
+                        name="practitioner"
+                        value={person.id}
+                        checked={practitionerId === person.id}
+                        onChange={() => {
+                          setPractitionerId(person.id);
+                          setSlotId(undefined);
+                        }}
+                        aria-label={person.name}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="notice">
+                Vi förbereder nya bokningsbara tider hos våra behandlare.
+              </p>
+            )}
+          </fieldset>
+          <fieldset>
             <legend>Hitta en ledig tid</legend>
             <p className="muted" style={{ fontSize: 11, marginBottom: 18 }}>
               Alla tider visas i svensk tid (Europe/Stockholm).
             </p>
-            {groups.size ? (
-              <div className="slots-groups">
-                {Array.from(groups.entries()).map(([date, daySlots]) => (
-                  <div className="slot-day" key={date}>
-                    <h4>{date}</h4>
-                    <div className="slot-options">
-                      {daySlots.map((s) => (
-                        <label className="slot-option" key={s.id}>
-                          <input
-                            type="radio"
-                            name="slotId"
-                            value={s.id}
-                            checked={slotId === s.id}
-                            onChange={() => setSlotId(s.id)}
-                            required
-                            aria-label={formatDateTime(s.start)}
-                          />
-                          <span>
-                            {new Intl.DateTimeFormat("sv-SE", {
-                              timeZone: TIME_ZONE,
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }).format(new Date(s.start))}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {treatmentSlots.length ? (
+              <BookingCalendar
+                key={`${treatmentId}-${practitionerId}`}
+                slots={treatmentSlots}
+                selectedSlotId={slotId}
+                onSelect={setSlotId}
+              />
             ) : (
               <div className="empty-state">
                 <CalendarDays strokeWidth={1.3} />
                 <h3>Inga lediga tider just nu.</h3>
                 <p>
-                  Välj en annan behandling eller återkom när nya tider har
-                  publicerats.
+                  Välj en annan behandlare eller behandling, eller återkom när
+                  nya tider har publicerats.
                 </p>
                 {contactEmail && (
                   <a className="text-link" href={`mailto:${contactEmail}`}>
@@ -277,6 +307,10 @@ export function BookingForm({
         <div className="summary-item">
           <span>Behandling</span>
           <strong>{treatment?.name || "Välj behandling"}</strong>
+        </div>
+        <div className="summary-item">
+          <span>Behandlare</span>
+          <strong>{practitioner?.name || "Välj behandlare"}</strong>
         </div>
         <div className="summary-item">
           <span>Längd</span>

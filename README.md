@@ -60,7 +60,9 @@ Logga sedan in på `/logga-in` och öppna `/admin`. Det finns inga förinställd
 ## Arbeta i admin
 
 - **Behandlingar:** skapa och ändra namn, beskrivning, längd och pris. Aktivera en behandling för att visa den på bokningssidan. Startbehandlingarna är inaktiva exempel.
-- **Tillgängliga tider:** lägg till en starttid för en behandling. Sluttiden beräknas från behandlingens längd. Överlappande tider avvisas. Alla tider hanteras i Europe/Stockholm, även vid sommartid.
+- **Behandlare:** lägg till namn och presentation för varje behandlare. Befintliga tider och bokningar kopplas vid uppgraderingen till behandlaren **Tibb.nu**, vars namn du kan ändra. Inaktiva behandlare visas inte för kunder; deras bokningar och historik behålls.
+- **Tillgängliga tider:** välj behandling, behandlare, datumperiod, veckodagar och arbetstider. Tider skapas automatiskt utifrån behandlingens längd, med plats för återkommande raster. Du kan publicera upp till 90 dagar åt gången; nya perioder läggs till vid behov. Befintliga tider och bokningar dubbleras inte. Enstaka tider kan fortfarande läggas till separat. Varje behandlare har sitt eget schema och dubbelbokningsskydd.
+- **Raster och ledighet:** spärra hela dagar eller ett sammanhängande tidsintervall för en behandlare eller för alla. Spärrade tider går inte att boka, även från ett äldre öppet bokningsformulär. Ta bort spärren för att återöppna de publicerade tiderna. En spärr som överlappar en befintlig bokning avvisas; hantera bokningen först. Att ta bort en publicerad period tar bara bort dess framtida lediga tider och bevarar bokningshistoriken. Alla tider hanteras i Europe/Stockholm, även vid sommartid.
 - **Bokningar:** se kontaktuppgifter och betalningsstatus, hantera besöksstatus och avbokningar. Bokningens namn, längd och pris sparas separat så att senare prisändringar inte ändrar befintliga bokningar.
 - **Artiklar:** skriv titel, ingress och brödtext. Spara utkast eller publicera. Publicerade artiklar visas direkt på webbplatsen.
 - **Kurser:** skapa kursinformation och lägg till ordnade lektioner med text, video och länkar till material. Förhandsgranska i elevportalen och publicera när kursen är klar. Startkursen och startartikeln är utkast.
@@ -68,6 +70,8 @@ Logga sedan in på `/logga-in` och öppna `/admin`. Det finns inga förinställd
 - **Inställningar:** ändra namn, kontaktuppgifter, plats och betalningsalternativ.
 
 Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken. Bilder, filuppladdning och avancerade quiz är inte implementerade i kursbyggaren.
+
+På bokningssidan visas lediga dagar i en månadskalender för vald behandling och behandlare. Kunden väljer datum och ser sedan bara den dagens klockslag. Det går att bläddra mellan månader eller välja månad direkt. Vald behandlare visas även på bokningsbekräftelsen.
 
 ## Anslut Stripe
 

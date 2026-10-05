@@ -21,6 +21,7 @@ import {
 } from "./db";
 import { registerStudent } from "./accounts";
 import * as admin from "./admin";
+import * as availability from "./availability";
 import {
   equalSecret,
   hashPassword,
@@ -201,6 +202,23 @@ export async function deleteTreatmentAction(form: FormData): Promise<void> {
     async () => await admin.archiveTreatment(user.id, idField(form)),
   );
 }
+export async function savePractitionerAction(form: FormData): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/behandlare", async () => {
+    await admin.savePractitioner(user.id, {
+      id: field(form, "id") ? idField(form) : undefined,
+      name: field(form, "name"),
+      description: field(form, "description"),
+      active: field(form, "active") === "on",
+    });
+  });
+}
+export async function archivePractitionerAction(form: FormData): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/behandlare", async () => {
+    await admin.archivePractitioner(user.id, idField(form));
+  });
+}
 export async function saveSlotAction(form: FormData): Promise<void> {
   const user = await requireAdmin();
   await formAction(form, "/admin/tider", async () => {
@@ -208,6 +226,7 @@ export async function saveSlotAction(form: FormData): Promise<void> {
       user.id,
       idField(form, "treatmentId"),
       field(form, "start"),
+      idField(form, "practitionerId"),
     );
   });
 }
@@ -218,6 +237,94 @@ export async function deleteSlotAction(form: FormData): Promise<void> {
     "/admin/tider",
     async () => await admin.deleteSlot(user.id, idField(form)),
   );
+}
+export async function saveAvailabilityScheduleAction(
+  form: FormData,
+): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/tider", async () => {
+    const starts = form.getAll("breakStart").map(String);
+    const ends = form.getAll("breakEnd").map(String);
+    if (starts.length !== ends.length)
+      throw new DomainError("Ange både start och slut för varje rast.");
+    const result = await availability.saveAvailabilitySchedule(user.id, {
+      treatmentId: idField(form, "treatmentId"),
+      practitionerId: idField(form, "practitionerId"),
+      startDate: field(form, "startDate"),
+      endDate: field(form, "endDate"),
+      weekdays: form.getAll("weekdays").map(Number),
+      startTime: field(form, "startTime"),
+      endTime: field(form, "endTime"),
+      breaks: starts.map((startTime, index) => ({
+        startTime,
+        endTime: ends[index],
+      })),
+    });
+    return (
+      "/admin/tider?success=" +
+      encodeURIComponent(
+        `${result.created} tider skapades.` +
+          (result.blocked
+            ? ` ${result.blocked} av dem är spärrade och visas inte för kunder.`
+            : "") +
+          (result.skipped
+            ? ` ${result.skipped} tider hoppades över eftersom de redan finns, är bokade eller har passerat.`
+            : ""),
+      )
+    );
+  });
+}
+export async function deleteAvailabilityScheduleAction(
+  form: FormData,
+): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/tider", async () => {
+    await availability.deleteAvailabilitySchedule(user.id, idField(form));
+    return (
+      "/admin/tider?success=" +
+      encodeURIComponent(
+        "Perioden och dess framtida lediga tider har tagits bort. Befintliga bokningar har behållits.",
+      )
+    );
+  });
+}
+export async function saveAvailabilityBlockAction(
+  form: FormData,
+): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/tider", async () => {
+    await availability.saveAvailabilityBlock(user.id, {
+      practitionerId: field(form, "practitionerId")
+        ? idField(form, "practitionerId")
+        : undefined,
+      startDate: field(form, "startDate"),
+      endDate: field(form, "endDate"),
+      allDay: field(form, "allDay") === "on",
+      startTime: field(form, "startTime"),
+      endTime: field(form, "endTime"),
+      reason: field(form, "reason"),
+    });
+    return (
+      "/admin/tider?success=" +
+      encodeURIComponent(
+        "Spärren har sparats. Tider som överlappar kan inte bokas.",
+      )
+    );
+  });
+}
+export async function deleteAvailabilityBlockAction(
+  form: FormData,
+): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/tider", async () => {
+    await availability.deleteAvailabilityBlock(user.id, idField(form));
+    return (
+      "/admin/tider?success=" +
+      encodeURIComponent(
+        "Spärren har tagits bort. Publicerade lediga tider kan bokas igen.",
+      )
+    );
+  });
 }
 export async function updateBookingAction(form: FormData): Promise<void> {
   const user = await requireAdmin();

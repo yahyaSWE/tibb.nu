@@ -59,14 +59,8 @@ export default async function HomePage() {
       <section className="section container paths-section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">VÄLKOMMEN TILL TIBB</span>
-            <h2>Din väg börjar här.</h2>
+            <h2>Våra tjänster</h2>
           </div>
-          <p>
-            För dig som söker ett personligt möte,
-            <br />
-            ny förståelse eller tid för reflektion.
-          </p>
         </div>
         <div className="paths-grid">
           <Link href="/boka" className="path-card">
@@ -134,11 +128,10 @@ export default async function HomePage() {
             </svg>
           </div>
           <div>
-            <span className="eyebrow">VÅRT FÖRHÅLLNINGSSÄTT</span>
             <h2>
-              Två traditioner.
+              Två klassiska traditioner
               <br />
-              <em>En omsorg om människan.</em>
+              <em>mer årtusenden av kunskap</em>
             </h2>
           </div>
           <div className="philosophy-copy">
@@ -156,7 +149,6 @@ export default async function HomePage() {
       <section className="section container home-learning-section">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">GE DIN KUNSKAP UTRYMME</span>
             <h2>Lärande som får växa.</h2>
           </div>
           <Link href="/kurser" className="text-link">
@@ -205,7 +197,6 @@ export default async function HomePage() {
         <div className="container">
           <div className="section-heading">
             <div>
-              <span className="eyebrow">LÄS, UTFORSKA & REFLEKTERA</span>
               <h2>Från vår kunskapsbank.</h2>
             </div>
             <Link href="/artiklar" className="text-link">

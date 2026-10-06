@@ -264,6 +264,13 @@ export async function getBookings() {
     await getDb().prepare("SELECT * FROM bookings ORDER BY start DESC").all()
   ).map(booking);
 }
+export async function getBookingById(id: number) {
+  await expireBookings();
+  const row = await getDb()
+    .prepare("SELECT * FROM bookings WHERE id=?")
+    .get(id);
+  return row ? booking(row) : undefined;
+}
 export async function getBookingByReference(reference: string) {
   await expireBookings();
   const row = await getDb()
@@ -298,6 +305,12 @@ export async function getArticles(
       .all()
   ).map(article);
 }
+export async function getArticleById(id: number) {
+  const row = await getDb()
+    .prepare("SELECT * FROM articles WHERE id=?")
+    .get(id);
+  return row ? article(row) : undefined;
+}
 export async function getArticle(
   slug: string,
   options: {
@@ -324,6 +337,60 @@ export async function getCourses(
       .all()
   ).map(course);
 }
+export type CourseSummary = Course & {
+  lessonCount: number;
+  enrollmentCount: number;
+};
+export async function getCourseSummaries(): Promise<CourseSummary[]> {
+  return (
+    await getDb()
+      .prepare(
+        `SELECT c.*,COALESCE(l.total,0) AS lesson_count,COALESCE(e.total,0) AS enrollment_count
+         FROM courses c
+         LEFT JOIN (SELECT course_id,COUNT(*) AS total FROM lessons GROUP BY course_id) l ON l.course_id=c.id
+         LEFT JOIN (SELECT course_id,COUNT(*) AS total FROM enrollments GROUP BY course_id) e ON e.course_id=c.id
+         ORDER BY c.id DESC`,
+      )
+      .all()
+  ).map((row) => ({
+    ...course(row),
+    lessonCount: integer(row.lesson_count),
+    enrollmentCount: integer(row.enrollment_count),
+  }));
+}
+export type PortalCourseSummary = Course & {
+  lessonCount: number;
+  completedLessonCount: number;
+  progress: number;
+};
+export async function getPortalCourseSummaries(
+  userId: number,
+): Promise<PortalCourseSummary[]> {
+  return (
+    await getDb()
+      .prepare(
+        `SELECT c.*,COALESCE(l.total,0) AS lesson_count,COALESCE(p.total,0) AS completed_count
+         FROM courses c JOIN users u ON u.id=?
+         LEFT JOIN enrollments e ON e.course_id=c.id AND e.user_id=u.id
+         LEFT JOIN (SELECT course_id,COUNT(*) AS total FROM lessons GROUP BY course_id) l ON l.course_id=c.id
+         LEFT JOIN (SELECT l.course_id,COUNT(*) AS total FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=? GROUP BY l.course_id) p ON p.course_id=c.id
+         WHERE u.role='admin' OR (c.published=1 AND e.id IS NOT NULL)
+         ORDER BY CASE WHEN u.role='admin' THEN c.id END DESC,e.created_at DESC,c.id DESC`,
+      )
+      .all(userId, userId)
+  ).map((row) => {
+    const lessonCount = integer(row.lesson_count);
+    const completedLessonCount = integer(row.completed_count);
+    return {
+      ...course(row),
+      lessonCount,
+      completedLessonCount,
+      progress: lessonCount
+        ? Math.round((completedLessonCount / lessonCount) * 100)
+        : 0,
+    };
+  });
+}
 export async function getCourse(
   slug: string,
   options: {
@@ -340,6 +407,41 @@ export async function getCourse(
 export async function getCourseById(id: number) {
   const row = await getDb().prepare("SELECT * FROM courses WHERE id=?").get(id);
   return row ? course(row) : undefined;
+}
+export async function getAccessibleCourse(userId: number, courseId: number) {
+  const row = await getDb()
+    .prepare(
+      "SELECT c.* FROM courses c JOIN users u ON u.id=? WHERE c.id=? AND (u.role='admin' OR (c.published=1 AND EXISTS(SELECT 1 FROM enrollments e WHERE e.user_id=u.id AND e.course_id=c.id)))",
+    )
+    .get(userId, courseId);
+  return row ? course(row) : undefined;
+}
+export type LessonOutline = Pick<
+  Lesson,
+  "id" | "courseId" | "title" | "position"
+> & {
+  hasVideo: boolean;
+  hasText: boolean;
+  hasMaterial: boolean;
+};
+export async function getLessonOutline(
+  courseId: number,
+): Promise<LessonOutline[]> {
+  return (
+    await getDb()
+      .prepare(
+        "SELECT l.id,l.course_id,l.title,l.position,l.video_url<>'' AS has_video,l.body<>'' AS has_text,(l.material_url<>'' OR EXISTS(SELECT 1 FROM lesson_materials m WHERE m.lesson_id=l.id)) AS has_material FROM lessons l WHERE l.course_id=? ORDER BY l.position,l.id",
+      )
+      .all(courseId)
+  ).map((row) => ({
+    id: integer(row.id),
+    courseId: integer(row.course_id),
+    title: str(row.title),
+    position: integer(row.position),
+    hasVideo: !!row.has_video,
+    hasText: !!row.has_text,
+    hasMaterial: !!row.has_material,
+  }));
 }
 export async function getLessons(courseId: number) {
   const [rows, materials] = await Promise.all([
@@ -361,15 +463,21 @@ export async function getLessons(courseId: number) {
   }
   return rows.map((row) => lesson(row, byLesson.get(integer(row.id)) ?? []));
 }
-export async function getLesson(id: number) {
-  const row = await getDb().prepare("SELECT * FROM lessons WHERE id=?").get(id);
-  if (!row) return undefined;
-  const materials = await getDb()
-    .prepare(
-      "SELECT u.id,u.filename,u.content_type,u.size FROM lesson_materials m JOIN uploads u ON u.id=m.upload_id WHERE m.lesson_id=? ORDER BY u.created_at,u.id",
-    )
-    .all(id);
-  return lesson(row, materials.map(uploadedMaterial));
+export async function getLesson(id: number, courseId?: number) {
+  const courseFilter = courseId === undefined ? [] : [courseId];
+  const [row, materials] = await Promise.all([
+    getDb()
+      .prepare(
+        `SELECT * FROM lessons WHERE id=?${courseId === undefined ? "" : " AND course_id=?"}`,
+      )
+      .get(id, ...courseFilter),
+    getDb()
+      .prepare(
+        `SELECT u.id,u.filename,u.content_type,u.size FROM lesson_materials m JOIN lessons l ON l.id=m.lesson_id JOIN uploads u ON u.id=m.upload_id WHERE m.lesson_id=?${courseId === undefined ? "" : " AND l.course_id=?"} ORDER BY u.created_at,u.id`,
+      )
+      .all(id, ...courseFilter),
+  ]);
+  return row ? lesson(row, materials.map(uploadedMaterial)) : undefined;
 }
 export async function getUpload(id: string): Promise<UploadRecord | undefined> {
   const row = await getDb().prepare("SELECT * FROM uploads WHERE id=?").get(id);
@@ -398,9 +506,11 @@ export async function getUser(id: number) {
 }
 export async function getSessionUser(hash: string) {
   const row = await getDb()
-    .prepare("SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>?")
+    .prepare(
+      "SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?",
+    )
     .get(hash, new Date().toISOString());
-  return row ? await getUser(Number(row.user_id)) : undefined;
+  return row ? user(row) : undefined;
 }
 export async function getUserByEmail(email: string) {
   const row = await getDb()

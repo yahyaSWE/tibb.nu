@@ -1,6 +1,7 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookings } from "@/lib/db";
+import { getBookingById } from "@/lib/db";
 import { updateBookingAction } from "@/lib/actions";
 import {
   AdminHeading,
@@ -21,8 +22,9 @@ export default async function BookingDetailPage({
   params: Promise<{ id: string }>;
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const { id } = await params;
-  const booking = (await getBookings()).find((b) => b.id === Number(id));
+  const booking = await getBookingById(Number(id));
   if (!booking) notFound();
   const waitingForStripe =
     booking.paymentMethod === "stripe" && booking.paymentStatus !== "paid";

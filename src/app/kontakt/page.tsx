@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Mail, MapPin, ArrowRight } from "lucide-react";
-import { getSettings } from "@/lib/db";
+import { getSiteSettings } from "@/lib/site-data";
 export const metadata = { title: "Kontakt" };
 export default async function ContactPage() {
-  const s = await getSettings();
+  const s = await getSiteSettings();
   return (
     <section className="section container narrow">
       <div className="page-heading">

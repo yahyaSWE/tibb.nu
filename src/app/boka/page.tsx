@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
-import {
-  getPractitioners,
-  getSettings,
-  getSlots,
-  getTreatments,
-} from "@/lib/db";
+import { getPractitioners, getSlots, getTreatments } from "@/lib/db";
+import { getSiteSettings } from "@/lib/site-data";
 import { stripeReady } from "@/lib/stripe";
 import { BookingForm } from "@/components/booking-form";
 export const metadata: Metadata = { title: "Behandlingar & bokning" };
@@ -19,7 +15,7 @@ export default async function BookingPage({
       getTreatments({ activeOnly: true }),
       getPractitioners({ activeOnly: true }),
       getSlots({ futureOnly: true }),
-      getSettings(),
+      getSiteSettings(),
     ]);
   const ids = new Set(treatments.map((t) => t.id));
   const practitionerIds = new Set(practitioners.map((p) => p.id));

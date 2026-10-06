@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { SiteChrome } from "@/components/site-chrome";
-import { getSettings } from "@/lib/db";
+import { getSiteSettings } from "@/lib/site-data";
 import { getCurrentUser } from "@/lib/auth";
 import { databaseConfigured } from "@/lib/database-config";
 import "./globals.css";
@@ -41,7 +41,7 @@ export default async function RootLayout({
   const needsDatabase = !!process.env.VERCEL && !databaseConfigured();
   const [settings, user] = needsDatabase
     ? [{ siteName: "Tibb.nu", email: "" }, null]
-    : await Promise.all([getSettings(), getCurrentUser()]);
+    : await Promise.all([getSiteSettings(), getCurrentUser()]);
   return (
     <html lang="sv" data-scroll-behavior="smooth">
       <body className={`${serif.variable} ${sans.variable}`}>

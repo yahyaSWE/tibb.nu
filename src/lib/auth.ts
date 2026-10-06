@@ -2,12 +2,16 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb, getSessionUser, transaction, type User } from "./db";
 import { randomToken, tokenHash } from "./security";
+import { cache } from "react";
 const COOKIE = "tibb_session";
+// Share this lookup within one server render, never between visitors or requests.
+// Read the cookie each time so login/logout use the new session immediately.
+const sessionUserForRender = cache(getSessionUser);
 export async function getCurrentUser(): Promise<User | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE)?.value;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
-  return (await getSessionUser(tokenHash(token))) ?? null;
+  return (await sessionUserForRender(tokenHash(token))) ?? null;
 }
 export async function requireUser() {
   const user = await getCurrentUser();

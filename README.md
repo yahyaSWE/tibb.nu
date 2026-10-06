@@ -112,6 +112,10 @@ npm start
 
 På **Vercel** följer du guiden ovan och använder Turso. Som alternativ kan du drifta en egen Node-server med **beständig disk**, HTTPS och en appinstans. Utan Turso-inställningar används `TIBB_DATABASE_PATH` (standard: `data/tibb.sqlite`) utanför Vercel. Dockerfiler finns för det alternativet med en beständig datavolym; sätt `APP_URL` till din offentliga HTTPS-adress.
 
+`vercel.json` placerar serverfunktionerna i Dublin (`dub1`), nära projektets nuvarande Turso-databas i Irland. Anpassa regionen om databasen senare flyttas. Menyer förhämtar nästa sidas ram och laddningsvy; bokningstider och behörigheter hämtas och kontrolleras fortfarande på servern. Vanliga sparningar uppdaterar berörda sidor, medan ändrade webbplatsinställningar uppdaterar den gemensamma layouten.
+
+Databasen kontrollerar sin schemaversion en gång per serverinstans. Komplett migrering och startdata körs bara när en uppgradering behövs. Vid framtida schemaändringar ska `SCHEMA_VERSION` i `src/lib/schema.ts` höjas och migreringen läggas i `src/lib/database.ts`; versionen sparas atomiskt när migreringen lyckas.
+
 Starta Docker med `docker compose --env-file .env.local up --build -d` när miljövärden och en HTTPS-proxy är konfigurerade. Dockerkonfigurationen har förberetts, men har inte körts i den här miljön.
 
 Säkerhetskopiera med SQLite backup API eller en konsekvent SQLite-snapshot; kopiera inte bara en aktiv databasfil och ignorera WAL-filen. Starta om utvecklingsservern om du kör CLI-konfiguration eller flyttar databasen under utveckling.
@@ -129,6 +133,8 @@ npm run build
 ```
 
 Tester använder separata tillfälliga databaser och täcker bland annat verklig konkurrens mellan bokningar, roller, skyddade kurslektioner, publicering, prisbevarande, betalningsstatus och svensk tidszon.
+
+`scripts/e2e-navigation.ts` kontrollerar verkliga formulärsparningar, inloggning/utloggning och skyddade HTML- och RSC-svar vid förhämtning. Skapa först en ny databas med `npx tsx scripts/e2e-fixture.ts`, starta en separat lokal server med den utskrivna `TIBB_DATABASE_PATH` och kör `npx tsx scripts/e2e-navigation.ts "sökvägen till testdatabasen"`. Servern ska sakna Turso- och Vercel-miljövariabler. Testet accepterar bara den märkta lokala testdatabasen och skriver aldrig till produktionsdata.
 
 ## Bild
 

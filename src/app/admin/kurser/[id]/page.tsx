@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCourseById, getLessons, getEnrollments } from "@/lib/db";
@@ -27,6 +28,7 @@ export default async function CourseBuilderPage({
   params: Promise<{ id: string }>;
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const { id } = await params;
   const courseId = Number(id);
   if (!Number.isSafeInteger(courseId) || courseId < 1) notFound();

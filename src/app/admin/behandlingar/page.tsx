@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { getTreatments } from "@/lib/db";
 import {
@@ -15,6 +16,7 @@ export default async function TreatmentsPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const treatments = await getTreatments();
   return (
     <>

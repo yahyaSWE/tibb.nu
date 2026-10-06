@@ -1,7 +1,18 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createClient as createRemoteClient } from "@libsql/client/http";
-import type { Client, InValue, ResultSet, Transaction } from "@libsql/client";
-import { SCHEMA, SLOT_SCHEDULE_SCHEMA } from "./schema";
+import {
+  LibsqlError,
+  type Client,
+  type InValue,
+  type ResultSet,
+  type Transaction,
+} from "@libsql/client";
+import {
+  SCHEMA,
+  SCHEMA_VERSION,
+  SCHEMA_VERSION_KEY,
+  SLOT_SCHEDULE_SCHEMA,
+} from "./schema";
 import { databaseConfigured } from "./database-config";
 export { databaseConfigured } from "./database-config";
 
@@ -81,6 +92,42 @@ export class DatabaseAdapter {
   private gate<T>(work: () => Promise<T>) {
     return this.remote ? work() : this.localMutex.run(work);
   }
+  private async hasCurrentSchema(
+    client: Pick<Client, "execute">,
+  ): Promise<boolean> {
+    // Hosted Turso does not permit assigning PRAGMA user_version. Keep its
+    // version in an ordinary table; local SQLite can use the header field.
+    let version: number;
+    if (this.remote) {
+      let result: ResultSet;
+      try {
+        result = await client.execute({
+          sql: "SELECT value FROM app_meta WHERE key=?",
+          args: [SCHEMA_VERSION_KEY],
+        });
+      } catch (error) {
+        if (
+          error instanceof LibsqlError &&
+          ["SQLITE_ERROR", "SQL_INPUT_ERROR"].includes(error.code) &&
+          /no such table:\s*(?:main\.)?app_meta\b/i.test(error.message)
+        )
+          return false;
+        throw error;
+      }
+      if (!result.rows.length) return false;
+      version = Number(result.rows[0].value);
+    } else {
+      const result = await client.execute("PRAGMA user_version");
+      version = Number(result.rows[0]?.user_version);
+    }
+    if (!Number.isSafeInteger(version) || version < 0)
+      throw new Error("Databasens schemaversion kunde inte läsas.");
+    if (version > SCHEMA_VERSION)
+      throw new Error(
+        "Databasen har en nyare schemaversion. Använd den senaste publicerade versionen av Tibb.nu.",
+      );
+    return version === SCHEMA_VERSION;
+  }
   async initialize(): Promise<void> {
     this.readyPromise ??= this.gate(async () => {
       const client = await this.client();
@@ -88,8 +135,17 @@ export class DatabaseAdapter {
         await client.execute("PRAGMA foreign_keys=ON");
         await client.execute("PRAGMA journal_mode=WAL");
       }
+      // Existing deployments need one read instead of replaying all DDL and
+      // opening a write transaction on every serverless cold start.
+      if (await this.hasCurrentSchema(client)) return;
       const tx = await client.transaction("write");
       try {
+        // Another instance may have migrated while this one waited for the
+        // database write lock. Recheck under that lock before doing any DDL.
+        if (await this.hasCurrentSchema(tx)) {
+          await tx.commit();
+          return;
+        }
         await tx.executeMultiple(SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
@@ -149,6 +205,12 @@ export class DatabaseAdapter {
           "SELECT value FROM app_meta WHERE key='seeded'",
         );
         if (!seeded.rows.length) await this.seed(tx);
+        await tx.execute({
+          sql: "INSERT INTO app_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+          args: [SCHEMA_VERSION_KEY, String(SCHEMA_VERSION)],
+        });
+        if (!this.remote)
+          await tx.execute(`PRAGMA user_version=${SCHEMA_VERSION}`);
         await tx.commit();
       } catch (error) {
         try {

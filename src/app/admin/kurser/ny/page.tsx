@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import {
   AdminHeading,
@@ -6,11 +7,12 @@ import {
 } from "@/components/admin/common";
 import { CourseForm } from "@/components/admin/course-form";
 
-export default function NewCoursePage({
+export default async function NewCoursePage({
   searchParams,
 }: {
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   return (
     <>
       <AdminHeading

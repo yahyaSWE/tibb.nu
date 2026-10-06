@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { CalendarDays, Clock3, ShieldOff } from "lucide-react";
 import { getPractitioners, getSlots, getTreatments } from "@/lib/db";
 import {
@@ -60,6 +61,7 @@ export default async function AvailabilityPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const [treatments, practitioners, slots, schedules, blocks] =
     await Promise.all([
       getTreatments({ activeOnly: true }),

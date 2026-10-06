@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { getUsers, getEnrollments, getCourses } from "@/lib/db";
 import { enrollStudentAction, removeEnrollmentAction } from "@/lib/actions";
@@ -17,6 +18,7 @@ export default async function StudentsPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const [users, enrollments, courses] = await Promise.all([
     getUsers(),
     getEnrollments(),

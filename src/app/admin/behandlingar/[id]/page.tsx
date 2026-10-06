@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTreatment } from "@/lib/db";
@@ -17,6 +18,7 @@ export default async function EditTreatmentPage({
   params: Promise<{ id: string }>;
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const { id } = await params;
   const treatmentId = Number(id);
   if (!Number.isSafeInteger(treatmentId) || treatmentId < 1) notFound();

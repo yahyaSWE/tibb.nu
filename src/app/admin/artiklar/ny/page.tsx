@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import {
   AdminHeading,
@@ -6,11 +7,12 @@ import {
 } from "@/components/admin/common";
 import { ArticleForm } from "@/components/admin/article-form";
 
-export default function NewArticlePage({
+export default async function NewArticlePage({
   searchParams,
 }: {
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   return (
     <>
       <AdminHeading

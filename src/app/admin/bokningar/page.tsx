@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { getBookings } from "@/lib/db";
 import {
@@ -15,6 +16,7 @@ export default async function BookingsPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
+  await requireAdmin();
   const query = await searchParams;
   const bookings = await getBookings();
   const selected = typeof query.status === "string" ? query.status : "all";

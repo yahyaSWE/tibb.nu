@@ -28,9 +28,8 @@ export default async function BookingPage({
   return (
     <section className="section container">
       <div className="page-heading booking-heading">
-        <span className="eyebrow">ETT PERSONLIGT MÖTE</span>
         <h1>
-          En tid för <em>dig.</em>
+          Boka en <em>behandling</em>
         </h1>
         <p>
           Välj behandling, behandlare och en ledig tid. Längd och pris visas

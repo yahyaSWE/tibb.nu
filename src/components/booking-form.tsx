@@ -317,8 +317,7 @@ export function BookingForm({
         </form>
       </div>
       <aside className="booking-summary" aria-live="polite">
-        <span className="eyebrow">DITT BESÖK</span>
-        <h3>En stund för dig.</h3>
+        <h3>Din bokning</h3>
         <div className="summary-item">
           <span>Behandling</span>
           <strong>{treatment?.name || "Välj behandling"}</strong>

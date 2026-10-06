@@ -4,8 +4,8 @@ export default function Loading() {
   return (
     <RouteLoading
       variant="booking"
-      eyebrow="Ett personligt möte"
-      title="En tid för dig."
+      eyebrow=""
+      title="Boka en behandling"
       description="Hämtar behandlingar, behandlare och lediga tider."
     />
   );

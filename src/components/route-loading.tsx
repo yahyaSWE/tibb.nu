@@ -26,7 +26,7 @@ export function RouteLoading({
   return (
     <section className={`route-loading route-loading--${variant}`}>
       <div className="route-loading-heading">
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         <p>{description}</p>
         <p className="route-loading-status" role="status">

@@ -1,6 +1,6 @@
 "use server";
 import { headers } from "next/headers";
-import { revalidateMutation } from "./revalidation";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -13,7 +13,7 @@ import {
   DomainError,
   cancelPendingBooking,
   createFirstAdmin,
-  getBookingById,
+  getBookings,
   getUserByEmail,
   hasAdmin,
   rateLimit,
@@ -70,8 +70,7 @@ async function formAction(
     : path(field(form, "returnTo"), fallback);
   try {
     const result = await work();
-    // Session cookie changes already refresh the auth UI through Next.js.
-    if (!authForm) revalidateMutation(fallback, result || destination);
+    revalidatePath("/", "layout");
     destination =
       result ||
       destination +
@@ -334,7 +333,7 @@ export async function updateBookingAction(form: FormData): Promise<void> {
   const user = await requireAdmin();
   await formAction(form, "/admin/bokningar", async () => {
     const id = idField(form);
-    const booking = await getBookingById(id);
+    const booking = (await getBookings()).find((item) => item.id === id);
     if (
       booking?.paymentMethod === "stripe" &&
       booking.status === "pending" &&

@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
-  getAccessibleCourse,
-  getLessonOutline,
+  getCourseById,
+  getLessons,
   getCourseProgress,
+  hasCourseAccess,
 } from "@/lib/db";
 import { TextContent } from "@/components/learning/cards";
 
@@ -26,11 +27,16 @@ export default async function StudentCoursePage({
   const user = await requireUser();
   const { courseId: rawCourseId } = await params;
   const courseId = Number(rawCourseId);
-  if (!Number.isSafeInteger(courseId) || courseId < 1) notFound();
-  const course = await getAccessibleCourse(user.id, courseId);
+  if (
+    !Number.isSafeInteger(courseId) ||
+    courseId < 1 ||
+    !(await hasCourseAccess(user.id, courseId))
+  )
+    notFound();
+  const course = await getCourseById(courseId);
   if (!course) notFound();
   const [lessons, completed] = await Promise.all([
-    getLessonOutline(courseId),
+    getLessons(courseId),
     getCourseProgress(user.id, courseId),
   ]);
   const completedCount = lessons.filter((lesson) =>
@@ -101,13 +107,7 @@ export default async function StudentCoursePage({
                 <span className="portal-lesson-label">
                   <strong>{lesson.title}</strong>
                   <small className="muted">
-                    {[
-                      lesson.hasVideo && "Video",
-                      lesson.hasText && "Läsning",
-                      lesson.hasMaterial && "Material",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {lesson.videoUrl ? "Video och läsning" : "Läsning"}
                   </small>
                 </span>
                 {completed.includes(lesson.id) ? (

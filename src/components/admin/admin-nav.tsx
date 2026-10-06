@@ -1,6 +1,6 @@
 "use client";
 
-import { NavigationLink as Link } from "@/components/navigation-link";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
@@ -37,7 +37,6 @@ export function AdminNav() {
           <Link
             key={href}
             href={href}
-            intentOnly
             className={`admin-nav-link${active ? " active" : ""}`}
             aria-current={active ? "page" : undefined}
           >

@@ -10,10 +10,10 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
-  getAccessibleCourse,
-  getLesson,
-  getLessonOutline,
+  getCourseById,
+  getLessons,
   getCourseProgress,
+  hasCourseAccess,
 } from "@/lib/db";
 import { markLessonAction } from "@/lib/actions";
 import { TextContent } from "@/components/learning/cards";
@@ -39,19 +39,20 @@ export default async function LessonPage({
     !Number.isSafeInteger(courseId) ||
     courseId < 1 ||
     !Number.isSafeInteger(lessonId) ||
-    lessonId < 1
+    lessonId < 1 ||
+    !(await hasCourseAccess(user.id, courseId))
   )
     notFound();
-  const course = await getAccessibleCourse(user.id, courseId);
+  const course = await getCourseById(courseId);
   if (!course) notFound();
-  const [lessons, lesson, completed, query] = await Promise.all([
-    getLessonOutline(courseId),
-    getLesson(lessonId, courseId),
+  const [lessons, completed, query] = await Promise.all([
+    getLessons(courseId),
     getCourseProgress(user.id, courseId),
     searchParams,
   ]);
   const index = lessons.findIndex((lesson) => lesson.id === lessonId);
-  if (index < 0 || !lesson) notFound();
+  if (index < 0) notFound();
+  const lesson = lessons[index];
   const isComplete = completed.includes(lessonId);
   const completedCount = lessons.filter((item) =>
     completed.includes(item.id),

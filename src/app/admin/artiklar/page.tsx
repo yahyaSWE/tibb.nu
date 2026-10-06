@@ -1,4 +1,3 @@
-import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { getArticles } from "@/lib/db";
 import {
@@ -14,7 +13,6 @@ export default async function ArticlesPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
   const articles = await getArticles();
   return (
     <>

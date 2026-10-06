@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { ArrowUpRight, BookOpen, Sprout } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getPortalCourseSummaries } from "@/lib/db";
+import {
+  getStudentCourses,
+  getCourseProgress,
+  getLessons,
+  getCourses,
+} from "@/lib/db";
 import { CourseCard } from "@/components/learning/cards";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +18,22 @@ export default async function StudentPortalPage({
 }) {
   const user = await requireUser();
   const query = await searchParams;
-  const courses = await getPortalCourseSummaries(user.id);
+  const courses =
+    user.role === "admin"
+      ? await getCourses({ publishedOnly: false })
+      : await getStudentCourses(user.id);
+  const progress = await Promise.all(
+    courses.map(async (course) => {
+      const [lessons, completed] = await Promise.all([
+        getLessons(course.id),
+        getCourseProgress(user.id, course.id),
+      ]);
+      const finished = lessons.filter((lesson) =>
+        completed.includes(lesson.id),
+      ).length;
+      return lessons.length ? Math.round((finished / lessons.length) * 100) : 0;
+    }),
+  );
   return (
     <>
       <section className="portal-welcome">
@@ -65,7 +85,7 @@ export default async function StudentPortalPage({
               course={course}
               index={index}
               href={`/elevportal/kurser/${course.id}`}
-              progress={course.progress}
+              progress={progress[index]}
             />
           ))}
         </div>

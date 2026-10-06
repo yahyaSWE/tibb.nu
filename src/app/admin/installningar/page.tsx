@@ -1,6 +1,5 @@
-import { requireAdmin } from "@/lib/auth";
 import { Check, Circle, CreditCard, Wallet } from "lucide-react";
-import { getSiteSettings } from "@/lib/site-data";
+import { getSettings } from "@/lib/db";
 import { saveSettingsAction } from "@/lib/actions";
 import {
   AdminHeading,
@@ -16,8 +15,7 @@ export default async function SettingsPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
-  const settings = await getSiteSettings();
+  const settings = await getSettings();
   const stripeChecks = [
     { label: "Stripe-anslutning", ready: !!process.env.STRIPE_SECRET_KEY },
     {

@@ -1,6 +1,6 @@
 "use client";
 
-import { NavigationLink as Link } from "@/components/navigation-link";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ArrowUpRight, Leaf, Menu, UserRound, X } from "lucide-react";
@@ -61,7 +61,7 @@ export function SiteChrome({
             href="/"
             className="brand"
             aria-label={`${siteName}, startsida`}
-            onNavigate={() => setOpen(false)}
+            onClick={() => setOpen(false)}
           >
             <OliveMark />
             <span>
@@ -76,7 +76,6 @@ export function SiteChrome({
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={item.href === "/om" ? true : undefined}
                 className={
                   pathname === item.href ||
                   (item.href !== "/" && pathname.startsWith(item.href))
@@ -90,7 +89,6 @@ export function SiteChrome({
           </nav>
           <Link
             className="portal-link"
-            intentOnly
             href={
               user?.role === "admin"
                 ? "/admin"
@@ -119,8 +117,7 @@ export function SiteChrome({
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={item.href === "/om" ? true : undefined}
-                onNavigate={() => setOpen(false)}
+                onClick={() => setOpen(false)}
               >
                 {item.label}
               </Link>
@@ -137,7 +134,7 @@ export function SiteChrome({
       <footer className="site-footer">
         <div className="footer-top">
           <div>
-            <Link href="/" className="brand" intentOnly>
+            <Link href="/" className="brand">
               <OliveMark />
               <span>{siteName}</span>
             </Link>
@@ -149,47 +146,35 @@ export function SiteChrome({
           </div>
           <div>
             <span className="footer-label">Upptäck</span>
-            <Link href="/boka" intentOnly>
-              Boka en behandling
-            </Link>
-            <Link href="/kurser" intentOnly>
-              Våra kurser
-            </Link>
-            <Link href="/artiklar" intentOnly>
-              Kunskap & artiklar
-            </Link>
+            <Link href="/boka">Boka en behandling</Link>
+            <Link href="/kurser">Våra kurser</Link>
+            <Link href="/artiklar">Kunskap & artiklar</Link>
           </div>
           <div>
             <span className="footer-label">Välkommen</span>
-            <Link href="/om" intentOnly>
-              Om Tibb.nu
-            </Link>
-            <Link href="/elevportal" intentOnly>
+            <Link href="/om">Om Tibb.nu</Link>
+            <Link href="/elevportal">
               Elevportalen <ArrowUpRight size={13} />
             </Link>
             {contactEmail ? (
               <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
             ) : (
-              <Link href="/kontakt" intentOnly>
-                Kontakta oss
-              </Link>
+              <Link href="/kontakt">Kontakta oss</Link>
             )}
           </div>
           <div className="footer-note">
             <Leaf size={24} strokeWidth={1.2} />
-            <p>Traditionell kinesisk medicin i ljuset av profetisk medicin</p>
+            <p>
+              Traditionell kinesisk medicin i ljuset av profetisk medicin
+            </p>
           </div>
         </div>
         <div className="footer-bottom">
           <span>
             © {new Date().getFullYear()} {siteName}
           </span>
-          <Link href="/integritet" intentOnly>
-            Integritet
-          </Link>
-          <Link href="/admin" intentOnly>
-            Administration
-          </Link>
+          <Link href="/integritet">Integritet</Link>
+          <Link href="/admin">Administration</Link>
         </div>
       </footer>
     </div>

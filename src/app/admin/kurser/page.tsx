@@ -1,6 +1,5 @@
-import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
-import { getCourseSummaries } from "@/lib/db";
+import { getCourses, getLessons, getEnrollments } from "@/lib/db";
 import {
   AdminHeading,
   AdminNotice,
@@ -15,8 +14,18 @@ export default async function CoursesPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
-  const courses = await getCourseSummaries();
+  const [courses, enrollments] = await Promise.all([
+    getCourses(),
+    getEnrollments(),
+  ]);
+  const lessonCounts = new Map(
+    await Promise.all(
+      courses.map(
+        async (course) =>
+          [course.id, (await getLessons(course.id)).length] as const,
+      ),
+    ),
+  );
   return (
     <>
       <AdminHeading
@@ -52,8 +61,13 @@ export default async function CoursesPage({
                     <td>
                       <strong>{course.title}</strong>
                     </td>
-                    <td>{course.lessonCount}</td>
-                    <td>{course.enrollmentCount}</td>
+                    <td>{lessonCounts.get(course.id) ?? 0}</td>
+                    <td>
+                      {
+                        enrollments.filter((e) => e.courseId === course.id)
+                          .length
+                      }
+                    </td>
                     <td>{kronor(course.priceOre)}</td>
                     <td>
                       <span

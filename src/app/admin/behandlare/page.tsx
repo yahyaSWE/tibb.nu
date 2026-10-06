@@ -1,4 +1,3 @@
-import { requireAdmin } from "@/lib/auth";
 import { getPractitioners } from "@/lib/db";
 import {
   archivePractitionerAction,
@@ -86,7 +85,6 @@ export default async function PractitionersPage({
 }: {
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
   const practitioners = await getPractitioners();
   return (
     <>

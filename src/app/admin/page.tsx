@@ -1,4 +1,3 @@
-import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -12,9 +11,9 @@ import {
   getBookings,
   getCourses,
   getEnrollments,
+  getSettings,
   getSlots,
 } from "@/lib/db";
-import { getSiteSettings } from "@/lib/site-data";
 import {
   AdminHeading,
   AdminNotice,
@@ -31,7 +30,6 @@ export default async function AdminDashboard({
 }: {
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
   const [bookings, allSlots, courses, articles, enrollments, settings] =
     await Promise.all([
       getBookings(),
@@ -39,7 +37,7 @@ export default async function AdminDashboard({
       getCourses(),
       getArticles(),
       getEnrollments(),
-      getSiteSettings(),
+      getSettings(),
     ]);
   const now = new Date().toISOString();
   const upcoming = bookings

@@ -1,9 +1,3 @@
-// Increase this version whenever schema definitions or migrations change.
-// It is recorded in SQLite's user_version and app_meta only when the complete
-// migration and initial seed commit successfully.
-export const SCHEMA_VERSION = 2;
-export const SCHEMA_VERSION_KEY = "schema_version";
-
 export const SCHEMA = `    CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','student')), created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at TEXT NOT NULL);
@@ -26,7 +20,6 @@ export const SCHEMA = `    CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY 
     CREATE TABLE IF NOT EXISTS articles (id INTEGER PRIMARY KEY, title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, excerpt TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', published INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS courses (id INTEGER PRIMARY KEY, title TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, description TEXT NOT NULL DEFAULT '', price_ore INTEGER NOT NULL DEFAULT 0 CHECK(price_ore BETWEEN 0 AND 10000000), published INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS lessons (id INTEGER PRIMARY KEY, course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', video_url TEXT NOT NULL DEFAULT '', material_url TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL DEFAULT 1);
-    CREATE INDEX IF NOT EXISTS lessons_course_position ON lessons(course_id,position,id);
     CREATE TABLE IF NOT EXISTS lesson_materials (lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE, upload_id TEXT NOT NULL REFERENCES uploads(id) ON DELETE CASCADE, PRIMARY KEY(lesson_id,upload_id));
     CREATE INDEX IF NOT EXISTS lesson_materials_upload ON lesson_materials(upload_id);
     CREATE TABLE IF NOT EXISTS enrollments (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE, created_at TEXT NOT NULL, UNIQUE(user_id,course_id));

@@ -10,7 +10,7 @@ import {
   LockKeyhole,
   Sprout,
 } from "lucide-react";
-import { getCourse, getLessonOutline, hasCourseAccess } from "@/lib/db";
+import { getCourse, getLessons, hasCourseAccess } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatPrice, TextContent } from "@/components/learning/cards";
 
@@ -38,7 +38,7 @@ export default async function CoursePage({
   const course = await getCourse(slug, { publishedOnly: true });
   if (!course) notFound();
   const [lessons, user] = await Promise.all([
-    getLessonOutline(course.id),
+    getLessons(course.id),
     getCurrentUser(),
   ]);
   const hasAccess = user ? await hasCourseAccess(user.id, course.id) : false;

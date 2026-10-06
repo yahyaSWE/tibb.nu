@@ -1,7 +1,6 @@
-import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getArticleById } from "@/lib/db";
+import { getArticles } from "@/lib/db";
 import { deleteArticleAction } from "@/lib/actions";
 import {
   AdminHeading,
@@ -18,9 +17,10 @@ export default async function EditArticlePage({
   params: Promise<{ id: string }>;
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
   const { id } = await params;
-  const article = await getArticleById(Number(id));
+  const article = (await getArticles()).find(
+    (article) => article.id === Number(id),
+  );
   if (!article) notFound();
   return (
     <>

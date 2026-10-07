@@ -1,13 +1,14 @@
-import type { Metadata } from "next";
 import { ArrowDown, BookOpen, CirclePlay, Sprout } from "lucide-react";
 import { getCourses } from "@/lib/db";
+import { createPageMetadata } from "@/lib/seo";
 import { CourseCard } from "@/components/learning/cards";
 
-export const metadata: Metadata = {
-  title: "Kurser",
+export const metadata = createPageMetadata({
+  title: "Kurser i klassisk kinesisk medicin",
   description:
-    "Fördjupa din kunskap i klassisk kinesisk medicin och den profetiska vägledningen med Tibb.nu.",
-};
+    "Utforska Tibb.nu:s kurser i klassisk kinesisk medicin i ljuset av den profetiska vägledningen. Fördjupa din kunskap i egen takt via elevportalen.",
+  path: "/kurser",
+});
 export const dynamic = "force-dynamic";
 
 export default async function CoursesPage() {

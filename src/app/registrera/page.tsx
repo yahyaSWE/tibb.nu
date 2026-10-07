@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { ArrowRight, Sprout } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { signupAction } from "@/lib/actions";
+import { PRIVATE_METADATA } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Skapa konto" };
+export const metadata: Metadata = { ...PRIVATE_METADATA, title: "Skapa konto" };
 export const dynamic = "force-dynamic";
 
 export default async function SignupPage({

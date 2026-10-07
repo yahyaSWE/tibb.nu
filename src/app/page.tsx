@@ -10,18 +10,32 @@ import {
   Sprout,
 } from "lucide-react";
 import { getArticles, getCourses, getTreatments } from "@/lib/db";
+import { getSiteSettings } from "@/lib/site-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { absoluteUrl, buildOrganizationSchema, createPageMetadata, organizationId, websiteId } from "@/lib/seo";
 import "./home.css";
 
+export const metadata = createPageMetadata({
+  title: "Traditionell kinesisk medicin i Jönköping | Tibb.nu", path: "/",
+  description: "Behandlingar i Jönköping hos Tibb.nu. Klassisk kinesisk medicin i ljuset av profetisk vägledning. Boka behandling, läs artiklar och utforska våra kurser.",
+});
+
 export default async function HomePage() {
-  const [allCourses, allArticles, treatments] = await Promise.all([
+  const [allCourses, allArticles, treatments, settings] = await Promise.all([
     getCourses({ publishedOnly: true }),
     getArticles({ publishedOnly: true }),
     getTreatments({ activeOnly: true }),
+    getSiteSettings(),
   ]);
   const courses = allCourses.slice(0, 2);
   const articles = allArticles.slice(0, 3);
   return (
     <div className="home-page">
+      <JsonLd id="website-data" data={[
+        buildOrganizationSchema(settings),
+        { "@context": "https://schema.org", "@type": "WebSite", "@id": websiteId(),
+          name: "Tibb.nu", url: absoluteUrl("/"), inLanguage: "sv-SE", publisher: { "@id": organizationId() } },
+      ]} />
       <section className="home-hero-section">
         <div className="home-hero container">
           <div className="hero-copy">
@@ -30,8 +44,8 @@ export default async function HomePage() {
               Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.
             </p>
             <p className="hero-description">
-              En plats där traditionell kunskap möter omtanke om hela människan.
-              Välkommen att utforska, lära och ta tid för dig själv.
+              Behandlingar i Jönköping hos Johan Yahya Blomdahl. Här möts
+              traditionell kunskap, personliga möten och lärande.
             </p>
             <div className="hero-actions">
               <Link href="/boka" className="button button-primary">
@@ -131,7 +145,7 @@ export default async function HomePage() {
             <h2>
               Två klassiska traditioner
               <br />
-              <em>mer årtusenden av kunskap</em>
+              <em>med årtusenden av kunskap</em>
             </h2>
           </div>
           <div className="philosophy-copy">
@@ -234,6 +248,14 @@ export default async function HomePage() {
             <p className="empty-state">Artiklar publiceras här inom kort.</p>
           )}
         </div>
+      </section>
+      <section className="section container">
+        <div className="section-heading">
+          <div><h2>Inför ditt besök</h2></div>
+          <Link href="/vanliga-fragor" className="text-link">Vanliga frågor <ArrowRight size={18} /></Link>
+        </div>
+        <p>Välj behandling och behandlare, sedan ett ledigt datum och en tid. Pris och behandlingens längd visas innan du bekräftar bokningen.</p>
+        <p>Läs om <Link href="/om">Johan Yahya Blomdahls bakgrund och utbildningar</Link> eller <Link href="/kontakt">kontakta oss</Link> om du har frågor inför ditt besök i Jönköping.</p>
       </section>
       <section className="visit-cta container">
         <div>

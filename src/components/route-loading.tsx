@@ -24,10 +24,10 @@ export function RouteLoading({
   variant?: LoadingVariant;
 }) {
   return (
-    <section className={`route-loading route-loading--${variant}`}>
+    <section className={`route-loading route-loading--${variant}`} data-nosnippet="">
       <div className="route-loading-heading">
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-        <h1>{title}</h1>
+        <p className="route-loading-title">{title}</p>
         <p>{description}</p>
         <p className="route-loading-status" role="status">
           <span className="route-loading-dot" aria-hidden="true" />

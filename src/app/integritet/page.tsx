@@ -1,5 +1,12 @@
 import { getSettings } from "@/lib/db";
-export const metadata = { title: "Integritet" };
+import { createPageMetadata } from "@/lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Integritet och personuppgifter",
+  description:
+    "Läs hur Tibb.nu hanterar personuppgifter för bokningar, elevkonton och betalningar samt hur du kontaktar verksamheten med frågor om dina uppgifter.",
+  path: "/integritet",
+});
 export default async function PrivacyPage() {
   const s = await getSettings();
   return (

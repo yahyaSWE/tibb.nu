@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      ...["/admin/:path*", "/elevportal/:path*", "/bokning/:path*", "/logga-in", "/registrera", "/setup", "/installation", "/api/:path*"].map((source) => ({
+        source,
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      })),
+      ...(process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "development" ? [{
+        source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      }] : []),
     ];
   },
 };

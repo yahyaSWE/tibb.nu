@@ -134,7 +134,25 @@ Sessionskakan är HttpOnly, SameSite=Lax och Secure i produktion. Roller och kur
 
 Innan du öppnar för kunder: fyll i verksamhetens kontaktuppgifter, egna texter, korrekta priser och tider, och anpassa integritetsinformationen till din verksamhet. Bokningsbekräftelse visas på sidan. E-postutskick och självbetjäning för lösenordsåterställning är inte anslutna.
 
-## Kontroller
+## Sökoptimering och AI-sök
+
+Offentliga sidor har unika titlar, beskrivningar och canonical-adresser samt delningsbilder för Open Graph och Twitter. Startsidan beskriver verksamheten i Jönköping, och `/om` presenterar Johan Yahya Blomdahls angivna utbildningar. `/vanliga-fragor` ger synliga svar om bokning, priser, behandlare, kursåtkomst och självtestet. Inga legitimationer, adresser, recensioner eller effektpåståenden har hittats på.
+
+`/sitemap.xml` hämtar publicerade artiklar och kurser direkt från databasen. Utkast, privata lektioner, bokningsreferenser och filer listas inte. Ändringsdatum kommer från sparade uppdateringar; statiska sidor får inget påhittat datum. JSON-LD beskriver webbplatsen, verksamheten, behandlaren, artiklar, kurser och brödsmulor med fakta som även visas på sidorna. Artiklar märker skapandetid och uppdateringstid; en första publiceringstid finns inte i datamodellen och anges därför inte.
+
+`robots.txt` tillåter offentligt innehåll för vanliga sökrobotar, OAI-SearchBot och PerplexityBot med samma privata undantag. Preview och lokal utveckling spärras. Privata sidor har även `noindex` i metadata/HTTP-header; befintlig inloggning och behörighetskontroll skyddar uppgifterna. `robots.txt` är inte ett åtkomstskydd. `llms.txt` är en kompletterande offentlig länkkarta och ger ingen garanterad förbättring i sökresultaten. Ingen särskild regel har lagts till för GPTBot, som har ett annat syfte än ChatGPT Search.
+
+### Innan och efter egen domän
+
+1. Lägg `SITE_URL=https://tibbnu.vercel.app` i Vercels **Production**-miljö och publicera ändringarna. Variabeln styr canonical, sitemap och schema utan att ändra betalningarnas `APP_URL`. Vercels automatiska `VERCEL_ENV` styr om miljön får indexeras. En ännu okonfigurerad installation får inte indexeras och svarar med tillfälligt HTTP 503.
+2. Verifiera webbplatsen i [Google Search Console](https://search.google.com/search-console) och [Bing Webmaster Tools](https://www.bing.com/webmasters/). DNS-verifiering fungerar när du kontrollerar domänen. För verifiering med HTML-meta fyller du i **enbart innehållsvärdet** i `GOOGLE_SITE_VERIFICATION` respektive `BING_SITE_VERIFICATION` och publicerar på nytt. Dessa verifieringskoder är offentliga, men lägg inte in kontolösenord eller hemliga API-nycklar.
+3. Skicka `https://tibbnu.vercel.app/sitemap.xml` i de båda verktygen. Inspektera startsidan, bokningssidan och publicerade artiklar. Kontrollera eventuella blockerade robotar i Vercels loggar/firewall; stäng inte av skydd generellt.
+4. När **tibb.nu** är ansluten med fungerande HTTPS i Vercel: välj den som huvudadress och ändra `SITE_URL` och `APP_URL` till `https://tibb.nu`. Publicera på nytt. Ställ in permanent omdirigering från Vercel-adressen och eventuell `www`-adress till huvudadressen via domäninställningarna. Kontrollera särskilt Stripe-returadresser/webhook vid domänbytet.
+5. Verifiera även tibb.nu i sökverktygen, skicka den nya sitemapen och använd Search Consoles adressändring om den gamla verifierade adressen stöder det. Canonical och samtliga schema-/sitemap-adresser ändras tillsammans med `SITE_URL`.
+
+Fyll i korrekta kontaktuppgifter i admin. Fortsätt publicera egna, användbara texter med tydliga källor där medicinska sakuppgifter används. Indexering och synlighet i Google eller AI-sök avgörs av respektive tjänst och kan inte garanteras genom kodändringar. Se [Googles vägledning för AI-sök](https://developers.google.com/search/docs/appearance/ai-features) och [OpenAI:s dokumentation om sökrobotar](https://developers.openai.com/api/docs/bots).
+
+## Kontroller av implementationen
 
 ```sh
 npm run typecheck
@@ -145,6 +163,8 @@ npm run build
 Tester använder separata tillfälliga databaser och täcker bland annat verklig konkurrens mellan bokningar, roller, skyddade kurslektioner, publicering, prisbevarande, betalningsstatus och svensk tidszon.
 
 `scripts/e2e-navigation.ts` kontrollerar verkliga formulärsparningar, inloggning/utloggning och skyddade HTML- och RSC-svar vid förhämtning. Skapa först en ny databas med `npx tsx scripts/e2e-fixture.ts`, starta en separat lokal server med den utskrivna `TIBB_DATABASE_PATH` och kör `npx tsx scripts/e2e-navigation.ts "sökvägen till testdatabasen"`. Servern ska sakna Turso- och Vercel-miljövariabler. Testet accepterar bara den märkta lokala testdatabasen och skriver aldrig till produktionsdata.
+
+`scripts/e2e-seo.ts` kontrollerar serverns HTML för elva offentliga testadresser, sidornas canonical/metadata/JSON-LD, privata sidors indexeringsheader, opublicerade artiklar/kurser och den genererade delningsbilden. Mot en separat lokal server med E2E-fixturen kör du `npm exec -- tsx scripts/e2e-seo.ts http://127.0.0.1:3001 https://tibbnu.vercel.app`. För att testa produktionsindexering på **samma isolerade lokala server** kan du sätta `VERCEL_ENV=production` (men inte `VERCEL` eller Turso-variabler) och lägga till `--indexable` i kontrollkommandot. Kontrollen gör inga databasändringar och avvisar andra värdar än localhost/127.0.0.1. Återställ den lokala servern efter simuleringen.
 
 ## Bild
 

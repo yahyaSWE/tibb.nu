@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { SiteChrome } from "@/components/site-chrome";
 import { getSiteSettings } from "@/lib/site-data";
 import { getCurrentUser } from "@/lib/auth";
 import { databaseConfigured } from "@/lib/database-config";
+import { createPageMetadata, getSiteUrl } from "@/lib/seo";
 import "./globals.css";
 import "@/components/learning/learning.css";
 import "./public-theme.css";
@@ -24,14 +25,25 @@ const sans = DM_Sans({
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const metadata: Metadata = {
+  ...createPageMetadata({
+    title: "Tibb.nu", path: "/",
+    description: "Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen. Behandlingar i Jönköping, kurser och artiklar hos Tibb.nu.",
+  }),
+  metadataBase: getSiteUrl(),
+  // Canonicals belong to individual pages; private routes must not inherit '/'.
+  alternates: { canonical: null },
   title: {
-    default: "Tibb.nu — Tradition, kunskap & omtanke",
+    default: "Tibb.nu | Traditionell kinesisk medicin i Jönköping",
     template: "%s | Tibb.nu",
   },
-  description:
-    "Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen. Boka ett besök, upptäck våra kurser och läs artiklar hos Tibb.nu.",
   icons: { icon: "/favicon.svg" },
+  verification: {
+    ...(process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : {}),
+    ...(process.env.BING_SITE_VERIFICATION ? { other: { "msvalidate.01": process.env.BING_SITE_VERIFICATION } } : {}),
+  },
 };
+
+export const viewport: Viewport = { themeColor: "#35584c", width: "device-width", initialScale: 1 };
 
 export default async function RootLayout({
   children,

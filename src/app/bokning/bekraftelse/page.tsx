@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { Check, Clock3 } from "lucide-react";
 import { getBookingByReference, getSettings } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/time";
+import { PRIVATE_METADATA } from "@/lib/seo";
+
 export const metadata = {
+  ...PRIVATE_METADATA,
   title: "Din bokning",
-  robots: { index: false, follow: false },
 };
 export default async function ConfirmationPage({
   searchParams,

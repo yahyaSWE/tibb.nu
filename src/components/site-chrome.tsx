@@ -176,6 +176,9 @@ export function SiteChrome({
             <Link href="/om" intentOnly>
               Om Tibb.nu
             </Link>
+            <Link href="/vanliga-fragor" intentOnly>
+              Vanliga frågor
+            </Link>
             <Link href="/elevportal" intentOnly>
               Elevportalen <ArrowUpRight size={13} />
             </Link>

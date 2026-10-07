@@ -38,12 +38,18 @@
 .route-loading-heading {
   margin-bottom: 38px;
 }
-.route-loading-heading h1 {
+.route-loading-heading .route-loading-title {
   margin: 14px 0 18px;
+  font-family: var(--serif);
+  font-size: clamp(44px, 5vw, 66px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--ink);
 }
-.route-loading--admin h1,
-.route-loading--portal h1,
-.route-loading--lesson h1 {
+.route-loading--admin .route-loading-title,
+.route-loading--portal .route-loading-title,
+.route-loading--lesson .route-loading-title {
   font-size: clamp(36px, 4vw, 48px);
 }
 .route-loading-status {

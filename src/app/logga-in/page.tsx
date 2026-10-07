@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { ArrowRight, Leaf } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { loginAction } from "@/lib/actions";
+import { PRIVATE_METADATA } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Logga in" };
+export const metadata: Metadata = { ...PRIVATE_METADATA, title: "Logga in" };
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({

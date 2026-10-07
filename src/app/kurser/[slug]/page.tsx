@@ -10,9 +10,18 @@ import {
   LockKeyhole,
   Sprout,
 } from "lucide-react";
-import { getCourse, getLessonOutline, hasCourseAccess } from "@/lib/db";
+import { getLessonOutline, hasCourseAccess } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatPrice, TextContent } from "@/components/learning/cards";
+import { JsonLd } from "@/components/seo/json-ld";
+import {
+  buildBreadcrumbSchema,
+  createPageMetadata,
+  PRIVATE_METADATA,
+  seoDescription,
+} from "@/lib/seo";
+import { buildCourseSchema } from "@/lib/seo-content";
+import { getPublicCourse } from "@/lib/seo-data";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +31,13 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const course = await getCourse(slug, { publishedOnly: true });
-  return {
-    title: course ? course.title : "Kursen finns inte",
-    description: course?.description.slice(0, 160),
-  };
+  const course = await getPublicCourse(slug);
+  if (!course) return { ...PRIVATE_METADATA, title: "Kursen finns inte" };
+  return createPageMetadata({
+    title: course.title,
+    description: seoDescription(course.description, course.title),
+    path: `/kurser/${encodeURIComponent(course.slug)}`,
+  });
 }
 
 export default async function CoursePage({
@@ -35,8 +46,9 @@ export default async function CoursePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const course = await getCourse(slug, { publishedOnly: true });
+  const course = await getPublicCourse(slug);
   if (!course) notFound();
+  const courseSchema = buildCourseSchema(course);
   const [lessons, user] = await Promise.all([
     getLessonOutline(course.id),
     getCurrentUser(),
@@ -44,9 +56,26 @@ export default async function CoursePage({
   const hasAccess = user ? await hasCourseAccess(user.id, course.id) : false;
   return (
     <section className="section container course-detail">
+      {courseSchema && <JsonLd id="course-schema" data={courseSchema} />}
+      <JsonLd
+        id="course-breadcrumbs"
+        data={buildBreadcrumbSchema([
+          { name: "Start", path: "/" },
+          { name: "Kurser", path: "/kurser" },
+          {
+            name: course.title,
+            path: `/kurser/${encodeURIComponent(course.slug)}`,
+          },
+        ])}
+      />
       <Link href="/kurser" className="back-link">
         <ArrowLeft size={16} /> Alla kurser
       </Link>
+      <nav aria-label="Brödsmulor" className="small muted">
+        <Link href="/">Start</Link> <span aria-hidden="true">/</span>{" "}
+        <Link href="/kurser">Kurser</Link> <span aria-hidden="true">/</span>{" "}
+        <span aria-current="page">{course.title}</span>
+      </nav>
       <div className="course-detail-grid">
         <div>
           <p className="eyebrow">Tibb akademi · Onlinekurs</p>

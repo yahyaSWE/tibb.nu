@@ -1,7 +1,9 @@
 import { Sprout } from "lucide-react";
+import { PRIVATE_METADATA } from "@/lib/seo";
+
 export const metadata = {
+  ...PRIVATE_METADATA,
   title: "Välkommen snart",
-  robots: { index: false, follow: false },
 };
 export default function InstallationPage() {
   return (

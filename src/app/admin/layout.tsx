@@ -2,13 +2,14 @@ import Link from "next/link";
 import { ArrowUpRight, Leaf, LogOut } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions";
+import { PRIVATE_METADATA } from "@/lib/seo";
 import { AdminNav } from "@/components/admin/admin-nav";
 import "@/components/admin/admin.css";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
+  ...PRIVATE_METADATA,
   title: "Administration · Tibb.nu",
-  robots: { index: false, follow: false },
 };
 
 export default async function AdminLayout({

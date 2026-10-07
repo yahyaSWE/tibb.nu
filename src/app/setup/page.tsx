@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { hasAdmin } from "@/lib/db";
 import { setupAction } from "@/lib/actions";
+import { PRIVATE_METADATA } from "@/lib/seo";
 export const dynamic = "force-dynamic";
 export const metadata = {
+  ...PRIVATE_METADATA,
   title: "Konfigurera Tibb.nu",
-  robots: { index: false, follow: false },
 };
 export default async function SetupPage({
   searchParams,

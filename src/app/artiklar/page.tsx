@@ -1,13 +1,14 @@
-import type { Metadata } from "next";
 import { BookOpen, Sprout } from "lucide-react";
 import { getArticles } from "@/lib/db";
+import { createPageMetadata } from "@/lib/seo";
 import { ArticleCard } from "@/components/learning/cards";
 
-export const metadata: Metadata = {
-  title: "Artiklar",
+export const metadata = createPageMetadata({
+  title: "Artiklar om klassisk kinesisk medicin",
   description:
     "Tankar, kunskap och perspektiv från Tibb.nu om klassisk kinesisk medicin i ljuset av den profetiska vägledningen.",
-};
+  path: "/artiklar",
+});
 export const dynamic = "force-dynamic";
 
 export default async function ArticlesPage() {

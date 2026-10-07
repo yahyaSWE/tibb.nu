@@ -1,9 +1,15 @@
-import type { Metadata } from "next";
 import { getPractitioners, getSlots, getTreatments } from "@/lib/db";
 import { getSiteSettings } from "@/lib/site-data";
 import { stripeReady } from "@/lib/stripe";
+import { createPageMetadata } from "@/lib/seo";
 import { BookingForm } from "@/components/booking-form";
-export const metadata: Metadata = { title: "Behandlingar & bokning" };
+
+export const metadata = createPageMetadata({
+  title: "Behandlingar och bokning",
+  description:
+    "Boka en behandling hos Tibb.nu. Välj behandling, behandlare och en ledig tid. Se längd, pris och betalningsalternativ innan du bekräftar din bokning.",
+  path: "/boka",
+});
 export default async function BookingPage({
   searchParams,
 }: {

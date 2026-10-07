@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import { ArrowLeft, Leaf, LogOut } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions";
+import { PRIVATE_METADATA } from "@/lib/seo";
 import { PortalNav } from "@/components/learning/portal-nav";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
+  ...PRIVATE_METADATA,
   title: "Elevportal",
-  robots: { index: false, follow: false },
 };
 
 export default async function PortalLayout({

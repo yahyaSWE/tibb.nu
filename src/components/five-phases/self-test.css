@@ -1,0 +1,952 @@
+.five-phases-test {
+  --phase-color: var(--green);
+  --phase-soft: var(--sage);
+  min-width: 0;
+}
+.five-phases-test [data-phase="wood"] {
+  --phase-color: #36594d;
+  --phase-soft: #e4ebdf;
+}
+.five-phases-test [data-phase="fire"] {
+  --phase-color: #8d493c;
+  --phase-soft: #f1ded3;
+}
+.five-phases-test [data-phase="earth"] {
+  --phase-color: #82612e;
+  --phase-soft: #ede3cc;
+}
+.five-phases-test [data-phase="metal"] {
+  --phase-color: #586267;
+  --phase-soft: #e7eae6;
+}
+.five-phases-test [data-phase="water"] {
+  --phase-color: #365767;
+  --phase-soft: #dfe8eb;
+}
+.five-phases-test h1,
+.five-phases-test h2,
+.five-phases-test h3,
+.five-phases-test p {
+  overflow-wrap: anywhere;
+}
+.five-phases-test .button {
+  gap: 10px;
+  min-height: 48px;
+  border-radius: 50px;
+}
+.five-phases-test .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.five-phases-test .selftest-intro-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(250px, 0.9fr);
+  align-items: center;
+  gap: 44px;
+  padding: 48px;
+  background: var(--green);
+  color: var(--paper);
+  border-radius: 28px;
+}
+.five-phases-test .selftest-intro-hero .eyebrow,
+.five-phases-test .selftest-result-hero .eyebrow {
+  color: #d3dec6;
+}
+.five-phases-test .selftest-intro-hero h1 {
+  font-size: clamp(38px, 4.6vw, 60px);
+  margin: 18px 0 23px;
+}
+.five-phases-test .selftest-subtitle {
+  color: var(--paper);
+  font-size: 17px;
+  line-height: 1.7;
+  max-width: 580px;
+}
+.five-phases-test .selftest-intro-copy {
+  color: #d5dfcf;
+  font-size: 13px;
+  line-height: 1.85;
+  max-width: 550px;
+}
+.five-phases-test .selftest-facts {
+  padding: 0;
+  margin: 26px 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  font-size: 12px;
+}
+.five-phases-test .selftest-facts li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.five-phases-test .selftest-intro-hero .button {
+  background: var(--peach);
+  color: var(--deep);
+  padding-inline: 25px;
+}
+.five-phases-test .selftest-intro-hero .button:hover {
+  background: #f1cfb8;
+}
+.five-phases-test .selftest-intro-hero :focus-visible,
+.five-phases-test .selftest-result-hero :focus-visible {
+  outline-color: var(--peach);
+}
+.five-phases-test .selftest-wheel {
+  width: 100%;
+  max-width: 335px;
+  aspect-ratio: 1;
+  position: relative;
+  margin-inline: auto;
+}
+.five-phases-test .selftest-wheel::before {
+  content: "";
+  position: absolute;
+  inset: 37px;
+  border: 1px solid #ecf0df40;
+  border-radius: 50%;
+}
+.five-phases-test .selftest-wheel-center {
+  position: absolute;
+  inset: 33%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+.five-phases-test .selftest-wheel-center > span {
+  font-family: var(--serif);
+  font-size: 41px;
+  color: #ead2b8;
+  letter-spacing: 4px;
+}
+.five-phases-test .selftest-wheel-center small {
+  color: #d5dfcf;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+.five-phases-test .selftest-wheel-phase {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: var(--phase-soft);
+  color: var(--phase-color);
+  box-shadow: 0 0 0 9px #36594d;
+}
+.five-phases-test .selftest-wheel-phase > span {
+  font-family: var(--serif);
+  font-size: 31px;
+  line-height: 1.1;
+}
+.five-phases-test .selftest-wheel-phase small {
+  font-size: 10px;
+  margin-top: 3px;
+}
+.five-phases-test .selftest-wheel-phase[data-phase="wood"] {
+  top: 0;
+  left: calc(50% - 35px);
+}
+.five-phases-test .selftest-wheel-phase[data-phase="fire"] {
+  top: 32%;
+  right: 0;
+}
+.five-phases-test .selftest-wheel-phase[data-phase="earth"] {
+  bottom: 0;
+  right: 15%;
+}
+.five-phases-test .selftest-wheel-phase[data-phase="metal"] {
+  bottom: 0;
+  left: 15%;
+}
+.five-phases-test .selftest-wheel-phase[data-phase="water"] {
+  top: 32%;
+  left: 0;
+}
+.five-phases-test .selftest-introduction {
+  margin-top: 52px;
+}
+.five-phases-test .selftest-section-heading {
+  margin-bottom: 26px;
+}
+.five-phases-test .selftest-section-heading h2 {
+  font-size: clamp(31px, 3.1vw, 42px);
+  margin: 12px 0 16px;
+}
+.five-phases-test .selftest-section-heading > p:not(.eyebrow) {
+  max-width: 780px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.five-phases-test .selftest-intro-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+.five-phases-test .selftest-intro-card {
+  min-width: 0;
+  padding: 24px 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fffdf7;
+}
+.five-phases-test .selftest-phase-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--phase-soft);
+  color: var(--phase-color);
+  font-family: var(--serif);
+  font-size: 25px;
+  flex-shrink: 0;
+}
+.five-phases-test .selftest-intro-card h3 {
+  font-size: 28px;
+  margin: 16px 0 12px;
+}
+.five-phases-test .selftest-intro-card p {
+  font-size: 12px;
+  line-height: 1.85;
+}
+.five-phases-test .selftest-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 22px 25px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--sage);
+  margin-top: 30px;
+}
+.five-phases-test .selftest-disclaimer svg {
+  color: var(--green);
+  margin-top: 2px;
+}
+.five-phases-test .selftest-disclaimer p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #4d604b;
+}
+.five-phases-test .selftest-local-note {
+  font-size: 12px;
+  text-align: center;
+  margin-top: 24px;
+  line-height: 1.8;
+}
+.five-phases-test .selftest-storage-notice {
+  font-size: 13px;
+  color: var(--green);
+  background: var(--sage);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 22px;
+}
+.five-phases-test .selftest-quiz {
+  max-width: 800px;
+  margin-inline: auto;
+  scroll-margin-top: 24px;
+}
+.five-phases-test .selftest-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 12px;
+}
+.five-phases-test .selftest-progress-header > p {
+  font-size: 13px;
+  color: var(--green);
+  font-weight: 500;
+}
+.five-phases-test .selftest-restart-link {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 9px 0 9px 9px;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 44px;
+}
+.five-phases-test .selftest-progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  appearance: none;
+  background: var(--sage);
+  accent-color: var(--green);
+}
+.five-phases-test .selftest-progress::-webkit-progress-bar {
+  background: var(--sage);
+  border-radius: 10px;
+}
+.five-phases-test .selftest-progress::-webkit-progress-value {
+  background: var(--green);
+  border-radius: 10px;
+}
+.five-phases-test .selftest-progress::-moz-progress-bar {
+  background: var(--green);
+  border-radius: 10px;
+}
+.five-phases-test .selftest-question-card {
+  background: #fffdf7;
+  border: 1px solid var(--line);
+  border-radius: 25px;
+  padding: 38px 42px;
+  margin-top: 24px;
+}
+.five-phases-test .selftest-question-hint {
+  font-size: 12px;
+  line-height: 1.8;
+  max-width: 560px;
+}
+.five-phases-test .selftest-question-card h1 {
+  font-size: clamp(29px, 3.2vw, 39px);
+  line-height: 1.25;
+  margin: 20px 0 30px;
+}
+.five-phases-test .selftest-focus {
+  scroll-margin-top: 110px;
+}
+.five-phases-test .selftest-question-card fieldset {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  min-width: 0;
+}
+.five-phases-test .selftest-question-card legend {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: var(--muted);
+}
+.five-phases-test .selftest-answers {
+  display: grid;
+  gap: 11px;
+}
+.five-phases-test .selftest-answer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 64px;
+  padding: 13px 17px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink);
+}
+.five-phases-test .selftest-answer:hover {
+  background: #f3f5ec;
+  border-color: #99ac94;
+}
+.five-phases-test .selftest-answer:has(input:checked) {
+  background: var(--sage);
+  border-color: var(--green);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+.five-phases-test .selftest-answer:has(input:focus-visible) {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.five-phases-test .selftest-answer input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.five-phases-test .selftest-answer-number {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-size: 12px;
+  background: #eef0e7;
+  border: 1px solid var(--line);
+}
+.five-phases-test .selftest-answer:has(input:checked) .selftest-answer-number {
+  background: var(--green);
+  color: var(--paper);
+  border-color: var(--green);
+}
+.five-phases-test .selftest-answer-check {
+  margin-left: auto;
+  opacity: 0;
+  color: var(--green);
+}
+.five-phases-test .selftest-answer:has(input:checked) .selftest-answer-check {
+  opacity: 1;
+}
+.five-phases-test .selftest-quiz-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 28px;
+}
+.five-phases-test .selftest-answer-notice {
+  margin-top: 15px;
+  color: #853e32;
+  font-size: 13px;
+}
+.five-phases-test .selftest-result {
+  max-width: 1000px;
+  margin-inline: auto;
+}
+.five-phases-test .selftest-result-hero {
+  position: relative;
+  padding: 42px 46px;
+  border-radius: 26px;
+  background: var(--green);
+  color: var(--paper);
+  overflow: hidden;
+}
+.five-phases-test .selftest-result-hero h1 {
+  position: relative;
+  z-index: 1;
+  font-size: clamp(36px, 4.1vw, 55px);
+  margin: 17px 0 21px;
+  line-height: 1.1;
+  max-width: 730px;
+}
+.five-phases-test .selftest-result-hero > p:not(.eyebrow) {
+  position: relative;
+  z-index: 1;
+  max-width: 700px;
+  font-size: 16px;
+  color: #e2eadb;
+  line-height: 1.8;
+}
+.five-phases-test .selftest-result-symbol {
+  position: absolute;
+  right: 32px;
+  top: 20px;
+  font-size: 200px;
+  line-height: 1;
+  color: #ecdfc718;
+  pointer-events: none;
+}
+.five-phases-test .selftest-mixed {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  background: var(--sage);
+  border-radius: 18px;
+  padding: 24px 28px;
+  margin-top: 25px;
+}
+.five-phases-test .selftest-mixed svg {
+  color: var(--green);
+  margin-top: 2px;
+}
+.five-phases-test .selftest-mixed h2 {
+  font-size: 25px;
+  margin-bottom: 11px;
+}
+.five-phases-test .selftest-mixed p {
+  font-size: 13px;
+  line-height: 1.85;
+}
+.five-phases-test .selftest-score-panel {
+  margin-top: 34px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 34px 38px;
+  background: #fffdf7;
+}
+.five-phases-test .selftest-score-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: grid;
+  gap: 22px;
+}
+.five-phases-test .selftest-score-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.five-phases-test .selftest-score-heading > span {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  font-size: 16px;
+  color: var(--ink);
+}
+.five-phases-test .selftest-score-heading .selftest-phase-glyph {
+  width: 35px;
+  height: 35px;
+  font-size: 21px;
+}
+.five-phases-test .selftest-score-heading strong {
+  font-family: var(--serif);
+  font-size: 29px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.five-phases-test .selftest-score-heading strong > span {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--muted);
+}
+.five-phases-test .selftest-score-track {
+  height: 9px;
+  border-radius: 15px;
+  background: var(--phase-soft);
+  overflow: hidden;
+}
+.five-phases-test .selftest-score-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--phase-color);
+}
+.five-phases-test .selftest-score-list small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.five-phases-test .selftest-score-note {
+  font-size: 12px;
+  line-height: 1.85;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.five-phases-test .selftest-profile-details,
+.five-phases-test .selftest-tied-profiles,
+.five-phases-test .selftest-secondary,
+.five-phases-test .selftest-combination {
+  margin-top: 45px;
+}
+.five-phases-test .selftest-nature {
+  padding: 32px 35px;
+  background: var(--phase-soft);
+  border-radius: 23px;
+  margin-bottom: 22px;
+}
+.five-phases-test .selftest-nature h2 {
+  font-size: 39px;
+  margin: 14px 0 15px;
+  color: var(--phase-color);
+}
+.five-phases-test .selftest-nature > p:not(.eyebrow) {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--ink);
+}
+.five-phases-test .selftest-nature .selftest-profile-theme {
+  font-weight: 500;
+}
+.five-phases-test .selftest-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.five-phases-test .selftest-detail-card {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fffdf7;
+  min-width: 0;
+}
+.five-phases-test .selftest-detail-card h3 {
+  font-size: 25px;
+  line-height: 1.2;
+  margin-bottom: 17px;
+}
+.five-phases-test .selftest-detail-card p {
+  font-size: 13px;
+  line-height: 1.9;
+}
+.five-phases-test .selftest-strengths {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.five-phases-test .selftest-strengths li {
+  padding: 6px 12px;
+  border-radius: 50px;
+  background: var(--phase-soft);
+  color: var(--phase-color);
+  font-size: 12px;
+}
+.five-phases-test .selftest-support {
+  padding-left: 18px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.85;
+}
+.five-phases-test .selftest-support li + li {
+  margin-top: 9px;
+}
+.five-phases-test .selftest-traditional {
+  margin-top: 22px;
+  padding: 21px 25px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+}
+.five-phases-test .selftest-traditional summary,
+.five-phases-test .selftest-combination-options summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink);
+  font-size: 13px;
+  min-height: 24px;
+}
+.five-phases-test .selftest-traditional p {
+  font-size: 12px;
+  line-height: 1.85;
+  margin-top: 18px;
+}
+.five-phases-test .selftest-traditional ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 18px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.five-phases-test .selftest-profile-accordion {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fffdf7;
+  margin-top: 15px;
+  overflow: hidden;
+}
+.five-phases-test .selftest-profile-accordion > summary {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  cursor: pointer;
+  font-family: var(--serif);
+  font-size: 28px;
+  list-style: none;
+}
+.five-phases-test .selftest-profile-accordion > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--phase-color);
+}
+.five-phases-test .selftest-profile-accordion[open] > summary::after {
+  content: "−";
+}
+.five-phases-test
+  .selftest-profile-accordion
+  > summary::-webkit-details-marker {
+  display: none;
+}
+.five-phases-test .selftest-profile-accordion summary small {
+  display: block;
+  font-size: 12px;
+  font-family: var(--sans);
+  color: var(--muted);
+  line-height: 1.6;
+  margin-top: 3px;
+}
+.five-phases-test .selftest-profile-accordion > .selftest-profile-details {
+  margin: 0;
+  padding: 10px 22px 22px;
+}
+.five-phases-test .selftest-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
+.five-phases-test .selftest-secondary-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 28px;
+  background: #fffdf7;
+}
+.five-phases-test .selftest-secondary-card h3 {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 14px;
+  font-size: 29px;
+}
+.five-phases-test .selftest-secondary-card p {
+  font-size: 13px;
+  line-height: 1.9;
+  margin-top: 18px;
+}
+.five-phases-test .selftest-combination-card {
+  padding: 28px 32px;
+  background: var(--sage);
+  border-radius: 20px;
+  margin-top: 17px;
+}
+.five-phases-test .selftest-combination-card h3 {
+  font-size: 28px;
+  margin-bottom: 13px;
+}
+.five-phases-test .selftest-combination-card p,
+.five-phases-test .selftest-combination > p {
+  font-size: 14px;
+  line-height: 1.9;
+}
+.five-phases-test .selftest-combination-options {
+  padding-top: 18px;
+}
+.five-phases-test .selftest-combination-options summary {
+  padding-block: 10px;
+}
+.five-phases-test .selftest-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-top: 42px;
+}
+.five-phases-test .selftest-result-actions p {
+  font-size: 12px;
+}
+.five-phases-test .selftest-dialog {
+  padding: 34px;
+  width: min(520px, calc(100vw - 36px));
+  max-height: calc(100dvh - 50px);
+  overflow-y: auto;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: 0 25px 100px #19332935;
+}
+.five-phases-test .selftest-dialog::backdrop {
+  background: #142c2399;
+}
+.five-phases-test .selftest-dialog h2 {
+  font-size: 34px;
+  margin-bottom: 20px;
+}
+.five-phases-test .selftest-dialog p {
+  font-size: 14px;
+  line-height: 1.85;
+}
+.five-phases-test .selftest-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+}
+@media (max-width: 1000px) {
+  .five-phases-test .selftest-intro-hero {
+    padding: 36px;
+    gap: 28px;
+  }
+  .five-phases-test .selftest-intro-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .five-phases-test .selftest-intro-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .five-phases-test .selftest-wheel {
+    max-width: 245px;
+  }
+  .five-phases-test .selftest-wheel-phase {
+    width: 59px;
+    height: 59px;
+  }
+  .five-phases-test .selftest-wheel-phase[data-phase="wood"] {
+    left: calc(50% - 29.5px);
+  }
+  .five-phases-test .selftest-wheel-center > span {
+    font-size: 32px;
+  }
+  .five-phases-test .selftest-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .five-phases-test .selftest-intro-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .five-phases-test .selftest-intro-hero {
+    padding: 29px 24px;
+    border-radius: 22px;
+  }
+  .five-phases-test .selftest-intro-hero h1 {
+    font-size: 38px;
+  }
+  .five-phases-test .selftest-subtitle {
+    font-size: 15px;
+  }
+  .five-phases-test .selftest-intro-copy {
+    font-size: 12px;
+  }
+  .five-phases-test .selftest-facts {
+    gap: 11px 16px;
+    font-size: 11px;
+  }
+  .five-phases-test .selftest-introduction {
+    margin-top: 36px;
+  }
+  .five-phases-test .selftest-intro-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .five-phases-test .selftest-intro-card {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    column-gap: 17px;
+    padding: 22px;
+  }
+  .five-phases-test .selftest-intro-card h3 {
+    margin: 5px 0 10px;
+  }
+  .five-phases-test .selftest-intro-card p {
+    grid-column: 2;
+  }
+  .five-phases-test .selftest-progress-header {
+    gap: 8px;
+  }
+  .five-phases-test .selftest-progress-header > p {
+    font-size: 12px;
+  }
+  .five-phases-test .selftest-restart-link {
+    font-size: 11px;
+  }
+  .five-phases-test .selftest-question-card {
+    padding: 28px 21px;
+    margin-top: 18px;
+    border-radius: 20px;
+  }
+  .five-phases-test .selftest-question-card h1 {
+    font-size: 30px;
+  }
+  .five-phases-test .selftest-question-hint {
+    font-size: 11px;
+  }
+  .five-phases-test .selftest-answer {
+    padding: 13px 12px;
+    gap: 10px;
+    font-size: 12px;
+    min-height: 66px;
+  }
+  .five-phases-test .selftest-answer-number {
+    width: 28px;
+    height: 28px;
+  }
+  .five-phases-test .selftest-answer-check {
+    width: 15px;
+  }
+  .five-phases-test .selftest-quiz-actions {
+    gap: 10px;
+  }
+  .five-phases-test .selftest-quiz-actions .button {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    padding: 12px 9px;
+    gap: 7px;
+  }
+  .five-phases-test .selftest-result-hero {
+    padding: 32px 25px;
+    border-radius: 22px;
+  }
+  .five-phases-test .selftest-result-hero h1 {
+    font-size: 36px;
+  }
+  .five-phases-test .selftest-result-hero > p:not(.eyebrow) {
+    font-size: 14px;
+  }
+  .five-phases-test .selftest-mixed {
+    padding: 23px 20px;
+    gap: 11px;
+  }
+  .five-phases-test .selftest-mixed h2 {
+    font-size: 23px;
+  }
+  .five-phases-test .selftest-score-panel {
+    padding: 26px 22px;
+    border-radius: 21px;
+  }
+  .five-phases-test .selftest-section-heading h2 {
+    font-size: 32px;
+  }
+  .five-phases-test .selftest-nature {
+    padding: 25px;
+  }
+  .five-phases-test .selftest-nature h2 {
+    font-size: 34px;
+  }
+  .five-phases-test .selftest-detail-card,
+  .five-phases-test .selftest-secondary-card {
+    padding: 24px;
+  }
+  .five-phases-test .selftest-profile-accordion > summary {
+    padding: 18px;
+    gap: 12px;
+  }
+  .five-phases-test .selftest-profile-accordion > .selftest-profile-details {
+    padding: 5px 13px 13px;
+  }
+  .five-phases-test .selftest-profile-accordion .selftest-nature,
+  .five-phases-test .selftest-profile-accordion .selftest-detail-card {
+    padding: 21px;
+  }
+  .five-phases-test .selftest-traditional {
+    padding: 20px;
+  }
+  .five-phases-test .selftest-combination-card {
+    padding: 25px;
+  }
+  .five-phases-test .selftest-result-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .five-phases-test .selftest-disclaimer {
+    padding: 21px 18px;
+    gap: 10px;
+  }
+  .five-phases-test .selftest-disclaimer p {
+    font-size: 11px;
+  }
+  .five-phases-test .selftest-dialog {
+    padding: 27px 24px;
+  }
+  .five-phases-test .selftest-dialog-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (max-width: 360px) {
+  .public-site:has(.five-phases-test) .header-inner {
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .five-phases-test *,
+  .five-phases-test *::before,
+  .five-phases-test *::after {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}

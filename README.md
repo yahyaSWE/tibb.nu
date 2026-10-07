@@ -85,6 +85,16 @@ Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Ele
 
 På bokningssidan visas lediga dagar i en månadskalender för vald behandling och behandlare. Kunden väljer datum och ser sedan bara den dagens klockslag. Det går att bläddra mellan månader eller välja månad direkt. Vald behandlare visas även på bokningsbekräftelsen.
 
+## Självtest med fem faser
+
+`/sjalvtest` är ett kostnadsfritt konstitutionstest för utbildning och självreflektion, inspirerat av Five Phases/Wu Xing. Det kräver inget konto. Fyrtio frågor visas en i taget i blandad ordning. Frågedata, resultatbeskrivningar, poängberäkning och gränssnitt ligger separat i `src/lib/five-phases` och `src/components/five-phases`.
+
+Varje fas har åtta frågor med svar från 1 till 5. Råpoängen 8–40 normaliseras med `Math.round(((rawScore - 8) / 32) * 100)`. Alla fem matchningspoäng visas på en skala 0–100, tillsammans med de två högsta faserna. Högst sex poängs skillnad lyfts fram som en blandkonstitution. Lika högsta poäng redovisas uttryckligen; ordningen för lika poäng är Trä, Eld, Jord, Metall, Vatten och innebär ingen ytterligare bedömning. Poängen är inte sannolikheter eller medicinska bedömningar.
+
+Svar, frågeordning och resultat sparas bara i den aktuella webbläsarens `localStorage` under `tibb.five-phases.session.v1` och skickas inte till servern. Omladdning återställer pågående test eller resultat. **Gör om testet** ber om bekräftelse och rensar enbart testets egna svar. Om lokal lagring är blockerad fungerar testet under det aktuella besöket och visar ett meddelande om att svaren inte kan sparas.
+
+Starta `npm run dev` och öppna `http://127.0.0.1:3000/sjalvtest` för att testa lokalt. De automatiserade kontrollerna körs med `npm test` och täcker bland annat poänggränser, primär och sekundär fas, lika resultat, ofullständiga svar och återställning av sparade test.
+
 ## Anslut Stripe
 
 Bokning med **betalning vid besöket** fungerar utan en extern betaltjänst. Kortbetalning är en riktig Stripe Checkout-integration som blir tillgänglig först när den är korrekt konfigurerad.

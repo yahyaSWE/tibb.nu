@@ -47,6 +47,7 @@ export function SiteChrome({
     { href: "/boka", label: "Behandlingar & bokning" },
     { href: "/kurser", label: "Kurser" },
     { href: "/artiklar", label: "Artiklar" },
+    { href: "/sjalvtest", label: "Självtest" },
     { href: "/om", label: "Om Tibb" },
   ];
   const brandName = siteName.endsWith(".nu") ? siteName.slice(0, -3) : siteName;
@@ -76,7 +77,11 @@ export function SiteChrome({
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={item.href === "/om" ? true : undefined}
+                prefetch={
+                  item.href === "/om" || item.href === "/sjalvtest"
+                    ? true
+                    : undefined
+                }
                 className={
                   pathname === item.href ||
                   (item.href !== "/" && pathname.startsWith(item.href))
@@ -119,7 +124,11 @@ export function SiteChrome({
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={item.href === "/om" ? true : undefined}
+                prefetch={
+                  item.href === "/om" || item.href === "/sjalvtest"
+                    ? true
+                    : undefined
+                }
                 onNavigate={() => setOpen(false)}
               >
                 {item.label}
@@ -157,6 +166,9 @@ export function SiteChrome({
             </Link>
             <Link href="/artiklar" intentOnly>
               Kunskap & artiklar
+            </Link>
+            <Link href="/sjalvtest" intentOnly>
+              Självtest med fem faser
             </Link>
           </div>
           <div>

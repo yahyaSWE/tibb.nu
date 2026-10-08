@@ -81,7 +81,24 @@ Logga sedan in på `/logga-in` och öppna `/admin`. Det finns inga förinställd
 - **Elever:** eleven skapar sitt konto på `/registrera`. Tilldela en kurs med elevens e-postadress. Återkallad tillgång stoppar åtkomst men bevarar framsteg om du senare tilldelar kursen igen.
 - **Inställningar:** ändra namn, kontaktuppgifter, plats och betalningsalternativ.
 
-Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken. Avancerade quiz och bilder i lektionstexten är inte implementerade i kursbyggaren.
+Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken.
+
+### Quiz och skrivuppgifter
+
+Öppna en sparad lektion i kursbyggaren och välj **Lägg till quiz eller skrivuppgift**. En lektion kan ha flera namngivna aktiviteter i valfri ordning.
+
+- **Quiz:** bygg 1–30 flervalsfrågor med 2–6 alternativ och ett rätt svar per fråga. Välj gränsen för godkänt. Eleven får automatisk rättning, återkoppling per fråga och en historik över sina försök. Facit rättas på servern och visas först efter att svaren lämnats in.
+- **Skrivuppgift:** ange instruktionen. Eleven kan spara ett utkast eller lämna in sin text (högst 20 000 tecken). Utkast är privata för eleven. Under kursens **Elevresultat och inlämningar** läser du inskickade uppgifter, ger återkoppling och väljer **Godkänd** eller **Behöver komplettering**. En ny inlämning bevarar den tidigare texten och bedömningen.
+
+Inaktivera en aktivitet genom att avmarkera **Aktiv i elevportalen**. Historik bevaras. Innehållsändringar sparas som nya versioner, så tidigare försök behåller de frågor och instruktioner som eleven svarade på. Quizresultat och uppgifter ändrar inte automatiskt markeringen av en lektion som slutförd. De nya tabellerna skapas automatiskt genom den vanliga databasuppgraderingen; befintliga kurser, lektioner och framsteg bevaras.
+
+Om en elev har en aktivitet öppen när innehållet ändras bevaras det gamla formuläret. Eleven får en varning, kan kopiera sina osparade svar och väljer själv när den nya versionen ska öppnas. Den gamla versionen kan inte lämnas in.
+
+### Kursvideor
+
+YouTube-lektioner börjar med en enkel startknapp och laddar den externa spelaren först när eleven väljer att spela. Spelaren använder `youtube-nocookie.com`, svenska kontroller, uppspelning direkt i sidan på mobil och rekommendationer från samma kanal. YouTube styr fortfarande logotyp, kanaluppgifter och utgående länkar: `modestbranding` och `showinfo` fungerar inte längre. Se [YouTubes spelardokumentation](https://developers.google.com/youtube/player_parameters).
+
+En direkt HTTPS-länk till en MP4-, WebM- eller OGG-fil använder Tibb.nu:s egen videospelare utan YouTube-gränssnitt. Dessa filer behöver lagras hos en videotjänst eller i egen fillagring; dokumentuppladdningen i kursbyggaren är avsedd för PDF och Word.
 
 På bokningssidan visas lediga dagar i en månadskalender för vald behandling och behandlare. Kunden väljer datum och ser sedan bara den dagens klockslag. Det går att bläddra mellan månader eller välja månad direkt. Vald behandlare visas även på bokningsbekräftelsen.
 

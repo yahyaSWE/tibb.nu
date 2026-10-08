@@ -1,0 +1,31 @@
+.start {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  cursor: pointer;
+  color: #fcf8ef;
+  background: linear-gradient(135deg, #274d41, #4c705b);
+  font: inherit;
+}
+.start:hover { background: linear-gradient(135deg, #214337, #43674f); }
+.start:focus-visible { outline: 3px solid #eabf9f; outline-offset: -6px; }
+.play {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  color: #274d41;
+  background: #eabf9f;
+}
+.caption { font-size: 13px; opacity: .8; }
+@media (max-width: 480px) {
+  .start { gap: 9px; }
+  .play { width: 48px; height: 48px; }
+}

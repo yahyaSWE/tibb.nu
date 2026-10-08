@@ -230,7 +230,7 @@
   background: #fcfcf7;
   overflow: hidden;
 }
-.admin-shell .lesson-card summary {
+.admin-shell .lesson-card > summary {
   display: flex;
   align-items: center;
   gap: 15px;
@@ -238,26 +238,26 @@
   cursor: pointer;
   list-style: none;
 }
-.admin-shell .lesson-card summary::-webkit-details-marker {
+.admin-shell .lesson-card > summary::-webkit-details-marker {
   display: none;
 }
-.admin-shell .lesson-card summary > strong {
+.admin-shell .lesson-card > summary > strong {
   font-size: 13px;
   font-weight: 550;
 }
-.admin-shell .lesson-card summary > .muted {
+.admin-shell .lesson-card > summary > .muted {
   margin-left: auto;
   font-size: 10px;
 }
-.admin-shell .lesson-card summary::after {
+.admin-shell .lesson-card > summary::after {
   content: "+";
   color: var(--olive);
   font-size: 19px;
 }
-.admin-shell .lesson-card[open] summary::after {
+.admin-shell .lesson-card[open] > summary::after {
   content: "−";
 }
-.admin-shell .lesson-card[open] summary {
+.admin-shell .lesson-card[open] > summary {
   background: #eef2e5;
   border-bottom: 1px solid var(--line);
 }
@@ -960,7 +960,7 @@
   border-radius: 16px;
 }
 
-.admin-shell .lesson-card[open] summary {
+.admin-shell .lesson-card[open] > summary {
   background: var(--sage);
 }
 
@@ -1048,14 +1048,14 @@
   .admin-shell .lesson-editor {
     padding: 19px;
   }
-  .admin-shell .lesson-card summary {
+  .admin-shell .lesson-card > summary {
     padding: 17px;
     gap: 10px;
   }
-  .admin-shell .lesson-card summary > strong {
+  .admin-shell .lesson-card > summary > strong {
     font-size: 12px;
   }
-  .admin-shell .lesson-card summary > .muted {
+  .admin-shell .lesson-card > summary > .muted {
     display: none;
   }
   .admin-shell .payment-option {

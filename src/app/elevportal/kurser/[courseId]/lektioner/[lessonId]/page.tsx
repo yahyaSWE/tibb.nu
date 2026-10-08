@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
@@ -21,6 +22,7 @@ import {
   LessonVideo,
   LessonMaterial,
 } from "@/components/learning/lesson-media";
+import { LessonActivities } from "@/components/learning/lesson-activities";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +118,19 @@ export default async function LessonPage({
           <LessonVideo url={lesson.videoUrl} />
           <TextContent text={lesson.body} />
           <LessonMaterial url={lesson.materialUrl} files={lesson.materials} />
+          <Suspense
+            fallback={
+              <p className="muted" role="status">
+                Laddar lektionsaktiviteter…
+              </p>
+            }
+          >
+            <LessonActivities
+              userId={user.id}
+              courseId={courseId}
+              lessonId={lessonId}
+            />
+          </Suspense>
           <div className="lesson-completion panel">
             {isComplete ? (
               <>

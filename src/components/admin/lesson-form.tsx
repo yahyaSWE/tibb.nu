@@ -65,7 +65,7 @@ export function LessonForm({
       <Field
         label="Videolänk"
         name={`${prefix}-videoUrl`}
-        help="En länk till YouTube, Vimeo eller en videofil."
+        help="En länk till YouTube, Vimeo eller en videofil. YouTube kan visa kanalnamn och länkar i spelaren. Använd en direkt MP4- eller WebM-länk för Tibb.nu:s egen spelare."
       >
         <input
           id={`${prefix}-videoUrl`}

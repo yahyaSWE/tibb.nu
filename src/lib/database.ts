@@ -12,6 +12,7 @@ import {
   SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
   SLOT_SCHEDULE_SCHEMA,
+  COURSE_ACTIVITY_SCHEMA,
 } from "./schema";
 import { databaseConfigured } from "./database-config";
 export { databaseConfigured } from "./database-config";
@@ -147,6 +148,7 @@ export class DatabaseAdapter {
           return;
         }
         await tx.executeMultiple(SCHEMA);
+        await tx.executeMultiple(COURSE_ACTIVITY_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

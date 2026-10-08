@@ -164,3 +164,102 @@ export type Settings = {
   payOnSite: boolean;
   stripeEnabled: boolean;
 };
+
+export type CourseActivityKind = "quiz" | "assignment";
+export type QuizQuestion = {
+  id: string;
+  prompt: string;
+  options: string[];
+  correctOption: number;
+};
+export type StudentQuizQuestion = Omit<QuizQuestion, "correctOption">;
+export type CourseActivityInput = {
+  id?: number;
+  courseId: number;
+  lessonId: number;
+  kind: CourseActivityKind;
+  title: string;
+  instructions: string;
+  position: number;
+  active: boolean;
+  questions?: QuizQuestion[];
+  passPercent?: number;
+  // Optional optimistic revision for concurrent admin edits.
+  revision?: number;
+};
+export type CourseActivityBase = {
+  id: number;
+  courseId: number;
+  lessonId: number;
+  kind: CourseActivityKind;
+  title: string;
+  instructions: string;
+  position: number;
+  active: boolean;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+};
+export type AdminCourseActivity = CourseActivityBase & {
+  questions: QuizQuestion[];
+  passPercent: number | null;
+};
+export type QuizAnswer = { questionId: string; optionIndex: number };
+export type QuizAnswerResult = {
+  questionId: string;
+  prompt: string;
+  options: string[];
+  selectedOption: number;
+  correctOption: number;
+  correct: boolean;
+};
+export type QuizAttempt = {
+  id: number;
+  userId: number;
+  activityId: number;
+  revision: number;
+  attemptNumber: number;
+  scorePercent: number;
+  correctCount: number;
+  questionCount: number;
+  passPercent: number;
+  passed: boolean;
+  answers: QuizAnswerResult[];
+  submittedAt: string;
+};
+export type AssignmentStatus = "draft" | "submitted" | "approved" | "needs_revision";
+export type AssignmentSubmission = {
+  id: number;
+  userId: number;
+  activityId: number;
+  revision: number;
+  text: string;
+  status: AssignmentStatus;
+  feedback: string;
+  createdAt: string;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewedBy: number | null;
+};
+export type StudentCourseActivity = CourseActivityBase & {
+  questions: StudentQuizQuestion[];
+  passPercent: number | null;
+  quizAttempts: QuizAttempt[];
+  assignmentSubmissions: AssignmentSubmission[];
+};
+export type AdminActivityResultContext = {
+  courseId: number;
+  lessonId: number;
+  lessonTitle: string;
+  activityTitle: string;
+  instructions: string;
+  userName: string;
+  userEmail: string;
+  reviewerName: string | null;
+};
+export type AdminQuizAttempt = QuizAttempt & AdminActivityResultContext;
+export type AdminAssignmentSubmission = AssignmentSubmission & AdminActivityResultContext;
+export type CourseActivityResults = {
+  quizAttempts: AdminQuizAttempt[];
+  assignmentSubmissions: AdminAssignmentSubmission[];
+};

@@ -1,0 +1,433 @@
+.admin-shell .course-activities {
+  margin-top: 28px;
+  border-top: 1px solid var(--line);
+  padding-top: 26px;
+}
+
+.admin-shell .course-activity-heading,
+.admin-shell .course-question-heading,
+.admin-shell .course-activity-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-shell .course-activity-heading {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.admin-shell .course-activity-heading h3 {
+  margin-bottom: 8px;
+  font-size: 27px;
+}
+
+.admin-shell .course-activity-heading p,
+.admin-shell .course-activity-help {
+  max-width: 680px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.admin-shell .course-activity-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-shell .course-activity-card,
+.admin-shell .course-activity-new {
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fffdf7;
+  min-width: 0;
+}
+
+.admin-shell .course-activity-card[data-inactive="true"] {
+  background: var(--paper);
+}
+
+.admin-shell .course-activity-card > summary,
+.admin-shell .course-activity-new > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px 19px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--deep);
+}
+
+.admin-shell .course-activity-card > summary::-webkit-details-marker,
+.admin-shell .course-activity-new > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-shell .course-activity-card > summary::after,
+.admin-shell .course-activity-new > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--green);
+  font-size: 22px;
+}
+
+.admin-shell .course-activity-card[open] > summary::after,
+.admin-shell .course-activity-new[open] > summary::after {
+  content: "−";
+}
+
+.admin-shell .course-activity-card[open] > summary,
+.admin-shell .course-activity-new[open] > summary {
+  border-bottom: 1px solid var(--line);
+  background: var(--sage);
+  border-radius: 14px 14px 0 0;
+}
+
+.admin-shell .course-activity-summary-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-shell .course-activity-summary-copy strong,
+.admin-shell .course-activity-summary-copy small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .course-activity-summary-copy strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.admin-shell .course-activity-summary-copy small {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.admin-shell .course-activity-editor {
+  padding: 22px;
+}
+
+.admin-shell .course-activity-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.admin-shell .course-activity-fields:disabled {
+  opacity: 0.7;
+}
+
+.admin-shell .course-activity-fields button:disabled {
+  cursor: not-allowed;
+}
+
+.admin-shell .course-activity-form .button,
+.admin-shell .course-review-form .button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.admin-shell .course-activity-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.admin-shell .course-questions {
+  display: grid;
+  gap: 17px;
+}
+
+.admin-shell .course-question {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--paper);
+}
+
+.admin-shell .course-question-heading strong {
+  color: var(--deep);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.admin-shell .course-question-options {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-shell .course-question-option {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 9px;
+}
+
+.admin-shell .course-question-option > input[type="radio"] {
+  width: 19px;
+  height: 19px;
+  accent-color: var(--green);
+  cursor: pointer;
+  justify-self: center;
+}
+
+.admin-shell .course-question-option .field {
+  min-width: 0;
+}
+
+.admin-shell .course-activity-icon-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf7;
+  color: var(--muted);
+}
+
+.admin-shell .course-activity-icon-button:hover {
+  color: var(--deep);
+  border-color: var(--olive);
+  background: var(--sage);
+}
+
+.admin-shell .course-activity-icon-button:disabled {
+  cursor: not-allowed;
+}
+
+.admin-shell .course-activity-actions {
+  justify-content: flex-start;
+}
+
+.admin-shell .course-activity-archive {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-shell .course-activity-new {
+  margin-top: 15px;
+  border-style: dashed;
+}
+
+.admin-shell .course-results-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.admin-shell .course-results-filters .field {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.admin-shell .course-results-list {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-shell .course-result-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-shell .course-result-card > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px;
+  background: var(--paper);
+  cursor: pointer;
+  list-style: none;
+}
+
+.admin-shell .course-result-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-shell .course-result-card > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--green);
+  font-size: 22px;
+}
+
+.admin-shell .course-result-card[open] > summary::after {
+  content: "−";
+}
+
+.admin-shell .course-result-title {
+  flex: 1;
+  min-width: 160px;
+}
+
+.admin-shell .course-result-title strong,
+.admin-shell .course-result-title small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .course-result-title strong {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.admin-shell .course-result-title small {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.admin-shell .course-result-body {
+  padding: 22px;
+  display: grid;
+  gap: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-shell .course-result-body h3 {
+  margin-bottom: 12px;
+  font-size: 25px;
+}
+
+.admin-shell .course-result-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px 24px;
+  margin: 0;
+}
+
+.admin-shell .course-result-meta div {
+  min-width: 0;
+}
+
+.admin-shell .course-result-meta dt {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.admin-shell .course-result-meta dd {
+  margin: 0;
+  color: var(--deep);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .course-submission-text,
+.admin-shell .course-result-feedback {
+  padding: 19px;
+  border-radius: 13px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .course-result-feedback {
+  background: var(--sage);
+}
+
+.admin-shell .course-result-answers {
+  display: grid;
+  gap: 15px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-shell .course-result-answers li {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.admin-shell .course-result-answers strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 9px;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .course-result-answers p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .course-result-answers .badge {
+  margin-top: 10px;
+}
+
+.admin-shell .course-results-count {
+  margin-bottom: 18px;
+}
+
+.admin-shell .course-results-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.admin-shell .course-results-pagination button:disabled {
+  cursor: not-allowed;
+}
+
+.admin-shell .course-review-form {
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 680px) {
+  .admin-shell .course-activity-card > summary,
+  .admin-shell .course-activity-new > summary {
+    padding: 15px;
+    gap: 9px;
+    flex-wrap: wrap;
+  }
+
+  .admin-shell .course-activity-editor,
+  .admin-shell .course-result-body {
+    padding: 17px;
+  }
+
+  .admin-shell .course-question {
+    padding: 15px;
+  }
+
+  .admin-shell .course-result-card > summary {
+    padding: 17px;
+  }
+
+  .admin-shell .course-result-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-shell .course-activity-actions > .button {
+    width: 100%;
+  }
+}

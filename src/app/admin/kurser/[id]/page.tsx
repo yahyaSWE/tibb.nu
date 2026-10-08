@@ -3,6 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCourseById, getLessons, getEnrollments } from "@/lib/db";
 import {
+  getAdminCourseActivities,
+  getCourseActivityResults,
+} from "@/lib/course-activities";
+import {
   deleteCourseAction,
   deleteLessonAction,
   enrollStudentAction,
@@ -20,6 +24,9 @@ import {
 } from "@/components/admin/common";
 import { CourseForm } from "@/components/admin/course-form";
 import { LessonForm } from "@/components/admin/lesson-form";
+import { CourseLessonActivities } from "@/components/admin/course-activities";
+import { CourseActivityResultsPanel } from "@/components/admin/course-activity-results";
+import "@/components/admin/course-activities.css";
 
 export default async function CourseBuilderPage({
   params,
@@ -28,15 +35,17 @@ export default async function CourseBuilderPage({
   params: Promise<{ id: string }>;
   searchParams: AdminSearchParams;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const { id } = await params;
   const courseId = Number(id);
   if (!Number.isSafeInteger(courseId) || courseId < 1) notFound();
   const course = await getCourseById(courseId);
   if (!course) notFound();
-  const [lessons, allEnrollments] = await Promise.all([
+  const [lessons, allEnrollments, activities, results] = await Promise.all([
     getLessons(course.id),
     getEnrollments(),
+    getAdminCourseActivities(user.id, course.id),
+    getCourseActivityResults(user.id, course.id),
   ]);
   const enrollments = allEnrollments.filter((e) => e.courseId === course.id);
   const returnTo = `/admin/kurser/${id}`;
@@ -45,7 +54,7 @@ export default async function CourseBuilderPage({
       <AdminHeading
         eyebrow="Kursbyggare"
         title={course.title}
-        description={`${lessons.length} lektioner · ${enrollments.length} elever · ${course.published ? "Publicerad" : "Utkast"}`}
+        description={`${lessons.length} lektioner · ${activities.length} aktiviteter · ${enrollments.length} elever · ${course.published ? "Publicerad" : "Utkast"}`}
         action={
           <div className="admin-heading-actions">
             <Link
@@ -54,6 +63,9 @@ export default async function CourseBuilderPage({
             >
               Förhandsgranska kurs
             </Link>
+            <a href="#elevresultat" className="text-link">
+              Elevresultat
+            </a>
             <Link href="/admin/kurser" className="text-link">
               Alla kurser
             </Link>
@@ -87,10 +99,21 @@ export default async function CourseBuilderPage({
                       position={lesson.position}
                       returnTo={returnTo}
                     />
+                    <CourseLessonActivities
+                      courseId={course.id}
+                      lessonId={lesson.id}
+                      activities={activities.filter(
+                        (activity) => activity.lessonId === lesson.id,
+                      )}
+                    />
                     <form action={deleteLessonAction} className="lesson-delete">
                       <input type="hidden" name="id" value={lesson.id} />
                       <input type="hidden" name="courseId" value={course.id} />
                       <ReturnTo path={returnTo} />
+                      <p className="course-activity-help">
+                        Om du tar bort lektionen tas även dess aktiviteter,
+                        quizresultat och inlämningar bort permanent.
+                      </p>
                       <button
                         className="button button-secondary button-small delete-button"
                         type="submit"
@@ -119,6 +142,15 @@ export default async function CourseBuilderPage({
                 : 1
             }
           />
+        </section>
+        <section className="panel">
+          <div id="elevresultat">
+            <SectionHeading
+              title="Elevresultat och inlämningar"
+              description="Se sparade quizförsök, granska skrivuppgifter och ge återkoppling. Resultat från tidigare aktivitetsversioner bevaras."
+            />
+          </div>
+          <CourseActivityResultsPanel results={results} />
         </section>
         <section className="panel">
           <SectionHeading
@@ -193,7 +225,8 @@ export default async function CourseBuilderPage({
         <section className="panel danger-panel">
           <h2>Ta bort kurs</h2>
           <p className="muted">
-            Kursen, dess lektioner och elevernas tillgång tas bort.
+            Kursen, dess lektioner och elevernas tillgång samt alla quizresultat
+            och inlämningar tas bort permanent.
           </p>
           <form action={deleteCourseAction}>
             <input type="hidden" name="id" value={course.id} />

@@ -1,8 +1,83 @@
 // Increase this version whenever schema definitions or migrations change.
 // It is recorded in app_meta (and local SQLite's user_version) only when the
 // complete migration and initial seed commit successfully.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const SCHEMA_VERSION_KEY = "schema_version";
+
+// Activity revisions are immutable. Attempts and submissions keep referencing
+// the revision used by the student when an administrator changes the activity.
+export const COURSE_ACTIVITY_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS course_activities (
+    id INTEGER PRIMARY KEY, lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK(kind IN ('quiz','assignment')),
+    position INTEGER NOT NULL CHECK(position BETWEEN 1 AND 10000),
+    active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+    current_revision INTEGER NOT NULL CHECK(current_revision>=1),
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS course_activities_lesson ON course_activities(lesson_id,position,id);
+  CREATE TABLE IF NOT EXISTS activity_revisions (
+    activity_id INTEGER NOT NULL REFERENCES course_activities(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL CHECK(revision>=1), data_json TEXT NOT NULL,
+    created_at TEXT NOT NULL, PRIMARY KEY(activity_id,revision)
+  );
+  CREATE TABLE IF NOT EXISTS quiz_attempts (
+    id INTEGER PRIMARY KEY, activity_id INTEGER NOT NULL, revision INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    attempt_number INTEGER NOT NULL CHECK(attempt_number>=1),
+    answers_json TEXT NOT NULL, correct_count INTEGER NOT NULL CHECK(correct_count>=0),
+    question_count INTEGER NOT NULL CHECK(question_count BETWEEN 1 AND 30),
+    score_percent INTEGER NOT NULL CHECK(score_percent BETWEEN 0 AND 100),
+    pass_percent INTEGER NOT NULL CHECK(pass_percent BETWEEN 1 AND 100),
+    passed INTEGER NOT NULL CHECK(passed IN (0,1)), submitted_at TEXT NOT NULL,
+    FOREIGN KEY(activity_id,revision) REFERENCES activity_revisions(activity_id,revision) ON DELETE CASCADE,
+    UNIQUE(activity_id,user_id,attempt_number), CHECK(correct_count<=question_count)
+  );
+  CREATE INDEX IF NOT EXISTS quiz_attempts_user ON quiz_attempts(user_id,activity_id,id);
+  CREATE TABLE IF NOT EXISTS assignment_submissions (
+    id INTEGER PRIMARY KEY, activity_id INTEGER NOT NULL, revision INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('draft','submitted','approved','needs_revision')),
+    feedback TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+    submitted_at TEXT, reviewed_at TEXT, reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY(activity_id,revision) REFERENCES activity_revisions(activity_id,revision) ON DELETE CASCADE
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS assignment_one_draft ON assignment_submissions(activity_id,revision,user_id) WHERE status='draft';
+  CREATE INDEX IF NOT EXISTS assignment_submissions_user ON assignment_submissions(user_id,activity_id,id);
+  CREATE TRIGGER IF NOT EXISTS activities_lesson_reference BEFORE INSERT ON course_activities
+    WHEN NOT EXISTS(SELECT 1 FROM lessons WHERE id=NEW.lesson_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS activities_lesson_update BEFORE UPDATE OF lesson_id ON course_activities
+    WHEN NOT EXISTS(SELECT 1 FROM lessons WHERE id=NEW.lesson_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS activity_revision_reference BEFORE INSERT ON activity_revisions
+    WHEN NOT EXISTS(SELECT 1 FROM course_activities WHERE id=NEW.activity_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS quiz_attempt_reference BEFORE INSERT ON quiz_attempts
+    WHEN NOT EXISTS(SELECT 1 FROM activity_revisions r JOIN course_activities a ON a.id=r.activity_id WHERE r.activity_id=NEW.activity_id AND r.revision=NEW.revision AND a.kind='quiz')
+      OR NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.user_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS assignment_submission_reference BEFORE INSERT ON assignment_submissions
+    WHEN NOT EXISTS(SELECT 1 FROM activity_revisions r JOIN course_activities a ON a.id=r.activity_id WHERE r.activity_id=NEW.activity_id AND r.revision=NEW.revision AND a.kind='assignment')
+      OR NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.user_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS assignment_reviewer_reference BEFORE UPDATE OF reviewed_by ON assignment_submissions
+    WHEN NEW.reviewed_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.reviewed_by AND role='admin')
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS lessons_activity_cleanup BEFORE DELETE ON lessons BEGIN
+    DELETE FROM course_activities WHERE lesson_id=OLD.id;
+  END;
+  CREATE TRIGGER IF NOT EXISTS course_activity_cleanup BEFORE DELETE ON course_activities BEGIN
+    DELETE FROM quiz_attempts WHERE activity_id=OLD.id;
+    DELETE FROM assignment_submissions WHERE activity_id=OLD.id;
+    DELETE FROM activity_revisions WHERE activity_id=OLD.id;
+  END;
+  CREATE TRIGGER IF NOT EXISTS users_activity_cleanup BEFORE DELETE ON users BEGIN
+    DELETE FROM quiz_attempts WHERE user_id=OLD.id;
+    DELETE FROM assignment_submissions WHERE user_id=OLD.id;
+    UPDATE assignment_submissions SET reviewed_by=NULL WHERE reviewed_by=OLD.id;
+  END;
+`;
 
 export const SCHEMA = `    CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('admin','student')), created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at TEXT NOT NULL);

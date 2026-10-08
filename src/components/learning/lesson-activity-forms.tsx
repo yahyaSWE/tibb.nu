@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 import {
   BookOpenCheck,
   CheckCircle2,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { saveAssignmentAction, submitQuizAction } from "@/lib/activity-actions";
 import type { ActivityActionState } from "@/lib/activity-action-state";
+import { withLessonActivityErrors } from "@/lib/lesson-activity-actions";
 import type {
   AssignmentStatus,
   AssignmentSubmission,
@@ -17,6 +18,10 @@ import type {
   StudentCourseActivity,
 } from "@/lib/types";
 import styles from "./lesson-activities.module.css";
+import {
+  allowLessonVersionReset,
+  useLessonNavigationGuard,
+} from "./use-lesson-navigation-guard";
 
 type ActivityIdentity = Pick<
   StudentCourseActivity,
@@ -34,6 +39,8 @@ type LessonActivityView = ActivityIdentity &
   };
 
 const INITIAL_STATE: ActivityActionState = {};
+const saveAssignmentSafely = withLessonActivityErrors(saveAssignmentAction);
+const submitQuizSafely = withLessonActivityErrors(submitQuizAction);
 const ASSIGNMENT_STATUS: Record<AssignmentStatus, string> = {
   draft: "Utkast sparat",
   submitted: "Inlämnad",
@@ -42,6 +49,7 @@ const ASSIGNMENT_STATUS: Record<AssignmentStatus, string> = {
 };
 
 export function LessonActivity({ activity }: { activity: LessonActivityView }) {
+  const guardId = useId();
   const [openedVersion, setOpenedVersion] = useState(activity);
   const container = useRef<HTMLDivElement>(null);
   const focusNewVersion = useRef(false);
@@ -82,6 +90,7 @@ export function LessonActivity({ activity }: { activity: LessonActivityView }) {
             type="button"
             className="button button-secondary"
             onClick={() => {
+              if (!allowLessonVersionReset(guardId)) return;
               focusNewVersion.current = true;
               setOpenedVersion(activity);
             }}
@@ -95,12 +104,14 @@ export function LessonActivity({ activity }: { activity: LessonActivityView }) {
           key={`${displayed.id}-${displayed.revision}`}
           activity={displayed}
           outdated={outdated}
+          guardId={guardId}
         />
       ) : (
         <AssignmentActivityForm
           key={`${displayed.id}-${displayed.revision}`}
           activity={displayed}
           outdated={outdated}
+          guardId={guardId}
         />
       )}
     </div>
@@ -224,15 +235,17 @@ function QuizAttemptReview({
 export function QuizActivityForm({
   activity,
   outdated = false,
+  guardId,
 }: {
   activity: ActivityIdentity &
     Pick<StudentCourseActivity, "questions" | "passPercent"> & {
       quizAttempts: QuizHistoryItem[];
     };
   outdated?: boolean;
+  guardId: string;
 }) {
   const [state, action, pending] = useActionState(
-    submitQuizAction,
+    submitQuizSafely,
     INITIAL_STATE,
   );
   const attempts = [...activity.quizAttempts].sort((a, b) => b.id - a.id);
@@ -249,6 +262,9 @@ export function QuizActivityForm({
         latest.answers.find((answer) => answer.questionId === question.id)
           ?.selectedOption,
     );
+  const unsavedAnswers =
+    Object.keys(answers).length > 0 && (!latest || changedAnswers);
+  useLessonNavigationGuard(guardId, { dirty: unsavedAnswers, pending });
   const headingId = `quiz-${activity.id}-heading`;
   return (
     <section className={styles.activityCard} aria-labelledby={headingId}>
@@ -301,13 +317,14 @@ export function QuizActivityForm({
         state={state}
         showSuccess={!changedAnswers && !outdated}
       />
-      {changedAnswers && (
+      {unsavedAnswers && (
         <p className="small muted" role="status">
           Dina ändrade svar har inte skickats in ännu.
         </p>
       )}
       <form
         action={action}
+        data-lesson-activity-form
         aria-busy={pending}
         onSubmit={(event) => {
           if (outdated) event.preventDefault();
@@ -448,14 +465,16 @@ function SubmissionReview({
 export function AssignmentActivityForm({
   activity,
   outdated = false,
+  guardId,
 }: {
   activity: ActivityIdentity & {
     assignmentSubmissions: AssignmentHistoryItem[];
   };
   outdated?: boolean;
+  guardId: string;
 }) {
   const [state, action, pending] = useActionState(
-    saveAssignmentAction,
+    saveAssignmentSafely,
     INITIAL_STATE,
   );
   const submissions = [...activity.assignmentSubmissions].sort(
@@ -479,6 +498,7 @@ export function AssignmentActivityForm({
   const dirty =
     editable &&
     text.trim() !== (latest?.status === "draft" ? latest.text.trim() : "");
+  useLessonNavigationGuard(guardId, { dirty, pending });
   const headingId = `assignment-${activity.id}-heading`;
   const textId = `assignment-${activity.id}-text`;
   const history = submissions.filter(
@@ -518,6 +538,7 @@ export function AssignmentActivityForm({
       {editable ? (
         <form
           action={action}
+          data-lesson-activity-form
           aria-busy={pending}
           onSubmit={(event) => {
             if (outdated) event.preventDefault();
@@ -534,8 +555,9 @@ export function AssignmentActivityForm({
                 : "Ditt svar"}
             </label>
             <p id={`${textId}-help`} className="small muted">
-              Spara ett utkast om du vill fortsätta senare. När du lämnar in
-              sparas en version för lärarens återkoppling.
+              Texten sparas när du väljer Spara utkast eller Lämna in. Spara
+              innan du lämnar lektionen. Ditt utkast är privat tills du lämnar
+              in det för lärarens återkoppling.
             </p>
             <textarea
               id={textId}
@@ -554,7 +576,9 @@ export function AssignmentActivityForm({
                 {pending
                   ? "Sparar ditt svar…"
                   : dirty
-                    ? "Osparade ändringar"
+                    ? state.error
+                      ? "Svaret är inte sparat. Texten finns kvar här; försök att spara igen."
+                      : "Osparade ändringar – spara innan du lämnar lektionen."
                     : latest?.status === "draft"
                       ? "Ditt utkast är sparat."
                       : "Texten sparas när du väljer Spara utkast eller Lämna in."}

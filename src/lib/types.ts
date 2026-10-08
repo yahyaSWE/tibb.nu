@@ -4,6 +4,7 @@ export type User = {
   name: string;
   role: "admin" | "student";
   createdAt: string;
+  emailVerifiedAt: string | null;
 };
 export type Treatment = {
   id: number;

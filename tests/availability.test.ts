@@ -74,8 +74,8 @@ after(async () => {
   await rm(temp, {
     recursive: true,
     force: true,
-    maxRetries: 5,
-    retryDelay: 100,
+    maxRetries: 15,
+    retryDelay: 300,
   });
 });
 

@@ -611,6 +611,10 @@ export async function enrollStudent(
         .get(courseId))
     )
       throw new DomainError("Kursen finns inte.");
+    if (await getDb().prepare("SELECT id FROM enrollments WHERE user_id=? AND course_id=?").get(student.id, courseId))
+      return;
+    if (!student.emailVerifiedAt)
+      throw new DomainError("Eleven behöver verifiera sin e-postadress innan du tilldelar en ny kurs. Eleven kan göra det från elevportalen.");
     await getDb()
       .prepare(
         "INSERT INTO enrollments(user_id,course_id,created_at) VALUES(?,?,?) ON CONFLICT(user_id,course_id) DO NOTHING",

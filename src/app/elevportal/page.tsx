@@ -48,6 +48,12 @@ export default async function StudentPortalPage({
           </Link>
         </p>
       )}
+      {user.role === "student" && !user.emailVerifiedAt && (
+        <p className="notice">
+          Verifiera din e-postadress innan administratören kan tilldela nya kurser. Dina befintliga kurser finns kvar.{" "}
+          <Link href="/verifiera-epost" className="inline-link">Verifiera e-post</Link>
+        </p>
+      )}
       <div className="section-heading">
         <div>
           <p className="eyebrow">Fortsätt växa</p>

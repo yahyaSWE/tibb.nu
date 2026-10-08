@@ -34,6 +34,7 @@ export function BookingForm({
   stripeEnabled,
   location,
   contactEmail,
+  cancellationNotice,
 }: {
   treatments: Treatment[];
   practitioners: Practitioner[];
@@ -43,6 +44,7 @@ export function BookingForm({
   stripeEnabled: boolean;
   location: string;
   contactEmail: string;
+  cancellationNotice?: string;
 }) {
   const [treatmentId, setTreatmentId] = useState(
     treatments.some((t) => t.id === initialTreatment)
@@ -296,14 +298,22 @@ export function BookingForm({
                   </p>
                 )}
               </fieldset>
+              {cancellationNotice && (
+                <div className="notice booking-terms">
+                  <p>{cancellationNotice}</p>
+                  <Link href="/villkor" target="_blank" rel="noopener noreferrer" className="inline-link">
+                    Läs bokningsvillkoren
+                  </Link>
+                </div>
+              )}
               <label className="consent-check">
                 <input type="checkbox" name="consent" required />
                 <span>
                   Jag har läst{" "}
-                  <Link href="/integritet" target="_blank">
+                  <Link href="/integritet" target="_blank" rel="noopener noreferrer">
                     informationen om mina uppgifter
                   </Link>{" "}
-                  och godkänner att de används för att administrera min bokning.
+                  och <Link href="/villkor" target="_blank" rel="noopener noreferrer">bokningsvillkoren</Link>.
                 </span>
               </label>
               {payment && <SubmitBooking />}

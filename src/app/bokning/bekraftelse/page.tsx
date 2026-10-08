@@ -4,6 +4,10 @@ import { Check, Clock3 } from "lucide-react";
 import { getBookingByReference, getSettings } from "@/lib/db";
 import { formatDateTime, formatMoney } from "@/lib/time";
 import { PRIVATE_METADATA } from "@/lib/seo";
+import { getBookingTerms } from "@/lib/business-settings";
+import { TextContent } from "@/components/learning/cards";
+import { cancellationText } from "@/lib/business-config";
+import { getBookingEmailStatus } from "@/lib/email-outbox";
 
 export const metadata = {
   ...PRIVATE_METADATA,
@@ -18,7 +22,9 @@ export default async function ConfirmationPage({
   if (!ref || !/^[a-f0-9]{32}$/.test(ref)) notFound();
   const booking = await getBookingByReference(ref);
   if (!booking) notFound();
-  const settings = await getSettings();
+  const [settings, email, terms] = await Promise.all([
+    getSettings(), getBookingEmailStatus(booking.id), getBookingTerms(ref),
+  ]);
   const pending = booking.status === "pending";
   const cancelled = booking.status === "cancelled";
   return (
@@ -97,6 +103,15 @@ export default async function ConfirmationPage({
         <p className="booking-reference">
           Bokningsreferens: {booking.reference}
         </p>
+        {!pending && !cancelled && (
+          <p className="muted">
+            {email.customer?.status === "sent"
+              ? "E-posttjänsten har accepterat din bekräftelse. Kontrollera inkorg och skräppost. Spara även den här sidan."
+              : email.configured && (email.customer?.status === "pending" || email.customer?.status === "sending")
+                ? "Din tid är bokad. E-postbekräftelsen väntar på utskick; spara den här sidan."
+                : "Din tid är bokad. Spara den här sidan som bekräftelse; någon e-postbekräftelse är ännu inte skickad."}
+          </p>
+        )}
         {settings.email && (
           <p style={{ fontSize: 12, marginTop: 18 }}>
             För frågor eller avbokning, skriv till{" "}
@@ -109,6 +124,11 @@ export default async function ConfirmationPage({
             .
           </p>
         )}
+        {terms ? <>
+          <p>{cancellationText(terms.cancellationHours)}</p>
+          {terms.cancellationDetails && <TextContent text={terms.cancellationDetails} />}
+        </> : <p>Se <Link href="/villkor">aktuella allmänna bokningsvillkor</Link> eller kontakta verksamheten om villkoren för denna bokning.</p>}
+        {terms && <p><Link href="/villkor">Aktuella allmänna villkor</Link></p>}
         <div className="form-actions">
           {pending && (
             <a

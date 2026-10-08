@@ -96,8 +96,8 @@ test("availability migration preserves legacy accounts, slots and bookings and a
         ],
       });
     }
-    const usersBefore = (await raw.execute("SELECT * FROM users ORDER BY id"))
-      .rows;
+    const usersBefore: Record<string, unknown>[] = (await raw.execute("SELECT * FROM users ORDER BY id"))
+      .rows.map((row) => ({ ...row, email_verified_at: null }));
     const bookingsBefore = (
       await raw.execute("SELECT * FROM bookings ORDER BY id")
     ).rows;
@@ -245,8 +245,10 @@ test("availability migration preserves legacy accounts, slots and bookings and a
     await rm(directory, {
       recursive: true,
       force: true,
-      maxRetries: 5,
-      retryDelay: 100,
+      // Windows can briefly retain a closed native SQLite file handle during
+      // a concurrent suite. Retry only filesystem cleanup, never assertions.
+      maxRetries: 12,
+      retryDelay: 200,
     });
   }
 });

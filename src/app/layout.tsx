@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import { SiteChrome } from "@/components/site-chrome";
 import { getSiteSettings } from "@/lib/site-data";
+import { getBusinessSettings } from "@/lib/business-settings";
+import { DEFAULT_BUSINESS_SETTINGS } from "@/lib/business-config";
 import { getCurrentUser } from "@/lib/auth";
 import { databaseConfigured } from "@/lib/database-config";
 import { createPageMetadata, getSiteUrl } from "@/lib/seo";
@@ -51,15 +53,17 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const needsDatabase = !!process.env.VERCEL && !databaseConfigured();
-  const [settings, user] = needsDatabase
-    ? [{ siteName: "Tibb.nu", email: "" }, null]
-    : await Promise.all([getSiteSettings(), getCurrentUser()]);
+  const [settings, user, business] = needsDatabase
+    ? [{ siteName: "Tibb.nu", email: "" }, null, DEFAULT_BUSINESS_SETTINGS]
+    : await Promise.all([getSiteSettings(), getCurrentUser(), getBusinessSettings()]);
   return (
     <html lang="sv" data-scroll-behavior="smooth">
       <body className={`${serif.variable} ${sans.variable}`}>
         <SiteChrome
           siteName={settings.siteName || "Tibb.nu"}
           contactEmail={settings.email || ""}
+          legalName={business.legalName}
+          organizationNumber={business.organizationNumber}
           user={user ? { name: user.name, role: user.role } : null}
         >
           {children}

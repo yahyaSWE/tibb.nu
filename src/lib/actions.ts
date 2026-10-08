@@ -1,5 +1,6 @@
 "use server";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { revalidateMutation } from "./revalidation";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -16,8 +17,8 @@ import {
   getBookingById,
   getUserByEmail,
   hasAdmin,
-  rateLimit,
   reserveBooking,
+  transaction,
 } from "./db";
 import { registerStudent } from "./accounts";
 import * as admin from "./admin";
@@ -25,7 +26,6 @@ import * as availability from "./availability";
 import {
   equalSecret,
   hashPassword,
-  tokenHash,
   verifyPassword,
 } from "./security";
 import {
@@ -36,6 +36,9 @@ import {
   signupSchema,
 } from "./validation";
 import { createCheckout, getStripe } from "./stripe";
+import { enforceRequestLimit } from "./request-rate-limit";
+import { sendVerificationEmail } from "./account-email";
+import { dispatchBookingEmailOutbox } from "./email-outbox";
 function path(value: string, fallback: string) {
   return /^\/(?!\/)/.test(value) &&
     !value.includes("\\") &&
@@ -88,18 +91,7 @@ async function formAction(
   redirect(destination);
 }
 async function requestLimit(action: string, subject: string, count: number) {
-  const header = await headers();
-  const ip =
-    process.env.TRUST_PROXY === "1"
-      ? header.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
-      : "global";
-  if (
-    !(await rateLimit(`${action}:${tokenHash(subject)}`, count, 15)) ||
-    !(await rateLimit(`${action}:ip:${tokenHash(ip)}`, 100, 15))
-  )
-    throw new DomainError(
-      "För många försök. Vänta 15 minuter och försök igen.",
-    );
+  await enforceRequestLimit(action, subject, count, await headers());
 }
 export async function loginAction(form: FormData): Promise<void> {
   await formAction(
@@ -113,14 +105,15 @@ export async function loginAction(form: FormData): Promise<void> {
         .max(128)
         .parse(field(form, "password"));
       await requestLimit("login", email, 10);
-      const user = await getUserByEmail(email);
-      const valid = verifyPassword(
-        password,
-        user?.passwordHash || "missing:" + "0".repeat(128),
-      );
-      if (!user || !valid)
-        throw new DomainError("E-postadress eller lösenord är fel.");
-      await createSession(user.id);
+      const user = await transaction(async () => {
+        const current = await getUserByEmail(email);
+        const valid = verifyPassword(password, current?.passwordHash || "missing:" + "0".repeat(128));
+        if (!current || !valid) throw new DomainError("E-postadress eller lösenord är fel.");
+        // A reset cannot commit between validating the old password and
+        // creating a fresh session with those now-revoked credentials.
+        await createSession(current.id);
+        return current;
+      });
       return path(
         field(form, "returnTo"),
         user.role === "admin" ? "/admin" : "/elevportal",
@@ -142,10 +135,15 @@ export async function signupAction(form: FormData): Promise<void> {
       await requestLimit("signup", input.email, 5);
       const user = await registerStudent(input);
       await createSession(user.id);
+      try {
+        await sendVerificationEmail(user.id);
+      } catch {
+        return "/verifiera-epost?message=" + encodeURIComponent("Ditt konto är skapat. E-postverifiering kunde inte skickas just nu. Ditt konto är inte verifierat ännu.");
+      }
       return (
-        "/elevportal?success=" +
+        "/verifiera-epost?message=" +
         encodeURIComponent(
-          "Ditt konto är skapat. Kursåtkomst tilldelas av administratören.",
+          "Ditt konto är skapat. E-posttjänsten har accepterat verifieringsmeddelandet. Öppna länken i din inkorg för att verifiera adressen.",
         )
       );
     },
@@ -168,6 +166,7 @@ export async function createBookingAction(form: FormData): Promise<void> {
     });
     await requestLimit("booking", input.email, 10);
     const booking = await reserveBooking(input);
+    if (booking.status === "confirmed") after(() => dispatchBookingEmailOutbox({ bookingId: booking.id, limit: 2 }));
     if (input.paymentMethod === "stripe") {
       try {
         return await createCheckout(booking);

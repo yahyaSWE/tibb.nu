@@ -5,6 +5,7 @@ import { logoutAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { AdminNav } from "@/components/admin/admin-nav";
 import "@/components/admin/admin.css";
+import "@/components/content-accessibility.css";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -20,6 +21,9 @@ export default async function AdminLayout({
   const user = await requireAdmin();
   return (
     <div className="admin-shell">
+      <a className="skip-link" href="#admin-main-content">
+        Hoppa till innehållet
+      </a>
       <aside className="admin-sidebar">
         <Link className="admin-brand" href="/admin">
           <Leaf size={30} aria-hidden="true" />
@@ -51,7 +55,9 @@ export default async function AdminLayout({
           </form>
         </div>
       </aside>
-      <main className="admin-main">{children}</main>
+      <main id="admin-main-content" tabIndex={-1} className="admin-main">
+        {children}
+      </main>
     </div>
   );
 }

@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { ArrowUpRight, BookOpen, Leaf, Play, Sprout } from "lucide-react";
+import {
+  contentBlocks,
+  contentInlines,
+  courseIntroduction,
+} from "@/lib/content-text";
+import "../content-accessibility.css";
 
 type CourseCardProps = {
   course: {
@@ -19,7 +25,8 @@ export function formatPrice(priceOre: number) {
     ? new Intl.NumberFormat("sv-SE", {
         style: "currency",
         currency: "SEK",
-        maximumFractionDigits: 0,
+        minimumFractionDigits: priceOre % 100 === 0 ? 0 : 2,
+        maximumFractionDigits: 2,
       }).format(priceOre / 100)
     : "Kontakta oss för information";
 }
@@ -45,7 +52,9 @@ export function CourseCard({
       <div className="course-card-body">
         <p className="eyebrow">Kunskap för livet</p>
         <h3>{course.title}</h3>
-        <p className="muted clamp-three">{course.description}</p>
+        <p className="muted course-card-intro">
+          {courseIntroduction(course.description)}
+        </p>
         {progress !== undefined ? (
           <div className="course-progress">
             <div className="progress-track">
@@ -90,6 +99,7 @@ export function ArticleCard({ article, index = 0 }: ArticleCardProps) {
             day: "numeric",
             month: "long",
             year: "numeric",
+            timeZone: "Europe/Stockholm",
           })}
         </p>
         <h3>{article.title}</h3>
@@ -103,16 +113,27 @@ export function ArticleCard({ article, index = 0 }: ArticleCardProps) {
 }
 
 export function TextContent({ text }: { text: string }) {
+  const inlineContent = (value: string) =>
+    contentInlines(value).map((part, index) =>
+      part.href ? (
+        <a key={index} href={part.href}>
+          {part.text}
+        </a>
+      ) : (
+        part.text
+      ),
+    );
   return (
     <div className="prose">
-      {text
-        .split(/\n\s*\n/)
-        .filter(Boolean)
-        .map((paragraph, index) => (
+      {contentBlocks(text).map((block, index) =>
+        block.kind === "heading" ? (
+          <h2 key={index}>{inlineContent(block.text)}</h2>
+        ) : (
           <p key={index} style={{ whiteSpace: "pre-line" }}>
-            {paragraph}
+            {inlineContent(block.text)}
           </p>
-        ))}
+        ),
+      )}
     </div>
   );
 }

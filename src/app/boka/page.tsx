@@ -3,6 +3,8 @@ import { getSiteSettings } from "@/lib/site-data";
 import { stripeReady } from "@/lib/stripe";
 import { createPageMetadata } from "@/lib/seo";
 import { BookingForm } from "@/components/booking-form";
+import { getBusinessSettings } from "@/lib/business-settings";
+import { cancellationText } from "@/lib/business-config";
 
 export const metadata = createPageMetadata({
   title: "Behandlingar och bokning",
@@ -16,12 +18,13 @@ export default async function BookingPage({
   searchParams: Promise<{ error?: string; behandling?: string }>;
 }) {
   const params = await searchParams;
-  const [treatments, practitioners, publishedSlots, settings] =
+  const [treatments, practitioners, publishedSlots, settings, business] =
     await Promise.all([
       getTreatments({ activeOnly: true }),
       getPractitioners({ activeOnly: true }),
       getSlots({ futureOnly: true }),
       getSiteSettings(),
+      getBusinessSettings(),
     ]);
   const ids = new Set(treatments.map((t) => t.id));
   const practitionerIds = new Set(practitioners.map((p) => p.id));
@@ -54,8 +57,9 @@ export default async function BookingPage({
         initialTreatment={Number(params.behandling) || undefined}
         payOnSite={settings.payOnSite}
         stripeEnabled={settings.stripeEnabled && stripeReady()}
-        location={settings.location}
+        location={[settings.location, settings.address].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(" · ")}
         contactEmail={settings.email}
+        cancellationNotice={cancellationText(business.cancellationHours)}
       />
     </section>
   );

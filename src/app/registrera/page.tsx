@@ -26,8 +26,8 @@ export default async function SignupPage({
           <em>växa.</em>
         </h1>
         <p className="lead muted">
-          Skapa ditt konto för en egen plats i Tibb.nu:s elevportal. När du
-          anmält dig till en kurs ger vi dig tillgång här.
+          Skapa ditt konto och verifiera din e-postadress. När du anmält dig
+          till en kurs ger administratören dig tillgång i elevportalen.
         </p>
         <Sprout
           className="auth-leaf"

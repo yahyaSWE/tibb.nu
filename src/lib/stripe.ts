@@ -38,7 +38,7 @@ export async function createCheckout(booking: Booking) {
       allowed_payment_method_types: ["card"],
       customer_email: booking.email,
       client_reference_id: booking.reference,
-      metadata: { booking_reference: booking.reference },
+      metadata: { application: "tibb.nu", booking_reference: booking.reference },
       line_items: [
         {
           quantity: 1,

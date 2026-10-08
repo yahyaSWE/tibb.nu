@@ -212,7 +212,7 @@ test("an existing unversioned database upgrades missing columns without reseedin
     assert.equal(await version(client), String(SCHEMA_VERSION));
     assert.deepEqual(
       (await client.execute("SELECT * FROM users")).rows,
-      usersBefore,
+      usersBefore.map((row) => ({ ...row, email_verified_at: null })),
     );
     assert.deepEqual((await client.execute("SELECT * FROM bookings")).rows[0], {
       ...bookingBefore,

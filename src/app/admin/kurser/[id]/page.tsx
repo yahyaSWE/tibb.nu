@@ -26,6 +26,8 @@ import { CourseForm } from "@/components/admin/course-form";
 import { LessonForm } from "@/components/admin/lesson-form";
 import { CourseLessonActivities } from "@/components/admin/course-activities";
 import { CourseActivityResultsPanel } from "@/components/admin/course-activity-results";
+import { getCourseInformation } from "@/lib/business-settings";
+import { CourseInformationForm } from "@/components/admin/course-information-form";
 import "@/components/admin/course-activities.css";
 
 export default async function CourseBuilderPage({
@@ -41,6 +43,7 @@ export default async function CourseBuilderPage({
   if (!Number.isSafeInteger(courseId) || courseId < 1) notFound();
   const course = await getCourseById(courseId);
   if (!course) notFound();
+  const information = await getCourseInformation(course);
   const [lessons, allEnrollments, activities, results] = await Promise.all([
     getLessons(course.id),
     getEnrollments(),
@@ -78,6 +81,7 @@ export default async function CourseBuilderPage({
           <SectionHeading title="Kursens grunduppgifter" />
           <CourseForm course={course} returnTo={returnTo} />
         </section>
+        <CourseInformationForm courseId={course.id} information={information} />
         <section className="panel">
           <SectionHeading
             title="Lektioner"
@@ -155,7 +159,7 @@ export default async function CourseBuilderPage({
         <section className="panel">
           <SectionHeading
             title="Elever med tillgång"
-            description="Eleven skapar först sitt konto på hemsidan. Tilldela sedan tillgång med samma e-postadress."
+            description="Eleven skapar först sitt konto och verifierar sin e-postadress från elevportalen. Tilldela sedan tillgång med samma adress."
           />
           {!course.published ? (
             <div className="notice">

@@ -95,6 +95,9 @@ export default async function PractitionersPage({
         description="Presentera dina behandlare och ge var och en ett eget schema för bokningar."
       />
       <AdminNotice searchParams={searchParams} />
+      {practitioners.some((practitioner) => practitioner.name === "Tibb.nu") && (
+        <p className="notice">Standardprofilen heter Tibb.nu. Ange behandlarens offentliga namn och en valfri porträttbild här innan bokningen öppnas. För Johan: Johan Yahya Blomdahl.</p>
+      )}
       <div className="split-grid">
         <section className="panel">
           <SectionHeading

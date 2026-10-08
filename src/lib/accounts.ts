@@ -5,7 +5,7 @@ export async function registerStudent(input: unknown) {
   const value = signupSchema.parse(input);
   if (await getUserByEmail(value.email))
     throw new DomainError(
-      "E-postadressen används redan. Logga in med ditt konto.",
+      "E-postadressen används redan. Logga in eller använd Glömt lösenord för att återta ditt konto.",
     );
   return await createUser({
     name: value.name,

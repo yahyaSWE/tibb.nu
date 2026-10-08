@@ -18,9 +18,13 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      ...["/admin/:path*", "/elevportal/:path*", "/bokning/:path*", "/logga-in", "/registrera", "/setup", "/installation", "/api/:path*"].map((source) => ({
+      ...["/admin/:path*", "/elevportal/:path*", "/bokning/:path*", "/logga-in", "/registrera", "/verifiera-epost", "/glomt-losenord", "/aterstall-losenord", "/setup", "/installation", "/api/:path*"].map((source) => ({
         source,
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      })),
+      ...["/verifiera-epost", "/aterstall-losenord", "/bokning/:path*"].map((source) => ({
+        source,
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       })),
       ...(process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "development" ? [{
         source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],

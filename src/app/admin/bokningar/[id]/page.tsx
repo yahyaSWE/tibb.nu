@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById } from "@/lib/db";
 import { updateBookingAction } from "@/lib/actions";
+import { getBookingEmailStatus, type BookingEmailState } from "@/lib/email-outbox";
+import { retryBookingEmailsAction } from "@/lib/account-actions";
 import {
   AdminHeading,
   AdminNotice,
@@ -26,6 +28,11 @@ export default async function BookingDetailPage({
   const { id } = await params;
   const booking = await getBookingById(Number(id));
   if (!booking) notFound();
+  const email = await getBookingEmailStatus(booking.id);
+  const emailLabel: Record<BookingEmailState, string> = {
+    pending: "Väntar på utskick", sending: "Utskick pågår", sent: "Accepterat av Resend",
+    failed: "Utskicket kunde inte slutföras", skipped: "Utskicket stoppades",
+  };
   const waitingForStripe =
     booking.paymentMethod === "stripe" && booking.paymentStatus !== "paid";
   return (
@@ -192,6 +199,26 @@ export default async function BookingDetailPage({
           )}
         </section>
       </div>
+      <section className="panel form-panel">
+        <SectionHeading title="Bokningsmejl" description="Accepterat betyder att Resend har tagit emot meddelandet. Kontrollera faktisk leverans och eventuella studsar i Resend." />
+        {!email.configured && <p className="notice">E-posttjänsten är inte ansluten. Bokningen finns kvar; bekräftelser kan skickas när Resend är konfigurerat.</p>}
+        <dl className="detail-list">
+          {(["customer", "admin"] as const).map((recipient) => (
+            <div key={recipient}>
+              <dt>{recipient === "customer" ? "Kundbekräftelse" : "Avisering till verksamheten"}</dt>
+              <dd>{email[recipient] ? emailLabel[email[recipient].status] : "Inget utskick registrerat"}
+                {email[recipient]?.sentAt && <> · {dateTime(email[recipient].sentAt)}</>}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {email.configured && booking.status === "confirmed" && Date.parse(booking.start) > Date.now() && (
+          <form action={retryBookingEmailsAction}>
+            <input type="hidden" name="bookingId" value={booking.id} />
+            <button className="button button-secondary" type="submit">Behandla väntande utskick</button>
+          </form>
+        )}
+      </section>
     </>
   );
 }

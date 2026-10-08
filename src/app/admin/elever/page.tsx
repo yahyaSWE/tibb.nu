@@ -52,7 +52,9 @@ export default async function StudentsPage({
                       <td>
                         <strong>{student.name}</strong>
                       </td>
-                      <td>{student.email}</td>
+                      <td>{student.email}<small className="table-description">
+                        {student.emailVerifiedAt ? "Verifierad e-post" : "E-post behöver verifieras"}
+                      </small></td>
                       <td>
                         {
                           enrollments.filter((e) => e.userId === student.id)
@@ -71,8 +73,8 @@ export default async function StudentsPage({
               href="/registrera"
               label="Visa registreringssidan"
             >
-              Elever kan skapa ett konto på hemsidan. Därefter kan du ge dem
-              tillgång till en kurs.
+              Elever kan skapa ett konto och verifiera sin e-postadress på hemsidan.
+              Därefter kan du ge dem tillgång till en kurs.
             </EmptyState>
           )}
         </section>
@@ -110,6 +112,8 @@ export default async function StudentsPage({
                 </select>
               </Field>
               <p className="muted">
+                Eleven måste verifiera sin e-postadress innan en ny tillgång kan tilldelas.
+                Eleven gör det under ”Verifiera e-post” i elevportalen.{" "}
                 Tillgång till en kurs i utkast börjar gälla när kursen
                 publiceras.
               </p>

@@ -40,7 +40,7 @@ export async function LessonActivities({
         };
         return (
           <LessonActivity
-            key={activity.id}
+            key={`${userId}-${activity.id}`}
             activity={{
               ...common,
               kind: activity.kind,

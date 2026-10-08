@@ -3,8 +3,11 @@ import {
   completeStripeBooking,
   expireStripeSession,
   refundStripeBooking,
+  getBookingByReference,
+  getDb,
 } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
+import { dispatchBookingEmailOutbox } from "@/lib/email-outbox";
 export const runtime = "nodejs";
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -31,6 +34,13 @@ export async function POST(request: Request) {
       event.type === "checkout.session.async_payment_succeeded"
     ) {
       const session = event.data.object;
+      const reference = session.metadata?.booking_reference;
+      // Sessions from other applications on the same Stripe account belong to
+      // their own integration. Our missing DB attachment must still retry.
+      const ownSession = await getDb().prepare("SELECT id FROM bookings WHERE checkout_session_id=?").get(session.id);
+      const ownMetadata = session.metadata?.application === "tibb.nu" ||
+        (reference && /^[a-f0-9]{32}$/.test(reference) && session.client_reference_id === reference);
+      if (!ownSession && !ownMetadata) return NextResponse.json({ received: true });
       if (
         session.payment_status === "paid" ||
         session.payment_status === "no_payment_required"
@@ -40,6 +50,10 @@ export async function POST(request: Request) {
           session.amount_total ?? -1,
           session.currency ?? "",
         );
+        if (outcome === "confirmed" || outcome === "already-paid") {
+          const booking = ownSession ? { id: Number(ownSession.id) } : reference ? await getBookingByReference(reference) : undefined;
+          if (booking) await dispatchBookingEmailOutbox({ bookingId: booking.id, limit: 2 });
+        }
         if (outcome === "needs-refund") {
           if (session.amount_total === 0) await refundStripeBooking(session.id);
           else {
@@ -86,7 +100,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(
       "Stripe webhook handling failed",
-      error instanceof Error ? error.message : "Unknown error",
+      error instanceof Error ? error.name : "Unknown error",
     );
     return NextResponse.json(
       { error: "Unable to process event" },

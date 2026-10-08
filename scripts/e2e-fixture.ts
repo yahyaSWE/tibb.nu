@@ -27,6 +27,8 @@ async function main() {
       role: "student",
     });
     const now = new Date().toISOString();
+    // This owns a fresh isolated QA database, never a live account.
+    await db.prepare("UPDATE users SET email_verified_at=? WHERE role='student'").run(now);
     await db
       .prepare(
         "INSERT INTO courses(title,slug,description,price_ore,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",

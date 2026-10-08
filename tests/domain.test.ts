@@ -79,6 +79,9 @@ before(async () => {
     passwordHash: hashPassword("other long password"),
     role: "student",
   });
+  // Ownership is explicit in this isolated fixture; real signup stays unverified.
+  await getDb().prepare("UPDATE users SET email_verified_at=? WHERE id IN (?,?)")
+    .run(new Date().toISOString(), student.id, other.id);
 });
 after(async () => {
   await getDb().close();

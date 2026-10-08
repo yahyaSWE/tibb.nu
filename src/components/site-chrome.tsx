@@ -2,8 +2,9 @@
 
 import { NavigationLink as Link } from "@/components/navigation-link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowUpRight, Leaf, Menu, UserRound, X } from "lucide-react";
+import "./content-accessibility.css";
 
 export function OliveMark({ className = "" }: { className?: string }) {
   return (
@@ -32,14 +33,19 @@ export function SiteChrome({
   siteName,
   contactEmail,
   user,
+  legalName,
+  organizationNumber,
 }: {
   children: React.ReactNode;
   siteName: string;
   contactEmail: string;
   user: { name: string; role: string } | null;
+  legalName?: string;
+  organizationNumber?: string;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   if (pathname.startsWith("/admin") || pathname.startsWith("/elevportal"))
     return <>{children}</>;
   const nav = [
@@ -51,12 +57,22 @@ export function SiteChrome({
     { href: "/om", label: "Om Tibb" },
   ];
   const brandName = siteName.endsWith(".nu") ? siteName.slice(0, -3) : siteName;
+  const active = (href: string) =>
+    pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
   return (
     <div className="public-site">
       <a className="skip-link" href="#main-content">
         Hoppa till innehållet
       </a>
-      <header className="site-header">
+      <header
+        className="site-header"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && open) {
+            setOpen(false);
+            menuButton.current?.focus();
+          }
+        }}
+      >
         <div className="header-inner">
           <Link
             href="/"
@@ -82,11 +98,13 @@ export function SiteChrome({
                     ? true
                     : undefined
                 }
-                className={
-                  pathname === item.href ||
-                  (item.href !== "/" && pathname.startsWith(item.href))
-                    ? "active"
-                    : ""
+                className={active(item.href) ? "active" : ""}
+                aria-current={
+                  pathname === item.href
+                    ? "page"
+                    : active(item.href)
+                      ? "location"
+                      : undefined
                 }
               >
                 {item.label}
@@ -110,9 +128,10 @@ export function SiteChrome({
           <button
             type="button"
             className="mobile-toggle"
+            ref={menuButton}
             aria-label={open ? "Stäng menyn" : "Öppna menyn"}
             aria-expanded={open}
-            aria-controls="mobile-menu"
+            aria-controls={open ? "mobile-menu" : undefined}
             onClick={() => setOpen(!open)}
           >
             {open ? <X /> : <Menu />}
@@ -130,6 +149,14 @@ export function SiteChrome({
                     : undefined
                 }
                 onNavigate={() => setOpen(false)}
+                className={active(item.href) ? "active" : undefined}
+                aria-current={
+                  pathname === item.href
+                    ? "page"
+                    : active(item.href)
+                      ? "location"
+                      : undefined
+                }
               >
                 {item.label}
               </Link>
@@ -199,6 +226,15 @@ export function SiteChrome({
           <span>
             © {new Date().getFullYear()} {siteName}
           </span>
+          {legalName && (
+            <span>
+              {legalName}
+              {organizationNumber ? ` · Org.nr ${organizationNumber}` : ""}
+            </span>
+          )}
+          <Link href="/villkor" intentOnly>
+            Boknings- och kursvillkor
+          </Link>
           <Link href="/integritet" intentOnly>
             Integritet
           </Link>

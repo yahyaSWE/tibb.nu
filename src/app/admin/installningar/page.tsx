@@ -2,6 +2,9 @@ import { requireAdmin } from "@/lib/auth";
 import { Check, Circle, CreditCard, Wallet } from "lucide-react";
 import { getSiteSettings } from "@/lib/site-data";
 import { saveSettingsAction } from "@/lib/actions";
+import { getBusinessSettings } from "@/lib/business-settings";
+import { BusinessSettingsForm } from "@/components/admin/business-settings-form";
+import { emailConfigurationStatus } from "@/lib/email-provider";
 import {
   AdminHeading,
   AdminNotice,
@@ -17,7 +20,7 @@ export default async function SettingsPage({
   searchParams: AdminSearchParams;
 }) {
   await requireAdmin();
-  const settings = await getSiteSettings();
+  const [settings, business] = await Promise.all([getSiteSettings(), getBusinessSettings()]);
   const stripeChecks = [
     { label: "Stripe-anslutning", ready: !!process.env.STRIPE_SECRET_KEY },
     {
@@ -27,6 +30,7 @@ export default async function SettingsPage({
     { label: "Hemsidans adress", ready: !!process.env.APP_URL },
   ];
   const stripeReady = stripeChecks.every((item) => item.ready);
+  const email = emailConfigurationStatus();
   return (
     <>
       <AdminHeading
@@ -34,6 +38,12 @@ export default async function SettingsPage({
         description="Uppdatera verksamhetens kontaktuppgifter och välj hur kunder kan betala."
       />
       <AdminNotice searchParams={searchParams} />
+      <section className="panel form-panel">
+        <SectionHeading title="E-post" description="Resend används för verifiering av elevkonton, återställning av lösenord och bokningsbekräftelser." />
+        <p className={`badge ${email.configured ? "badge-green" : "badge-amber"}`}>{email.configured ? "Konfiguration finns" : "Anslutning saknas"}</p>
+        <p className="muted">{email.configured ? "Verifiera avsändardomänen och kontrollera ett testutskick i Resend innan kundlansering." : email.reason}</p>
+        <p className="muted">Utskickens status visas i varje bokning. Leverans och studsar kontrolleras i Resend.</p>
+      </section>
       <form action={saveSettingsAction} className="stack">
         <ReturnTo path="/admin/installningar" />
         <section className="panel form-panel">
@@ -170,6 +180,7 @@ export default async function SettingsPage({
           </button>
         </div>
       </form>
+      <BusinessSettingsForm settings={business} />
     </>
   );
 }

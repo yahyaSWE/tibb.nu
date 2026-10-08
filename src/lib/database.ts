@@ -13,6 +13,7 @@ import {
   SCHEMA_VERSION_KEY,
   SLOT_SCHEDULE_SCHEMA,
   COURSE_ACTIVITY_SCHEMA,
+  ACCOUNT_EMAIL_SCHEMA,
 } from "./schema";
 import { databaseConfigured } from "./database-config";
 export { databaseConfigured } from "./database-config";
@@ -149,6 +150,10 @@ export class DatabaseAdapter {
         }
         await tx.executeMultiple(SCHEMA);
         await tx.executeMultiple(COURSE_ACTIVITY_SCHEMA);
+        const userColumns = await tx.execute("PRAGMA table_info(users)");
+        if (!userColumns.rows.some((row) => row.name === "email_verified_at"))
+          await tx.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+        await tx.executeMultiple(ACCOUNT_EMAIL_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

@@ -147,9 +147,11 @@ Starta Docker med `docker compose --env-file .env.local up --build -d` när milj
 
 Säkerhetskopiera med SQLite backup API eller en konsekvent SQLite-snapshot; kopiera inte bara en aktiv databasfil och ignorera WAL-filen. Starta om utvecklingsservern om du kör CLI-konfiguration eller flyttar databasen under utveckling.
 
-Sessionskakan är HttpOnly, SameSite=Lax och Secure i produktion. Roller och kursåtkomst kontrolleras även vid serveråtgärder. Lösenord skyddas med saltad scrypt. Bokningar och ändringar valideras på servern. `TRUST_PROXY=1` ska bara användas om din egen proxy ersätter inkommande `X-Forwarded-For`; annars används gemensamma och e-postbaserade anropsgränser.
+Sessionskakan är HttpOnly, SameSite=Lax och Secure i produktion. Roller och kursåtkomst kontrolleras även vid serveråtgärder. Lösenord skyddas med saltad scrypt. Bokningar och ändringar valideras på servern. Vercels betrodda besökaradress används för anropsgränser; `TRUST_PROXY=1` ska bara användas om din egen proxy ersätter inkommande `X-Forwarded-For`. Utan betrodd adress används konto-/bokningsgränser utan en gemensam spärr för alla besökare.
 
-Innan du öppnar för kunder: fyll i verksamhetens kontaktuppgifter, egna texter, korrekta priser och tider, och anpassa integritetsinformationen till din verksamhet. Bokningsbekräftelse visas på sidan. E-postutskick och självbetjäning för lösenordsåterställning är inte anslutna.
+Innan du öppnar för kunder: fyll i fungerande kontaktuppgifter, besöksadress, korrekta priser och tider. Admin → Inställningar har redigerbara verksamhetsuppgifter, återbudsregel, kursåtkomst och integritetsbeslut. Standardvärden enligt ägaren: Joart Group AB, org.nr 559363-3893, återbud minst 24 timmar före besöket och kursåtkomst utan tidsgräns. Rättslig grund, lagringstider och leverantörsöverföringar behöver fyllas i efter verksamhetens faktiska bedömning.
+
+Resend är förberett för elevverifiering, lösenordsåterställning och bokningsmejl men behöver anslutas och leveranstestas. Se [e-postguiden](docs/email-setup.md) och [drift-/återställningsguiden](docs/operations.md). Nya kursgrants kräver verifierad elevadress; befintlig kursåtkomst bevaras vid migrering. Bekräftelsesidan visar sanningsenlig utskicksstatus och admin kan behandla väntande jobb. Nya bokningar behåller sin återbudsregel även när allmänna villkor ändras.
 
 ## Sökoptimering och AI-sök
 
@@ -188,3 +190,11 @@ Tester använder separata tillfälliga databaser och täcker bland annat verklig
 `public/images/olive-still-life.png` är skapad med det inbyggda imagegen-verktyget för detta projekt. Den exakta prompten sparas i `public/images/olive-still-life.prompt.txt`. Prompten beskrev ett fotografiskt stilleben med olivkvistar i handgjord keramik på travertin, varm kalkstensvägg och naturligt solljus, i olivgrönt och jordtoner utan text eller personer. Det finns inga externa fotografier eller påhittade patientomdömen på webbplatsen.
 
 Teknisk referens: [Next.js](https://nextjs.org/docs/app), [Turso/libSQL](https://docs.turso.tech/sdk/ts/reference), [Stripe Checkout](https://docs.stripe.com/payments/checkout).
+
+## Transaktionell e-post och elevägarskap
+
+Se även [åtgärder och återstående lanseringsinställningar](docs/launch-improvements-2026-10-08.md).
+
+Resend-adaptern använder serverns `RESEND_API_KEY`, verifierade `EMAIL_FROM` och betrodda `APP_URL`. Se [konfiguration och kontroller](docs/email-setup.md). Saknad konfiguration lämnar elever overifierade och visar ett tydligt fel; befintlig admininloggning och redan tilldelade kurser fungerar. Nya kurstilldelningar kräver verifierad adress. Verifiering och lösenordsåterställning använder hashade engångstoken med utgångstid och revokerar gamla sessioner.
+
+Bekräftade bokningar köar neutrala kund-/administratörsmejl i en beständig outbox. Första försöket sker automatiskt; admin kan behandla väntande jobb. Ett separat schemalagt återförsöksjobb kräver `CRON_SECRET` och konfigureras när tjänsten ansluts. Accepterat av Resend är ingen garanti om inkorgsleverans. Tester täcker bland annat osäkra svar efter acceptans, idempotenta parallella utskick, återförsöksgränser, tokenförbrukning och att gamla elevers åtkomst bevaras, utan verkliga e-postanrop.

@@ -1,8 +1,39 @@
 // Increase this version whenever schema definitions or migrations change.
 // It is recorded in app_meta (and local SQLite's user_version) only when the
 // complete migration and initial seed commit successfully.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 export const SCHEMA_VERSION_KEY = "schema_version";
+
+export const ACCOUNT_EMAIL_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS auth_tokens (
+    token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK(kind IN ('verify-email','reset-password')),
+    expires_at TEXT NOT NULL, created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS auth_tokens_user ON auth_tokens(user_id,kind,expires_at);
+  CREATE TRIGGER IF NOT EXISTS auth_tokens_reference BEFORE INSERT ON auth_tokens
+    WHEN NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.user_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS users_auth_tokens_cleanup BEFORE DELETE ON users BEGIN
+    DELETE FROM auth_tokens WHERE user_id=OLD.id;
+  END;
+  CREATE TABLE IF NOT EXISTS booking_email_outbox (
+    id TEXT PRIMARY KEY, booking_id INTEGER NOT NULL REFERENCES bookings(id),
+    audience TEXT NOT NULL CHECK(audience IN ('customer','admin')),
+    recipient TEXT NOT NULL, sender TEXT, subject TEXT NOT NULL, body TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed','skipped')),
+    attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, first_attempt_at TEXT,
+    next_attempt_at TEXT NOT NULL, lease_until TEXT, lease_token TEXT, sent_at TEXT, provider_id TEXT,
+    UNIQUE(booking_id,audience)
+  );
+  CREATE INDEX IF NOT EXISTS booking_email_due ON booking_email_outbox(status,next_attempt_at);
+  CREATE TRIGGER IF NOT EXISTS booking_email_reference BEFORE INSERT ON booking_email_outbox
+    WHEN NOT EXISTS(SELECT 1 FROM bookings WHERE id=NEW.booking_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS bookings_email_cleanup BEFORE DELETE ON bookings BEGIN
+    DELETE FROM booking_email_outbox WHERE booking_id=OLD.id;
+  END;
+`;
 
 // Activity revisions are immutable. Attempts and submissions keep referencing
 // the revision used by the student when an administrator changes the activity.

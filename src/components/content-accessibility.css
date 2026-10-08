@@ -1,0 +1,26 @@
+.admin-shell .content-form-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+:is(.course-detail, .article-detail-header, .portal-course-heading) .page-title,
+.portal-shell .lesson-content > h1,
+.admin-shell .admin-heading h1,
+.prose h2 {
+  overflow-wrap: anywhere;
+}
+
+.course-card .course-card-intro {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 360px) {
+  .public-site .site-header .header-inner {
+    gap: 8px;
+  }
+  .public-site .site-header .portal-link {
+    padding: 8px 10px;
+  }
+}

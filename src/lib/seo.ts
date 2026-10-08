@@ -138,4 +138,5 @@ export const PUBLIC_PAGES = [
   { path: "/kontakt", title: "Kontakt", description: "Kontakta Tibb.nu om behandlingar i Jönköping och kursåtkomst." },
   { path: "/vanliga-fragor", title: "Vanliga frågor", description: "Svar om bokning, behandlare, priser, kursåtkomst och självtestet." },
   { path: "/integritet", title: "Integritet", description: "Information om hur personuppgifter hanteras på Tibb.nu." },
+  { path: "/villkor", title: "Boknings- och kursvillkor", description: "Villkor för bokning, återbud och tilldelad kursåtkomst hos Tibb.nu." },
 ] as const;

@@ -22,6 +22,7 @@ import {
 } from "@/lib/seo";
 import { buildCourseSchema } from "@/lib/seo-content";
 import { getPublicCourse } from "@/lib/seo-data";
+import { getBusinessSettings, getCourseInformation } from "@/lib/business-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -49,9 +50,11 @@ export default async function CoursePage({
   const course = await getPublicCourse(slug);
   if (!course) notFound();
   const courseSchema = buildCourseSchema(course);
-  const [lessons, user] = await Promise.all([
+  const [lessons, user, information, business] = await Promise.all([
     getLessonOutline(course.id),
     getCurrentUser(),
+    getCourseInformation(course),
+    getBusinessSettings(),
   ]);
   const hasAccess = user ? await hasCourseAccess(user.id, course.id) : false;
   return (
@@ -81,6 +84,16 @@ export default async function CoursePage({
           <p className="eyebrow">Tibb akademi · Onlinekurs</p>
           <h1 className="page-title">{course.title}</h1>
           <TextContent text={course.description} />
+          {([
+            ["audience", "Vem passar kursen för?"],
+            ["prerequisites", "Förkunskaper"],
+            ["learningOutcomes", "Lärandemål"],
+            ["completionRequirements", "Genomförande"],
+          ] as const).map(([key, title]) => information[key] ? (
+            <section key={key} className="course-information-section">
+              <h2>{title}</h2><TextContent text={information[key]} />
+            </section>
+          ) : null)}
           <div className="course-detail-meta">
             <span>
               <BookOpen size={17} /> {lessons.length}{" "}
@@ -127,6 +140,7 @@ export default async function CoursePage({
             <li>
               <Check size={16} /> Studera när det passar dig
             </li>
+            <li><Check size={16} /> {business.courseAccessDescription}</li>
             <li>
               <Check size={16} /> Följ dina framsteg lektion för lektion
             </li>
@@ -162,6 +176,7 @@ export default async function CoursePage({
               </Link>
             </p>
           )}
+          <p className="small muted"><Link href="/villkor" className="inline-link">Villkor för kurser och bokning</Link></p>
         </aside>
       </div>
     </section>

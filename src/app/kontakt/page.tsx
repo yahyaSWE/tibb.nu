@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Mail, MapPin, ArrowRight } from "lucide-react";
 import { getSiteSettings } from "@/lib/site-data";
+import { getBusinessSettings } from "@/lib/business-settings";
 import { JsonLd } from "@/components/seo/json-ld";
 import { absoluteUrl, buildOrganizationSchema, createPageMetadata, organizationId, websiteId } from "@/lib/seo";
 export const metadata = createPageMetadata({
@@ -8,7 +9,7 @@ export const metadata = createPageMetadata({
   description: "Kontakta Johan Yahya Blomdahl på Tibb.nu om behandlingar i Jönköping, bokning och kurser. Här hittar du verksamhetens kontaktuppgifter.",
 });
 export default async function ContactPage() {
-  const s = await getSiteSettings();
+  const [s, business] = await Promise.all([getSiteSettings(), getBusinessSettings()]);
   return (
     <section className="section container narrow">
       <JsonLd data={[
@@ -34,19 +35,21 @@ export default async function ContactPage() {
             bokningar.
           </p>
         )}
-        <p><MapPin /> Jönköping</p>
+        <p><MapPin /> {s.address || "Jönköping"}</p>
         {s.location && s.location !== "Jönköping" && (
           <p>
             <MapPin />
             {s.location}
           </p>
         )}
-        {s.address && <p>{s.address}</p>}
+        {!s.address && <p>Kontakta oss för besöksadress och vägbeskrivning innan du bokar.</p>}
         {s.phone && <a href={`tel:${s.phone}`}>{s.phone}</a>}
+        <p>{business.legalName} · Org.nr {business.organizationNumber}</p>
         <Link href="/boka" className="text-link">
           Se behandlingar och lediga tider <ArrowRight size={18} />
         </Link>
         <Link href="/vanliga-fragor" className="text-link">Vanliga frågor om bokning och kurser <ArrowRight size={18} /></Link>
+        <Link href="/villkor" className="text-link">Boknings- och kursvillkor <ArrowRight size={18} /></Link>
       </div>
     </section>
   );

@@ -81,6 +81,8 @@ before(async () => {
     passwordHash: hashPassword("isolated unenrolled password"),
     role: "student",
   });
+  await getDb().prepare("UPDATE users SET email_verified_at=? WHERE id=?")
+    .run(new Date().toISOString(), student.id);
 });
 after(async () => {
   await getDb().close();

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { queueBookingEmails } from "./email-outbox";
 import type {
   Article,
   Booking,
@@ -97,6 +98,7 @@ function user(row: Row): User {
     name: str(row.name),
     role: row.role as User["role"],
     createdAt: str(row.created_at),
+    emailVerifiedAt: row.email_verified_at ? str(row.email_verified_at) : null,
   };
 }
 function article(row: Row): Article {
@@ -701,7 +703,11 @@ export async function reserveBooking(input: {
         expires,
         now,
       );
-    return (await getBookingByReference(reference))!;
+    const result = (await getBookingByReference(reference))!;
+    const { recordBookingTermsSnapshot } = await import("./business-settings");
+    await recordBookingTermsSnapshot(result);
+    if (result.status === "confirmed") await queueBookingEmails(result.id);
+    return result;
   });
 }
 export async function cancelPendingBooking(reference: string) {
@@ -735,7 +741,10 @@ export async function completeStripeBooking(
       currency !== "sek"
     )
       throw new DomainError("Betalningen matchar inte bokningen.");
-    if (row.payment_status === "paid") return "already-paid";
+    if (row.payment_status === "paid") {
+      if (row.status === "confirmed") await queueBookingEmails(integer(row.id));
+      return "already-paid";
+    }
     if (row.payment_status === "refunded") return "already-refunded";
     if (row.status !== "pending") return "needs-refund";
     if (
@@ -760,6 +769,7 @@ export async function completeStripeBooking(
         "UPDATE bookings SET status='confirmed',payment_status='paid',expires_at=NULL WHERE id=?",
       )
       .run(integer(row.id));
+    await queueBookingEmails(integer(row.id));
     return "confirmed";
   });
 }

@@ -57,6 +57,8 @@ before(async () => {
     passwordHash: hashPassword("other course query password"),
     role: "student",
   });
+  await getDb().prepare("UPDATE users SET email_verified_at=? WHERE id IN (?,?)")
+    .run(new Date().toISOString(), student.id, other.id);
 });
 
 after(async () => {

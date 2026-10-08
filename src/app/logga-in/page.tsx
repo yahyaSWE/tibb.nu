@@ -80,6 +80,7 @@ export default async function LoginPage({
             Logga in <ArrowRight size={17} />
           </button>
         </form>
+        <p className="small"><Link href="/glomt-losenord" className="inline-link">Glömt lösenord?</Link></p>
         <p className="auth-switch muted">
           Ny här?{" "}
           <Link href="/registrera" className="inline-link">

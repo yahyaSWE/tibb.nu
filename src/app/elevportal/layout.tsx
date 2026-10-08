@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { PortalNav } from "@/components/learning/portal-nav";
+import "@/components/content-accessibility.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -20,6 +21,9 @@ export default async function PortalLayout({
   const user = await requireUser();
   return (
     <div className="portal-shell">
+      <a className="skip-link" href="#portal-main-content">
+        Hoppa till innehållet
+      </a>
       <header className="portal-header">
         <Link className="portal-brand" href="/elevportal">
           <Leaf size={25} strokeWidth={1.6} />
@@ -47,7 +51,9 @@ export default async function PortalLayout({
         </div>
       </header>
       <PortalNav />
-      <main className="portal-main">{children}</main>
+      <main id="portal-main-content" tabIndex={-1} className="portal-main">
+        {children}
+      </main>
       <footer className="portal-footer">
         Tibb.nu · Kunskap med rötter. Omsorg med mening.
       </footer>

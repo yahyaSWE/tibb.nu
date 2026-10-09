@@ -6,6 +6,10 @@ Butiken börjar **avstängd**, med frakt och hämtning förvalda. Databasuppgrad
 
 Under **Admin → Produkter → Ny produkt** lägger du in namn, beskrivning, pris inklusive moms, momssats, tillgängligt lagersaldo och en valfri bild. Produkter börjar som utkast. Kontrollera att uppgifterna och momssatsen är rätt för den produkt du säljer.
 
+**Kort produktbeskrivning** visas vid priset och köpknappen. Under **Fördjupad produktbeskrivning** kan du dessutom skriva ett längre innehåll med den visuella editorn. Använd rubriker, fetstil, kursiv text, understrykning, listor, citat och länkar. Infoga bilder direkt i texten och ange alternativtext som beskriver bilden; en valfri bildtext visas under den. JPG, PNG och WebP stöds, högst 2 MB per bild och 20 bilder per beskrivning. Bilderna lagras i samma databas som produktens huvudbild.
+
+Spara produkten och klicka **Förhandsgranska produkt** för att se både beskrivningar och alla bilder. Förhandsvisningen fungerar för utkast och medan butiken är stängd. Den längre beskrivningen är valfri och kan tömmas utan att ändra den korta texten. Uppladdade bilder blir offentliga först när de ingår i en sparad, publicerad produkt i en öppen butik.
+
 Två villkor behöver vara uppfyllda för offentlig visning och nya köp: **produkten är publicerad** och **butiken är öppen**. Publicering av en produkt öppnar inte butiken. Opublicerade produkter och bilder kan bara förhandsgranskas av admin. När butiken är stängd försvinner dess menylänkar och produkterna tas bort från webbplatsens sitemap och AI-innehållskarta.
 
 **Admin → Butik → Förhandsgranska** visar även utkast, utan köpknappar. Utkasten och bilderna skyddas på servern. En tidigare besökare kan förstås ha sparat en bild eller produktbeskrivning medan den var offentlig.

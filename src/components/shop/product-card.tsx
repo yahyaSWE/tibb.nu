@@ -76,6 +76,9 @@ export function ProductCard({
               <summary>Visa produktbeskrivning</summary>
               <TextContent text={product.description} />
             </details>
+            <Link href={`/admin/produkter/${product.id}/forhandsvisa`} className="text-link">
+              Förhandsgranska hela produkten <ArrowUpRight size={17} aria-hidden="true" />
+            </Link>
           </>
         ) : (
           <AddToCart

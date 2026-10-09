@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { LoaderCircle, Save } from "lucide-react";
 import type { ShopOrder, ShopProduct, ShopSettings } from "@/lib/shop-types";
 import type {
@@ -20,6 +21,11 @@ import { Field } from "./common";
 import { ShopImageUpload } from "./shop-image-upload";
 import { ShopBundleEditor, type ShopBundleCatalogItem } from "./shop-bundle-editor";
 import "./shop-admin.css";
+
+const ProductRichEditor = dynamic(
+  () => import("./product-rich-editor").then((module) => module.ProductRichEditor),
+  { ssr: false, loading: () => <p className="small muted">Laddar texteditorn…</p> },
+);
 
 function useInlineForm<Values>(
   action: (
@@ -278,6 +284,7 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
       name: product?.name ?? "",
       slug: product?.slug ?? "",
       description: product?.description ?? "",
+      richDescription: product?.richDescription ? JSON.stringify(product.richDescription) : "",
       price: product ? String(product.priceOre / 100) : "",
       vatPercent: String(product?.vatPercent ?? 25),
       stock: String(product?.stock ?? 0),
@@ -304,6 +311,7 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
         name: product.name,
         slug: product.slug,
         description: product.description,
+        richDescription: product.richDescription ? JSON.stringify(product.richDescription) : "",
         price: String(product.priceOre / 100),
         vatPercent: String(product.vatPercent),
         stock: String(product.stock),
@@ -314,16 +322,18 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
     lastSaved.current = saved;
   }, [saved, search, product, form.setValues]);
   const [imageBusy, setImageBusy] = useState(false);
+  const [richImageBusy, setRichImageBusy] = useState(false);
+  const uploadBusy = imageBusy || richImageBusy;
   const change = (field: keyof ShopProductFields, value: string | boolean) =>
-    form.setValues({ ...form.values, [field]: value });
+    form.setValues((current) => ({ ...current, [field]: value }));
   const bundle = form.values.kind === "bundle";
   return (
     <form
       action={form.action}
       className="stack"
-      aria-busy={form.pending || imageBusy}
+      aria-busy={form.pending || uploadBusy}
       onSubmit={(event) => {
-        if (imageBusy) event.preventDefault();
+        if (uploadBusy) event.preventDefault();
         else form.onSubmit();
       }}
     >
@@ -346,7 +356,7 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
         </div>
       )}
       <fieldset
-        disabled={form.pending || imageBusy}
+        disabled={form.pending || uploadBusy}
         className="stack content-form-fields"
       >
         <legend className="sr-only">Produktens uppgifter</legend>
@@ -381,19 +391,32 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
         </div>
         {!bundle ? <><Field label="Produktvikt (gram)" name="shop-product-weight" help={shippingRuleMode ? "Regelbaserad frakt används. Ange en positiv vikt för att produkten ska kunna skickas. 0 innebär okänd vikt." : "Ange produktens vikt utan emballage. 0 innebär okänd vikt."}><input id="shop-product-weight" name="weightGrams" type="number" required min={0} max={100000000} step={1} value={form.values.weightGrams} onChange={event => change("weightGrams", event.target.value)}/></Field>{form.values.bundleItems.map((item,index) => <span key={index}><input type="hidden" name="bundleProductId" value={item.productId}/><input type="hidden" name="bundleQuantity" value={item.quantity}/></span>)}</> : <><input type="hidden" name="weightGrams" value={form.values.weightGrams}/><ShopBundleEditor items={form.values.bundleItems} catalog={catalog.filter(item => item.id !== product?.id && item.kind !== "bundle")} onChange={items => form.setValues({...form.values,bundleItems:items})}/></>}
         <Field
-          label="Produktbeskrivning"
+          label="Kort produktbeskrivning"
           name="shop-product-description"
-          help="Beskriv produkten och vad kunden får. Tomma rader skiljer stycken."
+          help="En kort introduktion vid produktens pris och köpknapp. Tomma rader skiljer stycken."
         >
           <textarea
             id="shop-product-description"
             name="description"
-            rows={8}
+            rows={4}
             maxLength={20000}
             value={form.values.description}
             onChange={(event) => change("description", event.target.value)}
           />
         </Field>
+        <div className="stack">
+          <div>
+            <h3>Fördjupad produktbeskrivning</h3>
+            <p className="small muted">Valfritt. Lägg till rubriker, formaterad text, listor, länkar och bilder. Innehållet visas längre ned på produktsidan.</p>
+          </div>
+          <input type="hidden" name="richDescription" value={form.values.richDescription} />
+          <ProductRichEditor
+            value={form.values.richDescription}
+            onChange={(value) => change("richDescription", value)}
+            disabled={form.pending || imageBusy}
+            onBusyChange={setRichImageBusy}
+          />
+        </div>
         <div className="shop-product-numbers">
           <Field label="Pris inklusive moms (kr)" name="shop-product-price">
             <input
@@ -462,7 +485,7 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
         </p>
       </fieldset>
       <div>
-        <SaveButton pending={form.pending} disabled={imageBusy}>
+        <SaveButton pending={form.pending} disabled={uploadBusy}>
           {product ? "Spara produkt" : "Skapa produkt"}
         </SaveButton>
       </div>

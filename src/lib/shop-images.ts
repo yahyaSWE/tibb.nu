@@ -35,7 +35,8 @@ export async function readShopImage(id: string, actorId?: number): Promise<Buffe
     ? await getDb().prepare("SELECT bytes_base64 FROM shop_images WHERE id=? AND EXISTS(SELECT 1 FROM users WHERE id=? AND role='admin')").get(id, actorId!)
     : await getDb().prepare(`SELECT bytes_base64 FROM shop_images WHERE id=?
         AND EXISTS(SELECT 1 FROM shop_settings WHERE enabled=1)
-        AND EXISTS(SELECT 1 FROM shop_products p WHERE p.image_id=shop_images.id AND p.published=1
+        AND EXISTS(SELECT 1 FROM shop_products p WHERE p.published=1
+          AND (p.image_id=shop_images.id OR EXISTS(SELECT 1 FROM shop_product_content_images content WHERE content.product_id=p.id AND content.image_id=shop_images.id))
           AND (p.kind='product' OR (p.kind='bundle'
             AND EXISTS(SELECT 1 FROM shop_bundle_items b WHERE b.bundle_id=p.id)
             AND NOT EXISTS(SELECT 1 FROM shop_bundle_items b LEFT JOIN shop_products component ON component.id=b.product_id

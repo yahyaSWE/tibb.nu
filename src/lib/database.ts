@@ -20,6 +20,7 @@ import { SHOP_SCHEMA } from "./shop-schema";
 import { SHOP_IMAGE_SCHEMA } from "./shop-image-schema";
 import { SHOP_EMAIL_SCHEMA } from "./shop-email-schema";
 import { SHOP_COMMERCE_SCHEMA } from "./shop-commerce-schema";
+import { SHOP_PRODUCT_CONTENT_SCHEMA } from "./shop-product-content-schema";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
@@ -163,7 +164,7 @@ export class DatabaseAdapter {
         await tx.executeMultiple(SHOP_EMAIL_SCHEMA);
         const shopAdditions: Record<string, Record<string, string>> = {
           shop_settings: { shipping_rule_mode: "INTEGER NOT NULL DEFAULT 0 CHECK(shipping_rule_mode IN (0,1))", packing_weight_grams: "INTEGER NOT NULL DEFAULT 0 CHECK(packing_weight_grams BETWEEN 0 AND 1000000)" },
-          shop_products: { kind: "TEXT NOT NULL DEFAULT 'product' CHECK(kind IN ('product','bundle'))", weight_grams: "INTEGER NOT NULL DEFAULT 0 CHECK(weight_grams BETWEEN 0 AND 100000000)" },
+          shop_products: { kind: "TEXT NOT NULL DEFAULT 'product' CHECK(kind IN ('product','bundle'))", weight_grams: "INTEGER NOT NULL DEFAULT 0 CHECK(weight_grams BETWEEN 0 AND 100000000)", rich_description_json: "TEXT" },
           shop_orders: { inventory_json: "TEXT NOT NULL DEFAULT '[]'", original_subtotal_ore: "INTEGER", discount_ore: "INTEGER NOT NULL DEFAULT 0", discounts_json: "TEXT NOT NULL DEFAULT '[]'", weight_grams: "INTEGER", shipping_label: "TEXT NOT NULL DEFAULT ''", coupon_code: "TEXT" },
         };
         for (const [table, additions] of Object.entries(shopAdditions)) {
@@ -174,6 +175,7 @@ export class DatabaseAdapter {
           }
         }
         await tx.executeMultiple(SHOP_COMMERCE_SCHEMA);
+        await tx.executeMultiple(SHOP_PRODUCT_CONTENT_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

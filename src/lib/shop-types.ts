@@ -1,3 +1,5 @@
+import type { ProductRichTextDocument } from "./product-rich-text";
+
 export type ShopSettings = {
   enabled: boolean;
   shippingEnabled: boolean;
@@ -15,6 +17,7 @@ export type ShopProduct = {
   name: string;
   slug: string;
   description: string;
+  richDescription?: ProductRichTextDocument | null;
   priceOre: number;
   vatPercent: number;
   stock: number;

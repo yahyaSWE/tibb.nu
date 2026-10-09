@@ -105,6 +105,7 @@ export async function saveShopProductAction(
         name: values.name,
         slug: values.slug,
         description: values.description,
+        ...(form.has("richDescription") ? { richDescription: values.richDescription } : {}),
         priceOre: money(values.price),
         vatPercent: Number(values.vatPercent),
         kind,

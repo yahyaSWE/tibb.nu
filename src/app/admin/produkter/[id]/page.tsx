@@ -39,6 +39,9 @@ export default async function EditProductPage({
             <Link href="/admin/produkter" className="text-link">
               Alla produkter
             </Link>
+            <Link href={`/admin/produkter/${product.id}/forhandsvisa`} className="button button-secondary">
+              Förhandsgranska produkt
+            </Link>
             {settings.enabled && product.published ? (
               <Link
                 href={`/butik/${product.slug}`}
@@ -46,14 +49,7 @@ export default async function EditProductPage({
               >
                 Visa produkt ↗
               </Link>
-            ) : (
-              <Link
-                href="/admin/butik/forhandsvisa"
-                className="button button-secondary"
-              >
-                Förhandsgranska butiken
-              </Link>
-            )}
+            ) : null}
           </div>
         }
       />

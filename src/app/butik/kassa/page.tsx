@@ -26,7 +26,7 @@ export default async function CheckoutPage() {
           Välj leverans och se ditt totalbelopp innan du betalar.
         </p>
       </div>
-      <CheckoutForm products={products} settings={settings} />
+      <CheckoutForm products={products.map(({ richDescription: _content, ...product }) => product)} settings={settings} />
     </section>
   );
 }

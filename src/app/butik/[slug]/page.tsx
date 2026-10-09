@@ -8,6 +8,8 @@ import {
 } from "@/lib/seo";
 import { TextContent } from "@/components/learning/cards";
 import { ProductImage } from "@/components/shop/product-card";
+import { ProductRichText } from "@/components/shop/product-rich-text";
+import { productRichTextText } from "@/lib/product-rich-text";
 import { AddToCart, ShopCartLink } from "@/components/shop/shop-cart";
 import {
   shopProductForRender,
@@ -25,7 +27,7 @@ export async function generateMetadata({ params }: Props) {
     ? createPageMetadata({
         title: product.name,
         description: seoDescription(
-          product.description,
+          product.description || productRichTextText(product.richDescription ?? null),
           `Se pris och information om ${product.name} hos Tibb.nu.`,
         ),
         path: `/butik/${product.slug}`,
@@ -92,6 +94,11 @@ export default async function ProductPage({ params }: Props) {
           </p>
         </div>
       </div>
+      {product.richDescription && (
+        <section className="shop-product-long-description" aria-label="Fördjupad produktbeskrivning">
+          <ProductRichText document={product.richDescription} />
+        </section>
+      )}
     </div>
   );
 }

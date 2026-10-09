@@ -26,7 +26,7 @@ export default async function CartPage() {
           Kontrollera varor och antal innan du fortsätter.
         </p>
       </div>
-      <CartPageContent products={products} settings={settings} />
+      <CartPageContent products={products.map(({ richDescription: _content, ...product }) => product)} settings={settings} />
     </section>
   );
 }

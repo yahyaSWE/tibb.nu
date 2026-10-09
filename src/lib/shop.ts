@@ -6,6 +6,7 @@ import { emailSchema, slug, text } from "./validation";
 import { appUrl } from "./stripe";
 import type { ShopSettings, ShopProduct, ShopOrder, ShopOrderItem, ShopQuote, ShopQuoteInput } from "./shop-types";
 import { calculateShopQuote, loadShopProducts, publiclyAvailable } from "./shop-commerce";
+import { parseProductRichText, productRichTextImageIds } from "./product-rich-text";
 export { getAdminShopQuantityOffers, saveShopQuantityOffer, getAdminShopCoupons, saveShopCoupon, getAdminShopShippingRules, saveShopShippingRule, getPublicShopOffers, shopQuoteSchema } from "./shop-commerce";
 
 type Row = Record<string, unknown>;
@@ -88,11 +89,31 @@ export async function getAdminShopProduct(actorId: number, id: number): Promise<
   await assertAdmin(actorId); await expireShopOrders();
   return (await loadShopProducts()).find((p) => p.id === id);
 }
-export async function saveShopProduct(actorId: number, id: number | null, input: Omit<ShopProduct, "id" | "createdAt" | "updatedAt"> & { expectedUpdatedAt?: string }): Promise<number> {
+export async function saveShopProduct(actorId: number, id: number | null, input: Omit<ShopProduct, "id" | "createdAt" | "updatedAt" | "richDescription"> & { richDescription?: unknown; expectedUpdatedAt?: string }): Promise<number> {
   return transaction(async () => {
     await assertAdmin(actorId);
     await expireShopOrders();
     const value = productSchema.parse(input);
+    const contentSupplied = input.richDescription !== undefined;
+    let richDescription: ReturnType<typeof parseProductRichText> = null;
+    if (contentSupplied) {
+      try { richDescription = parseProductRichText(input.richDescription); }
+      catch (error) {
+        throw new DomainError(error instanceof Error && error.message.startsWith("Produktbeskrivningen ")
+          ? error.message : "Kontrollera den fördjupade produktbeskrivningen och försök igen.");
+      }
+    }
+    const contentImageIds = productRichTextImageIds(richDescription);
+    for (const imageId of contentImageIds) {
+      if (!(await getDb().prepare("SELECT id FROM shop_images WHERE id=?").get(imageId)))
+        throw new DomainError("Välj uppladdade bilder i den fördjupade produktbeskrivningen.");
+    }
+    const contentJson = richDescription ? JSON.stringify(richDescription) : null;
+    const replaceContentImages = async (productId: number) => {
+      await getDb().prepare("DELETE FROM shop_product_content_images WHERE product_id=?").run(productId);
+      for (const imageId of contentImageIds)
+        await getDb().prepare("INSERT INTO shop_product_content_images(product_id,image_id) VALUES(?,?)").run(productId, imageId);
+    };
     if (value.kind === "bundle") {
       if (!value.bundleItems.length) throw new DomainError("Välj minst en produkt som ingår i paketet.");
       if (new Set(value.bundleItems.map(item => item.productId)).size !== value.bundleItems.length) throw new DomainError("Välj varje produkt bara en gång i paketet.");
@@ -111,20 +132,22 @@ export async function saveShopProduct(actorId: number, id: number | null, input:
     let now = new Date().toISOString();
     if (id !== null) {
       z.number().int().positive().parse(id);
-      const current = await getDb().prepare("SELECT updated_at,kind FROM shop_products WHERE id=?").get(id);
+      const current = await getDb().prepare("SELECT updated_at,kind,rich_description_json FROM shop_products WHERE id=?").get(id);
       if (!current) throw new DomainError("Produkten finns inte.");
       if (current.kind !== value.kind) throw new DomainError("Produkttypen kan inte ändras efter att produkten skapats. Skapa en ny produkt eller ett nytt paket.");
       if (!value.expectedUpdatedAt || value.expectedUpdatedAt !== current.updated_at) throw new DomainError("Produkten eller lagret har ändrats sedan du öppnade formuläret. Ladda om produkten innan du sparar igen.");
       now = new Date(Math.max(Date.now(), Date.parse(String(current.updated_at)) + 1)).toISOString();
-      await getDb().prepare("UPDATE shop_products SET name=?,slug=?,description=?,price_ore=?,vat_percent=?,stock=?,published=?,image_id=?,updated_at=?,weight_grams=? WHERE id=?")
-        .run(value.name, path, value.description, value.priceOre, value.vatPercent, value.kind === "bundle" ? 0 : value.stock, value.published ? 1 : 0, value.imageId, now, value.kind === "bundle" ? 0 : value.weightGrams, id);
+      await getDb().prepare("UPDATE shop_products SET name=?,slug=?,description=?,price_ore=?,vat_percent=?,stock=?,published=?,image_id=?,updated_at=?,weight_grams=?,rich_description_json=? WHERE id=?")
+        .run(value.name, path, value.description, value.priceOre, value.vatPercent, value.kind === "bundle" ? 0 : value.stock, value.published ? 1 : 0, value.imageId, now, value.kind === "bundle" ? 0 : value.weightGrams, contentSupplied ? contentJson : current.rich_description_json == null ? null : String(current.rich_description_json), id);
+      if (contentSupplied) await replaceContentImages(id);
       await getDb().prepare("DELETE FROM shop_bundle_items WHERE bundle_id=?").run(id);
       for (const part of value.bundleItems) await getDb().prepare("INSERT INTO shop_bundle_items(bundle_id,product_id,quantity) VALUES(?,?,?)").run(id,part.productId,part.quantity);
       return id;
     }
-    const result = await getDb().prepare("INSERT INTO shop_products(name,slug,description,price_ore,vat_percent,stock,published,image_id,created_at,updated_at,kind,weight_grams) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
-      .run(value.name, path, value.description, value.priceOre, value.vatPercent, value.kind === "bundle" ? 0 : value.stock, value.published ? 1 : 0, value.imageId, now, now,value.kind,value.kind === "bundle" ? 0 : value.weightGrams);
+    const result = await getDb().prepare("INSERT INTO shop_products(name,slug,description,price_ore,vat_percent,stock,published,image_id,created_at,updated_at,kind,weight_grams,rich_description_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+      .run(value.name, path, value.description, value.priceOre, value.vatPercent, value.kind === "bundle" ? 0 : value.stock, value.published ? 1 : 0, value.imageId, now, now,value.kind,value.kind === "bundle" ? 0 : value.weightGrams, contentJson);
     const productId = Number(result.lastInsertRowid);
+    await replaceContentImages(productId);
     for (const part of value.bundleItems) await getDb().prepare("INSERT INTO shop_bundle_items(bundle_id,product_id,quantity) VALUES(?,?,?)").run(productId,part.productId,part.quantity);
     return productId;
   });

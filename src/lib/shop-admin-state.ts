@@ -20,6 +20,7 @@ export type ShopProductFields = {
   name: string;
   slug: string;
   description: string;
+  richDescription: string;
   price: string;
   vatPercent: string;
   stock: string;
@@ -57,6 +58,7 @@ export function shopProductFields(form: FormData): ShopProductFields {
     name: text(form, "name"),
     slug: text(form, "slug"),
     description: text(form, "description"),
+    richDescription: text(form, "richDescription"),
     price: text(form, "price"),
     vatPercent: text(form, "vatPercent"),
     stock: text(form, "stock"),

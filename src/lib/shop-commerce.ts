@@ -3,6 +3,7 @@ import { z } from "zod";
 import { assertAdmin } from "./admin";
 import { DomainError, getDb, transaction } from "./db";
 import { text } from "./validation";
+import { parseProductRichText } from "./product-rich-text";
 import type { ShopCoupon, ShopDiscount, ShopProduct, ShopQuantityOffer, ShopQuote, ShopQuoteInput, ShopQuoteItem, ShopSettings, ShopShippingRule } from "./shop-types";
 
 type Row = Record<string, unknown>;
@@ -74,7 +75,7 @@ export async function saveShopShippingRule(actorId: number, id: number | null, i
 
 export async function loadShopProducts(): Promise<ShopProduct[]> {
   const [rows, parts] = await Promise.all([getDb().prepare("SELECT * FROM shop_products ORDER BY name,id").all(), getDb().prepare("SELECT * FROM shop_bundle_items ORDER BY bundle_id,product_id").all()]);
-  const products: ShopProduct[] = rows.map((r) => ({ id: Number(r.id), name: String(r.name), slug: String(r.slug), description: String(r.description), priceOre: Number(r.price_ore), vatPercent: Number(r.vat_percent), stock: Number(r.stock), published: !!r.published, imageId: r.image_id ? String(r.image_id) : null, createdAt: String(r.created_at), updatedAt: String(r.updated_at), kind: r.kind as "product" | "bundle", weightGrams: Number(r.weight_grams), bundleItems: [], bundleOriginalPriceOre: null }));
+  const products: ShopProduct[] = rows.map((r) => ({ id: Number(r.id), name: String(r.name), slug: String(r.slug), description: String(r.description), richDescription: parseProductRichText(r.rich_description_json), priceOre: Number(r.price_ore), vatPercent: Number(r.vat_percent), stock: Number(r.stock), published: !!r.published, imageId: r.image_id ? String(r.image_id) : null, createdAt: String(r.created_at), updatedAt: String(r.updated_at), kind: r.kind as "product" | "bundle", weightGrams: Number(r.weight_grams), bundleItems: [], bundleOriginalPriceOre: null }));
   const byId = new Map(products.map((p) => [p.id, p]));
   for (const p of products.filter((p) => p.kind === "bundle")) {
     p.bundleItems = parts.filter((r) => Number(r.bundle_id) === p.id).map((r) => ({ productId: Number(r.product_id), quantity: Number(r.quantity) }));

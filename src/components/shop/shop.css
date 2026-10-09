@@ -612,3 +612,5 @@
 .shop-offer-note h2, .shop-bundle-contents h2 { font-size: 24px; }
 .shop-summary .shop-delivery-options { grid-template-columns: 1fr; }
 .shop-summary .field { margin-top: 16px; }
+.shop-product-long-description { margin-top: 48px; padding-top: 36px; border-top: 1px solid var(--line, #cad6c4); }
+.shop-product-long-description .product-rich-text { max-width: 860px; margin: 0 auto; }

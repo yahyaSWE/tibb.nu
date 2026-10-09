@@ -1,6 +1,7 @@
 import { databaseConfigured } from "@/lib/database-config";
 import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES } from "@/lib/seo";
 import { getPublicSeoContent } from "@/lib/seo-data";
+import { getShopSettings, getPublicShopProducts } from "@/lib/shop";
 
 export const dynamic = "force-dynamic";
 
@@ -69,5 +70,9 @@ export async function GET(): Promise<Response> {
     "Detta är en informationskarta över offentliga sidor. Filen ger ingen garanti om indexering, sökplacering eller synlighet i AI-sök.",
     "",
   );
+  if ((await getShopSettings()).enabled) {
+    lines.push("", "## Butik", "", `- [Butik](${absoluteUrl("/butik")})`);
+    for (const product of await getPublicShopProducts()) if (/^[a-z0-9][a-z0-9-]*$/.test(product.slug)) lines.push(`- [${label(product.name)}](${absoluteUrl(`/butik/${product.slug}`)})`);
+  }
   return new Response(lines.join("\n"), { headers });
 }

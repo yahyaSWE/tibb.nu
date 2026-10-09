@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import { ArrowUpRight, Leaf, Menu, UserRound, X } from "lucide-react";
 import "./content-accessibility.css";
+import "./site-chrome-shop.css";
 
 export function OliveMark({ className = "" }: { className?: string }) {
   return (
@@ -35,6 +36,7 @@ export function SiteChrome({
   user,
   legalName,
   organizationNumber,
+  shopEnabled = false,
 }: {
   children: React.ReactNode;
   siteName: string;
@@ -42,6 +44,7 @@ export function SiteChrome({
   user: { name: string; role: string } | null;
   legalName?: string;
   organizationNumber?: string;
+  shopEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -55,6 +58,7 @@ export function SiteChrome({
     { href: "/artiklar", label: "Artiklar" },
     { href: "/sjalvtest", label: "Självtest" },
     { href: "/om", label: "Om Tibb" },
+    ...(shopEnabled ? [{ href: "/butik", label: "Butik" }, { href: "/butik/varukorg", label: "Varukorg" }] : []),
   ];
   const brandName = siteName.endsWith(".nu") ? siteName.slice(0, -3) : siteName;
   const active = (href: string) =>
@@ -65,7 +69,7 @@ export function SiteChrome({
         Hoppa till innehållet
       </a>
       <header
-        className="site-header"
+        className={`site-header${shopEnabled ? " site-header-with-shop" : ""}`}
         onKeyDown={(event) => {
           if (event.key === "Escape" && open) {
             setOpen(false);
@@ -191,6 +195,7 @@ export function SiteChrome({
             <Link href="/kurser" intentOnly>
               Våra kurser
             </Link>
+            {shopEnabled && <Link href="/butik" intentOnly>Butik</Link>}
             <Link href="/artiklar" intentOnly>
               Kunskap & artiklar
             </Link>

@@ -8,8 +8,13 @@ import {
   Clock3,
   FileText,
   LayoutDashboard,
+  Package,
   Settings2,
   Sprout,
+  ShoppingBag,
+  Store,
+  TicketPercent,
+  Truck,
   Stethoscope,
   Users,
 } from "lucide-react";
@@ -23,6 +28,11 @@ const links = [
   { href: "/admin/artiklar", label: "Artiklar", icon: FileText },
   { href: "/admin/kurser", label: "Kurser", icon: BookOpen },
   { href: "/admin/elever", label: "Elever", icon: Users },
+  { href: "/admin/butik", label: "Butik", icon: Store },
+  { href: "/admin/produkter", label: "Produkter", icon: Package },
+  { href: "/admin/rabatter", label: "Rabatter", icon: TicketPercent },
+  { href: "/admin/frakt", label: "Frakt", icon: Truck },
+  { href: "/admin/bestallningar", label: "Beställningar", icon: ShoppingBag },
   { href: "/admin/installningar", label: "Inställningar", icon: Settings2 },
 ];
 

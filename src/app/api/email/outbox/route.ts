@@ -1,4 +1,5 @@
 import { dispatchBookingEmailOutbox } from "@/lib/email-outbox";
+import { dispatchShopOrderEmails } from "@/lib/shop-email";
 import { equalSecret } from "@/lib/security";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,9 @@ export async function GET(request: Request) {
   if (!equalSecret(request.headers.get("authorization") || "", `Bearer ${secret}`))
     return Response.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   try {
-    return Response.json(await dispatchBookingEmailOutbox({ limit: 10 }), { headers: { "Cache-Control": "no-store" } });
+    const bookings = await dispatchBookingEmailOutbox({ limit: 5 });
+    const orders = await dispatchShopOrderEmails({ limit: 5 });
+    return Response.json({ ...bookings, orders }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Utskicksjobbet kunde inte slutföras. Kontrollera serverns anslutning." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }

@@ -1,6 +1,6 @@
 # Tibb.nu
 
-En fungerande Next.js-tjänst för behandlingar, bokning, artiklar, kurser och elevportal. Gränssnittet är på svenska, med olivgrönt och jordtoner. Data sparas lokalt i SQLite eller i en beständig Turso/libSQL-databas när appen körs på Vercel.
+En Next.js-tjänst för behandlingar, bokning, artiklar, kurser, elevportal och en valfri produktbutik. Gränssnittet är på svenska, med olivgrönt och jordtoner. Data sparas lokalt i SQLite eller i en beständig Turso/libSQL-databas när appen körs på Vercel.
 
 ## Publicera på Vercel och skapa första admin
 
@@ -80,8 +80,17 @@ Logga sedan in på `/logga-in` och öppna `/admin`. Det finns inga förinställd
 - **Kurser:** skapa kursinformation och lägg till ordnade lektioner med text, video och material. Välj **Ladda upp PDF eller Word** för att bifoga filer direkt; externa materiallänkar fungerar också. En lektion kan bestå enbart av uppladdat material. Eleverna kan ladda ned filerna i elevportalen. Förhandsgranska där och publicera när kursen är klar. Startkursen och startartikeln är utkast.
 - **Elever:** eleven skapar sitt konto på `/registrera`. Tilldela en kurs med elevens e-postadress. Återkallad tillgång stoppar åtkomst men bevarar framsteg om du senare tilldelar kursen igen.
 - **Inställningar:** ändra namn, kontaktuppgifter, plats och betalningsalternativ.
+- **Butik:** butiken är avstängd från början. Förbered frakt, hämtning, köpvillkor och förhandsvisning i admin. Öppna butiken först när du vill börja sälja.
+- **Produkter:** skapa produktutkast med bild, beskrivning, pris inklusive moms och tillgängligt lager. En produkt visas för kunder först när både produkten är publicerad och butiken är öppen.
+- **Beställningar:** se verifierad betalning, kunduppgifter och leveransval. Markera skickad/redo för hämtning/hämtad och ange ett valfritt spårningsnummer.
 
 Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken.
+
+### Förbered produktbutiken
+
+Butiken använder den befintliga databasen, admininloggningen och Stripe Checkout. Medusa behövs inte för denna version. Både frakt inom Sverige och hämtning kan erbjudas. Varukorg, kassa och beställningssida ingår; nya databasfält migreras automatiskt utan att publicera produkter eller öppna butiken.
+
+Läs [butikens installationsguide](docs/shop-setup.md) innan du öppnar. Produktbetalningarna behöver en **separat** Stripe-webhook på `/api/shop/webhook` och `SHOP_STRIPE_WEBHOOK_SECRET`. Administratören kan förbereda produkter även innan Stripe är anslutet. Produktbilder är normaliserade WebP-bilder i databasen och ingår i databasens säkerhetskopiering.
 
 ### Quiz och skrivuppgifter
 

@@ -4,6 +4,7 @@ import { SiteChrome } from "@/components/site-chrome";
 import { getSiteSettings } from "@/lib/site-data";
 import { getBusinessSettings } from "@/lib/business-settings";
 import { DEFAULT_BUSINESS_SETTINGS } from "@/lib/business-config";
+import { getShopSettings } from "@/lib/shop";
 import { getCurrentUser } from "@/lib/auth";
 import { databaseConfigured } from "@/lib/database-config";
 import { createPageMetadata, getSiteUrl } from "@/lib/seo";
@@ -53,9 +54,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const needsDatabase = !!process.env.VERCEL && !databaseConfigured();
-  const [settings, user, business] = needsDatabase
-    ? [{ siteName: "Tibb.nu", email: "" }, null, DEFAULT_BUSINESS_SETTINGS]
-    : await Promise.all([getSiteSettings(), getCurrentUser(), getBusinessSettings()]);
+  const [settings, user, business, shop] = needsDatabase
+    ? [{ siteName: "Tibb.nu", email: "" }, null, DEFAULT_BUSINESS_SETTINGS, { enabled: false }]
+    : await Promise.all([getSiteSettings(), getCurrentUser(), getBusinessSettings(), getShopSettings()]);
   return (
     <html lang="sv" data-scroll-behavior="smooth">
       <body className={`${serif.variable} ${sans.variable}`}>
@@ -64,6 +65,7 @@ export default async function RootLayout({
           contactEmail={settings.email || ""}
           legalName={business.legalName}
           organizationNumber={business.organizationNumber}
+          shopEnabled={shop.enabled}
           user={user ? { name: user.name, role: user.role } : null}
         >
           {children}

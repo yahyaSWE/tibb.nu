@@ -14,6 +14,9 @@ export default function robots(): MetadataRoute.Robots {
     "/elevportal",
     "/api/",
     "/bokning",
+    "/bestallning",
+    "/butik/kassa",
+    "/butik/varukorg",
     "/*?*",
   ];
 

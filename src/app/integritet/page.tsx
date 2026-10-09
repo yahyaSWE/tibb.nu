@@ -32,6 +32,21 @@ export default async function PrivacyPage() {
         Kortbetalning, när den är aktiverad, hanteras av Stripe. Kortuppgifter
         lagras inte i Tibb.nu:s databas.
       </p>
+      <h2>När du beställer produkter</h2>
+      <p>
+        Vi sparar namn, e-postadress, eventuellt telefonnummer, beställda varor,
+        priser, leveranssätt, accepterade köpvillkor och betalningsstatus.
+        Vid frakt sparas också leveransadress, postnummer och ort. Uppgifterna
+        används för betalning, leverans, kundservice och orderbekräftelse.
+        Betalningen hanteras av Stripe och e-postbekräftelser av Resend när
+        e-posttjänsten är ansluten.
+      </p>
+      <p>
+        Varukorgen sparar bara produktnummer och antal lokalt i webbläsaren.
+        Kontakt- och adressuppgifter sparas inte där. Du kan tömma varukorgen
+        eller rensa webbplatsens data i webbläsaren. Beställningssidans privata
+        länk ger åtkomst till beställningen; spara den och dela den inte.
+      </p>
       <h2>Ditt elevkonto</h2>
       <p>
         Vi sparar ditt namn, din e-postadress, ett skyddat lösenord, e-postverifiering,
@@ -70,7 +85,7 @@ export default async function PrivacyPage() {
         Turso för databasen i den publicerade tjänsten. Resend används när
         e-posttjänsten är ansluten och Stripe när kortbetalning är aktiverad.
         Behöriga administratörer får åtkomst till de uppgifter som behövs för
-        bokningar, elevkonton och kursadministration.
+        bokningar, beställningar, elevkonton och kursadministration.
       </p>
       {business.internationalTransfers && <TextContent text={business.internationalTransfers} />}
       {business.legalBasis && <><h2>Rättslig grund</h2><TextContent text={business.legalBasis} /></>}

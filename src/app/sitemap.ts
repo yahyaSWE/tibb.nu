@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
 import { databaseConfigured } from "@/lib/database-config";
-import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES } from "@/lib/seo";
+import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES, toIsoDate } from "@/lib/seo";
 import { getPublicSeoContent } from "@/lib/seo-data";
+import { getShopSettings, getPublicShopProducts } from "@/lib/shop";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   const seen = new Set<string>();
+  if ((await getShopSettings()).enabled) {
+    entries.push({ url: absoluteUrl("/butik") }, { url: absoluteUrl("/butik/villkor") });
+    for (const product of await getPublicShopProducts()) {
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(product.slug)) continue;
+      const updated = toIsoDate(product.updatedAt);
+      entries.push({ url: absoluteUrl(`/butik/${product.slug}`), ...(updated ? { lastModified: new Date(updated) } : {}) });
+    }
+  }
   return entries.filter((entry) => {
     if (seen.has(entry.url)) return false;
     seen.add(entry.url);

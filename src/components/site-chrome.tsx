@@ -60,13 +60,15 @@ export function SiteChrome({
     { href: "/kurser", label: "Kurser" },
     ...(membershipEnabled ? [{ href: "/medlemskap", label: "Medlemskap" }] : []),
     { href: "/artiklar", label: "Artiklar" },
-    { href: "/sjalvtest", label: "Självtest" },
+    { href: "/sjalvtest", label: "Självtest & anamnes" },
     { href: "/om", label: "Om Tibb" },
     ...(shopEnabled ? [{ href: "/butik", label: "Butik" }, { href: "/butik/varukorg", label: "Varukorg" }] : []),
   ];
   const brandName = siteName.endsWith(".nu") ? siteName.slice(0, -3) : siteName;
   const active = (href: string) =>
-    pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+    pathname === href ||
+    (href === "/sjalvtest" && pathname === "/anamnes") ||
+    (href !== "/" && pathname.startsWith(`${href}/`));
   return (
     <div className="public-site">
       <a className="skip-link" href="#main-content">
@@ -206,6 +208,9 @@ export function SiteChrome({
             </Link>
             <Link href="/sjalvtest" intentOnly>
               Självtest med fem faser
+            </Link>
+            <Link href="/anamnes" intentOnly>
+              Anamnes inför rådgivning
             </Link>
           </div>
           <div>

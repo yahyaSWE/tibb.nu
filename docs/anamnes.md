@@ -1,87 +1,95 @@
 # Anamnes inför rådgivning
 
-`/anamnes` är öppen för besökare utan inloggning. Den nås från `/sjalvtest`,
-huvudmenyns samlade ingång **Självtest & anamnes** och sidfotens länk
-**Anamnes inför rådgivning**. Det befintliga självtestets frågor och poängmodell
-är separata från anamnesen.
+`/anamnes` är öppen utan inloggning och nås från **Självtest & anamnes** och
+sidfoten. Det tidigare självtestets frågor och poängmodell är separata.
 
-## Syfte och begränsningar
+## Flödet
 
-Anamnesen importerar en heuristisk TCM-modell med tio traditionella örtformler.
-Modellen räknar överensstämmelse mellan givna svar och fasta regler. Poäng,
-mönster och formelnamn är samtalsunderlag inom den traditionella modellen;
-de är inte medicinska sannolikheter eller en diagnos.
+Frågebanken innehåller 78 frågor, varav en pulsfråga endast är avsedd för
+behandlarobservation. I poängläget får besökaren normalt 23–29 grundfrågor efter valt fokus
+och högst fem följdfrågor. Tidigare besvarade frågor finns kvar för granskning
+om fokus ändras. Okända och undanhållna svar behandlas aldrig som nekande fynd.
 
-Det finns ingen klinisk validering av frågeformuläret, poängvikterna,
-gränsvärdena eller rangordningen. De angivna källorna nedan ger allmän
-säkerhetsinformation och validerar inte denna modell eller dess resultat.
-Ett resultat ska inte användas för att välja eller påbörja behandling.
-Sidan ger ingen automatisk produktrekommendation, dosering eller koppling
-till butikens varukorg. Formelnamn är endast traditionella referenser för
-ett samtal med en kvalificerad behandlare.
+Analysen jämför svaren med 25 oberoende TCM-mönster innan den aktiva
+formelkatalogen används i matchningen. Rapporten visar stödjande fynd,
+motfynd, saknade uppgifter, Ba Gang och Zang-Fu. Otillräckliga eller
+motstridiga svar ska kunna ge ett resultat utan primär hypotes och utan
+formelmatchning. Modellen är heuristisk och inte kliniskt validerad.
 
-## Svarens livslängd och sökmotorer
+Katalogen startar med de tio formler som verksamheten angett. Högst tre
+rangordnade klassiska referenser visas, med förklaringar och begränsningar.
+Referenser är aktiverade som standard. Ett tydligt resultat utan matchning
+är tillåtet. Produktidentitet, faktiskt innehåll, säkerhetsunderlag och
+regulatorisk status är overifierade i startkatalogen. Ingen produkt kan
+visas som tillgänglig förrän allt verifierats och en publicerad produkt
+har kopplats. Formler kan ändras och inaktiveras i `/admin/anamnes/formler`.
 
-Formulärets tillstånd hålls i React-minnet under det aktuella besöket.
-Formuläret skriver inte svar eller resultat till databas, `localStorage`,
-`sessionStorage`, cookies eller URL och skickar dem inte med e-post eller
-i nätverksanrop. En omladdning eller knappen **Rensa svar och börja om**
-rensar formulärets tillstånd. Att lämna sidan är ingen garanti för rensning,
-eftersom webbläsarens historik kan återställa sidan. Anamnesen gör ingen
-automatisk journalanteckning eller överföring till en bokning.
+Ingen diagnos, automatisk örtordination, individuell dosering eller
+direktköpsrekommendation skapas. Säkerhetsspärrar fungerar utan AI och
+stoppar referenser vid bland annat akuta symtom, ofullständiga säkerhetssvar,
+graviditet, minderårighet, medicinering och relevanta sjukdomsuppgifter.
+Bokningsknappen förmedlar inga formulärsvar till bokningen.
 
-Besökaren kan uttryckligen välja att kopiera sammanfattningen till urklipp.
-Den kopian omfattas inte av formulärets återställning eller omladdning.
+## Integritet och val
 
-Den vanliga webbplatsen laddar fortfarande sida, skript och andra resurser
-över nätverket. Påståendet ovan gäller formulärets svar och resultat.
+Standardläget analyserar svaren i webbläsarens React-minne. Formelkatalog och
+funktionsstatus hämtas från servern utan formulärsvar. Svar skrivs inte till
+URL, cookies, `localStorage` eller `sessionStorage`. Knappen **Rensa svar och
+börja om** rensar formuläret. En omladdning rensar tillståndet, men att lämna
+sidan garanterar inte rensning eftersom webbläsarhistoriken kan återställa den.
+En kopia i urklipp rensas inte av formulärets återställning.
 
-Sidan använder `PRIVATE_METADATA` med `noindex`, `nofollow` och `noarchive`.
-`next.config.ts` sätter även `X-Robots-Tag: noindex, nofollow, noarchive` och
-`Referrer-Policy: no-referrer` för `/anamnes`. Rutten ingår inte i sajtens
-sitemap. Detta begränsar indexering men är inte åtkomstkontroll; sidan är
-avsiktligt offentlig.
+I AI-läget kan besökaren först skriva en egen beskrivning på högst 4 000 tecken.
+Efter åtta trygghetsfrågor väljs upp till tre relevanta frågor i taget.
+Besökaren kan komplettera texten och avsluta med det underlag som finns.
+AI kan avsluta tidigare när bekräftade svar räcker; högst fem frågeomgångar
+och en slutanalys tillåts. Fritexten väljer inte åt besökaren och räknas inte
+som bekräftade symtom. Text med möjliga säkerhetsförhållanden kan spärra AI
+och formler; ordkontrollen kan inte avgöra aktualitet eller negation.
 
-## Säkerhetskällor
+Extern AI och inskickning till behandlare är separata funktioner som är
+avstängda som standard. De kräver serverkonfiguration, dokumenterad granskning,
+aktuell integritetsinformation och besökarens uttryckliga separata val.
+Admin väljer poängbaserad eller AI-assisterad anamnes på `/admin/anamnes`.
+Valet sparas i databasen och standard är poängbaserad. Poängläget spärrar även
+nya AI-anrop från redan öppnade formulär. AI-läget kräver fortfarande alla
+serverinställningar och samtycke; annars används poängmodellen.
+AI får strukturerade formulärsvar men ingen produktkatalog. Vid särskilt samtycke omfattar AI-underlaget
+även den egna beskrivningen och eventuella kompletteringar. Bara bekräftade
+svar får stödja mönsterpoängen. Endast tillåtna
+mönster- och fråge-ID:n accepteras; fri modelltext visas inte. Servern
+kontrollerar resultatet, och vid fel används regelanalysen. `store:false`
+är inte ett löfte om att leverantören saknar egen lagring eller loggning.
 
-Kontrollerade 2026-10-16:
+Vid uttrycklig inskickning sparas svar, egen beskrivning, kontaktuppgifter, rapport och
+samtyckesunderlag krypterat under en begränsad tid. En signerad AI-rapport kan
+sparas utan ett nytt AI-anrop. Ogiltiga eller utgångna signeringar avvisas.
+Regelrapporter räknas om med aktuell katalog vid inskickning. Endast uttryckligen
+behöriga administratörer i behandlarlistan får läsa ärenden. Behandlarens
+noteringar, korrigeringar och slutliga bedömning är separata från originalet.
 
-- [NCCIH: Traditional Chinese Medicine: What You Need To Know](https://www.nccih.nih.gov/health/traditional-chinese-medicine-what-you-need-to-know)
-  beskriver bland annat risker med kinesiska örtprodukter och att TCM inte
-  bör ersätta eller fördröja vanlig vård. Rådgör med hälso- och sjukvården
-  innan örtprodukter används.
-- [1177: Växtbaserade läkemedel och naturläkemedel](https://www.1177.se/undersokning-behandling/fler-behandlingar/alternativa-behandlingar/vaxtbaserade-lakemedel-och-naturlakemedel/)
-  beskriver biverkningar, påverkan på andra läkemedel samt särskilda
-  försiktighetsåtgärder vid graviditet och amning.
+Sidan och de skyddade vyerna har `noindex`, `nofollow` och `noarchive`;
+anamnesen finns inte i sitemap. Hälsouppgifter ska aldrig loggas i vanliga
+applikationsloggar. Administrativa ärenden och API-svar använder `no-store`
+och `no-referrer`. Dessa inställningar ersätter inte autentisering.
 
-## Test med syntetiska uppgifter
+## Aktivering, granskning och verifiering
 
-Använd bara påhittade svar under utveckling och granskning.
+Se [driftsättningsguiden](anamnes-v2-setup.md) för miljövariabler, AI-konfiguration,
+lagringsnyckel, behandlarbehörigheter, retention och kontroll inför produktion.
+Klinisk granskning av frågorna, reglerna och formlerna, dataskyddsbedömning
+och bedömning av medicinteknisk mjukvara återstår innan sådan användning.
+Tekniska aktiveringsflaggor är inga juridiska godkännanden.
 
-1. Kör `npm test` och `npm run typecheck`. Granska att modellens tester
-   omfattar tomma, partiella och fullständiga svar, lika poäng och
-   förutsägbara resultat för fasta svarsmönster.
-2. Starta arbetsytans isolerade utvecklingsserver med
-   `node .test-data/membership-preview/dev.cjs`. Den använder den syntetiska
-   lokala fixturen och nås på `http://127.0.0.1:3004`. Den vanliga `.env`
-   kan peka på externa tjänster; använd därför den isolerade wrappern för
-   denna granskning. Öppna `/sjalvtest` och följ länken till anamnesen.
-   Kontrollera även mobilmenyn och sidfotslänken.
-3. Öppna `/anamnes` utan inloggning. Gå igenom formuläret med tangentbord,
-   välj enbart syntetiska uppgifter, ändra tidigare svar och visa resultat.
-   Kontrollera att obesvarade obligatoriska säkerhetsfrågor stoppar fortsatt
-   ifyllnad och inte behandlas som nekande svar. Resultatet ska tydligt anges
-   som samtalsunderlag.
-4. Kontrollera i webbläsarens nätverkspanel att syntetiska svar och resultat
-   inte skickas när de fylls i eller resultat visas. Inspektera webbplatsens
-   lagring och URL: svaren ska inte finnas där. Ladda om sidan och bekräfta
-   att svar och resultat är borta.
-5. Kontrollera smal och bred skärm, tydliga fokusmarkeringar och att alla
-   val har begripliga etiketter. Testa formulärets återställning och
-   eventuella kontroller för att gå bakåt eller hoppa över en fråga.
-6. Begär `/anamnes` och kontrollera HTTP-huvudena `X-Robots-Tag` och
-   `Referrer-Policy`. Kontrollera sidans robots-metadata och att den inte
-   finns med i `/sitemap.xml`. Testa utgående källänkar utan svar i referer.
+Använd syntetiska svar för utveckling. Kör `npm test`, `npm run typecheck`
+och den isolerade build-wrappern. Webbläsarkontrollen ska omfatta mobil och
+dator, akut avbrott, osäkra svar, ändrat fokus, följdfrågor, no-match,
+återställning och katalogändringar. Standardläget får inte skicka hälsosvar
+över nätverket. Aktiverade funktioner ska dessutom testas med separata
+syntetiska samtycken, behörigheter och radering. Se den ignorerade lokala
+previewns README för isolering från riktiga nycklar och databaser.
 
-Testproceduren beskriver vad som ska verifieras och utgör ingen klinisk
-validering av modellen.
+Allmän säkerhetsinformation finns hos
+[1177](https://www.1177.se/undersokning-behandling/fler-behandlingar/alternativa-behandlingar/vaxtbaserade-lakemedel-och-naturlakemedel/)
+och [NCCIH](https://www.nccih.nih.gov/health/traditional-chinese-medicine-what-you-need-to-know).
+Dessa källor validerar inte den här modellens regler eller resultat.

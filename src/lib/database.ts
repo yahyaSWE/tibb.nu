@@ -25,6 +25,7 @@ import { MEMBERSHIP_SCHEMA } from "./membership-schema";
 import { MEMBERSHIP_UPLOAD_SCHEMA } from "./membership-upload-schema";
 import { MEMBERSHIP_BILLING_SCHEMA } from "./membership-billing-schema";
 import { COURSE_PURCHASE_SCHEMA } from "./course-purchase-schema";
+import { ANAMNES_SCHEMA } from "./anamnes/schema";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
@@ -184,6 +185,7 @@ export class DatabaseAdapter {
         await tx.executeMultiple(MEMBERSHIP_UPLOAD_SCHEMA);
         await tx.executeMultiple(MEMBERSHIP_BILLING_SCHEMA);
         await tx.executeMultiple(COURSE_PURCHASE_SCHEMA);
+        await tx.executeMultiple(ANAMNES_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

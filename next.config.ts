@@ -22,10 +22,17 @@ const nextConfig: NextConfig = {
         source,
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       })),
-      ...["/verifiera-epost", "/aterstall-losenord", "/bokning/:path*", "/bestallning/:path*", "/kurskop/:path*", "/anamnes"].map((source) => ({
+      ...["/verifiera-epost", "/aterstall-losenord", "/bokning/:path*", "/bestallning/:path*", "/kurskop/:path*", "/anamnes", "/api/anamnes/:path*"].map((source) => ({
         source,
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       })),
+      {
+        source: "/admin/anamnes/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        ],
+      },
       ...(process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "development" ? [{
         source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       }] : []),

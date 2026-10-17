@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, DM_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { SiteChrome } from "@/components/site-chrome";
 import { getSiteSettings } from "@/lib/site-data";
 import { getBusinessSettings } from "@/lib/business-settings";
@@ -13,17 +13,22 @@ import "./globals.css";
 import "@/components/learning/learning.css";
 import "./public-theme.css";
 
-const serif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
+const serif = localFont({
+  src: [
+    { path: "./fonts/cormorant-garamond-latin-normal.woff2", weight: "400 700", style: "normal" },
+    { path: "./fonts/cormorant-garamond-latin-italic.woff2", weight: "400 700", style: "italic" },
+  ],
   variable: "--font-serif",
   display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
-const sans = DM_Sans({
-  subsets: ["latin"],
+const sans = localFont({
+  src: "./fonts/dm-sans-latin-normal.woff2",
+  weight: "100 1000",
+  style: "normal",
   variable: "--font-sans",
   display: "swap",
+  adjustFontFallback: "Arial",
 });
 
 export const dynamic = "force-dynamic";

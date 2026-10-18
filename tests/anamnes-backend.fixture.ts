@@ -591,6 +591,56 @@ test("Responses done events use completed message items and never partial deltas
   assert.equal((await analyzeAnamnes({ answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion })).report.source, "ai");
 });
 
+test("model JSON compatibility accepts only complete objects and canonicalizes known ID casing", async () => {
+  await configure();
+  const input = { answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion };
+  const text = JSON.stringify({ patternIds: ["SPLEENQIDEFICIENCY"], followUpQuestionIds: ["WEAKVOICE"] });
+  for (const outputText of [text, `\n\u0060\u0060\u0060json\n${text}\n\u0060\u0060\u0060\n`, `\u0060\u0060\u0060\n${text}\n\u0060\u0060\u0060`]) {
+    globalThis.fetch = async () => Response.json({ status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: outputText }] }] });
+    const result = await analyzeAnamnes(input);
+    assert.equal(result.report.source, "ai");
+    assert.ok(result.report.followUpQuestionIds.includes("weakVoice"));
+  }
+  const interviewText = JSON.stringify({ patternIds: ["SPLEENQIDEFICIENCY"], questionIds: ["WEAKVOICE"], sufficient: false });
+  globalThis.fetch = async (_url, init) => {
+    assert.match(String(JSON.parse(String(init?.body)).instructions), /Svarskontrakt: \{"patternIds":\[\],"questionIds":\[\],"sufficient":false\}/);
+    return Response.json({ status: "completed", output: [
+      { type: "reasoning", content: [{ type: "output_text", text: "Synthetic reasoning is never a model answer." }] },
+      { type: "message", role: "assistant", content: [{ type: "output_text", text: interviewText.slice(0, 20) }, { type: "output_text", text: interviewText.slice(20) }] },
+    ] });
+  };
+  const result = await interviewAnamnes({ ...input, narrative: "Syntetiskt fall: magen efter mat.", round: 0 });
+  assert.equal(result.report.source, "ai");
+  assert.deepEqual(result.questionIds, ["weakVoice"]);
+});
+
+test("model JSON compatibility never repairs unknown IDs, keys, types, counts, surrounding prose or multiple answers", async () => {
+  await configure();
+  const input = { answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion };
+  const valid = JSON.stringify({ patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] });
+  const invalid = [
+    `Here is the answer:\n\u0060\u0060\u0060json\n${valid}\n\u0060\u0060\u0060`,
+    `\u0060\u0060\u0060json\n${valid}\n\u0060\u0060\u0060\nAdditional text`,
+    `\u0060\u0060\u0060json\n${valid}\n\u0060\u0060\u0060\n\u0060\u0060\u0060json\n${valid}\n\u0060\u0060\u0060`,
+    `\u0060\u0060\u0060json\n[]\n\u0060\u0060\u0060`,
+    JSON.stringify({ patternIds: ["INVENTED"], followUpQuestionIds: [] }),
+    JSON.stringify({ PatternIds: [], followUpQuestionIds: [] }),
+    JSON.stringify({ patternIds: [], followUpQuestionIds: [], prescription: "forbidden" }),
+    JSON.stringify({ patternIds: Array(7).fill("spleenQiDeficiency"), followUpQuestionIds: [] }),
+    JSON.stringify({ patternIds: "spleenQiDeficiency", followUpQuestionIds: [] }),
+  ];
+  for (const text of invalid) {
+    globalThis.fetch = async () => Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text }] }] });
+    assert.equal((await analyzeAnamnes(input)).report.source, "rules");
+  }
+  globalThis.fetch = async () => Response.json({ status: "completed", output: [1, 2].map(() => ({ type: "message", content: [{ type: "output_text", text: valid }] })) });
+  assert.equal((await analyzeAnamnes(input)).report.source, "rules");
+  assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: "invalid_model_output", subcode: "output_multiple" }]);
+  globalThis.fetch = async () => Response.json({ status: "completed", output: [{ type: "reasoning", content: [{ type: "output_text", text: valid }] }] });
+  assert.equal((await analyzeAnamnes(input)).report.source, "rules");
+  assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: "invalid_model_output", subcode: "output_missing" }]);
+});
+
 test("Responses SSE failures, truncation, invalid outputs and oversized bodies fall back safely", async () => {
   await configure();
   const completed = response({ patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] });
@@ -620,18 +670,20 @@ test("AI fallback diagnostics contain fixed categories only, never provider or p
   process.env.ANAMNES_AI_API_KEY = secretCanary;
   process.env.ANAMNES_AI_MODEL = secretCanary;
   const input = { answers: completeAnswers(), narrative: `${secretCanary}: en påhittad vuxen beskriver magen.`, aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion };
-  const scenarios: { reply: () => Promise<Response>; code: string; httpStatus?: number }[] = [
+  const scenarios: { reply: () => Promise<Response>; code: string; httpStatus?: number; subcode?: string; issueCodes?: string[] }[] = [
     { reply: async () => new Response(secretCanary, { status: 402 }), code: "upstream_http", httpStatus: 402 },
     { reply: async () => { throw new DOMException(secretCanary, "TimeoutError"); }, code: "timeout" },
     { reply: async () => { throw new TypeError(secretCanary); }, code: "network" },
     { reply: async () => Response.json({ status: secretCanary, output: [] }), code: "invalid_envelope" },
-    { reply: async () => Response.json(response({ patternIds: [secretCanary], followUpQuestionIds: [] })), code: "invalid_model_output" },
+    { reply: async () => Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: secretCanary }] }] }), code: "invalid_model_output", subcode: "json_invalid" },
+    { reply: async () => Response.json(response({ patternIds: [secretCanary], followUpQuestionIds: [] })), code: "invalid_model_output", subcode: "schema_invalid", issueCodes: ["invalid_value"] },
+    { reply: async () => Response.json(response({ patternIds: [], followUpQuestionIds: [], [secretCanary]: secretCanary })), code: "invalid_model_output", subcode: "schema_invalid", issueCodes: ["unrecognized_keys"] },
     { reply: async () => Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "refusal", refusal: secretCanary }] }] }), code: "refusal" },
   ];
   for (const scenario of scenarios) {
     globalThis.fetch = scenario.reply;
     assert.equal((await analyzeAnamnes(input)).report.source, "rules");
-    assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: scenario.code, ...(scenario.httpStatus ? { httpStatus: scenario.httpStatus } : {}) }]);
+    assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: scenario.code, ...(scenario.httpStatus ? { httpStatus: scenario.httpStatus } : {}), ...(scenario.subcode ? { subcode: scenario.subcode } : {}), ...(scenario.issueCodes ? { issueCodes: scenario.issueCodes } : {}) }]);
   }
   assert.equal(JSON.stringify(aiDiagnostics).includes(secretCanary), false);
 });

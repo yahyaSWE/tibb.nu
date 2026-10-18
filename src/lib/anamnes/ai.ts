@@ -88,12 +88,41 @@ async function boundedProviderJson(response: Response): Promise<unknown> {
 }
 const ResponsesEnvelopeSchema = z.object({ status: z.literal("completed"), output: z.array(z.object({ type: z.string(), content: z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()).optional() }).passthrough()).min(1).max(20) }).passthrough();
 type AiFailureCode = "disabled" | "configuration" | "global_quota" | "upstream_http" | "timeout" | "network" | "invalid_envelope" | "invalid_model_output" | "refusal" | "local_unavailable";
-function unavailable(code: AiFailureCode, httpStatus?: number): null {
+type OutputFailure = { subcode: "output_missing" | "output_multiple" | "json_invalid" | "schema_invalid"; issueCodes?: string[] };
+function unavailable(code: AiFailureCode, httpStatus?: number, details?: OutputFailure): null {
   // Fixed categories and an HTTP status are enough to diagnose fallback.
   // Never include raw errors, upstream bodies, patient data or credentials.
-  console.warn("anamnes_ai_unavailable", { code, ...(httpStatus ? { httpStatus } : {}) });
+  console.warn("anamnes_ai_unavailable", { code, ...(httpStatus ? { httpStatus } : {}), ...details });
   return null;
 }
+function casefoldLookup(ids: readonly string[]) {
+  const lookup = new Map<string, string | null>();
+  for (const id of ids) {
+    const folded = id.toLowerCase();
+    lookup.set(folded, lookup.has(folded) && lookup.get(folded) !== id ? null : id);
+  }
+  return lookup;
+}
+const patternLookup = casefoldLookup(patternIds);
+const questionLookup = casefoldLookup(questionBank.map(question => question.id));
+function parseModelJson(text: string): unknown {
+  const trimmed = text.trim();
+  const fence = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(trimmed);
+  const parsed: unknown = JSON.parse(fence ? fence[1] : trimmed);
+  if (fence && (!parsed || typeof parsed !== "object" || Array.isArray(parsed))) throw new Error("Expected fenced JSON object");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return parsed;
+  // Only capitalization of an existing, unambiguous ID may change. Unknown
+  // IDs, keys, array lengths and types still reach the original strict schema.
+  const value = { ...parsed } as Record<string, unknown>;
+  for (const key of ["patternIds", "questionIds", "followUpQuestionIds"]) {
+    if (Array.isArray(value[key])) {
+      const lookup = key === "patternIds" ? patternLookup : questionLookup;
+      value[key] = value[key].map(id => typeof id === "string" ? lookup.get(id.toLowerCase()) ?? id : id);
+    }
+  }
+  return value;
+}
+const safeIssueCodes = new Set(["invalid_type", "invalid_value", "too_big", "too_small", "unrecognized_keys"]);
 async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string, systemInstructions: string, answers: AnswerMap, narrative: string): Promise<T | null> {
   // Read the current database choice for every attempt. A stale browser's
   // consent or a crafted request cannot override an administrator's choice.
@@ -108,12 +137,13 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
     if (!(await rateLimit("anamnes-ai-global:v1", anamnesAiDailyLimit(), 24 * 60))) return unavailable("global_quota");
     const questions = questionBank.filter((question) => !question.professionalOnly);
     const { $schema: _schemaDialect, ...jsonSchema } = z.toJSONSchema(schema);
+    const example = schemaName === "anamnes_interview" ? '{"patternIds":[],"questionIds":[],"sufficient":false}' : '{"patternIds":[],"followUpQuestionIds":[]}';
     phase = "request";
     const response = await fetch(config.endpoint, {
       method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        model: config.model, store: false, stream: false, instructions: systemInstructions,
+        model: config.model, store: false, stream: false, instructions: `${systemInstructions}\nSvarskontrakt: ${example}. Exemplet visar endast formatet; välj relevanta tillåtna ID:n utifrån underlaget. Använd exakt dessa nycklar och deras typer, inga extra nycklar, ingen Markdown och ingen text utanför JSON-objektet.`,
         // Sonnet 5 enables thinking by default. Keep the reviewed, short ID
         // response budget instead of spending it on hidden reasoning tokens.
         ...(new URL(config.endpoint).hostname === "openrouter.ai" && config.model === "anthropic/claude-sonnet-5" ? { reasoning: { enabled: false } } : {}),
@@ -125,12 +155,21 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
     if (!response.ok) return unavailable("upstream_http", response.status);
     phase = "envelope";
     const envelope = ResponsesEnvelopeSchema.parse(await boundedProviderJson(response));
-    const parts = envelope.output.flatMap((message) => message.content ?? []);
+    // Reasoning items may themselves contain output_text. Only the single
+    // assistant message is the answer, whose content may span several parts.
+    const messages = envelope.output.filter(item => item.type === "message" && (!item.role || item.role === "assistant"));
+    const parts = messages.flatMap(message => message.content ?? []);
     if (parts.some((part) => part.type === "refusal")) return unavailable("refusal");
+    if (messages.length > 1) return unavailable("invalid_model_output", undefined, { subcode: "output_multiple" });
     const outputs = parts.filter((part) => part.type === "output_text");
-    if (outputs.length !== 1 || !outputs[0].text) return unavailable("invalid_model_output");
+    if (!outputs.length || outputs.some(part => typeof part.text !== "string") || !outputs.some(part => part.text)) return unavailable("invalid_model_output", undefined, { subcode: "output_missing" });
     phase = "output";
-    return schema.parse(JSON.parse(outputs[0].text));
+    let parsed: unknown;
+    try { parsed = parseModelJson(outputs.map(part => part.text).join("")); }
+    catch { return unavailable("invalid_model_output", undefined, { subcode: "json_invalid" }); }
+    const validated = schema.safeParse(parsed);
+    if (!validated.success) return unavailable("invalid_model_output", undefined, { subcode: "schema_invalid", issueCodes: [...new Set(validated.error.issues.map(issue => safeIssueCodes.has(issue.code) ? issue.code : "other"))] });
+    return validated.data;
   } catch (error) {
     // No upstream data, patient answers or credentials enter ordinary logs.
     if (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) return unavailable("timeout");

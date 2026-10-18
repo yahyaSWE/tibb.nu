@@ -1,5 +1,6 @@
 import { questionById } from "@/lib/anamnes/questions";
 import type { AnswerMap, Evidence, PatternFinding, QuestionId, Report } from "@/lib/anamnes/types";
+import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
 import styles from "./tcm-anamnes.module.css";
 
 function EvidenceList({ evidence, empty }: { evidence: Evidence[]; empty: string }) {
@@ -27,6 +28,7 @@ export function AnamnesReport({ report, answers }: { report: Report; answers: An
   const candidates = analysis.status === "insufficient" ? [] : analysis.primary ? [analysis.primary, ...analysis.secondary] : analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const blocked = safety.blocksFormulas;
   const noMatch = report.formulaStatus === "no_match";
+  const explanation = explainAnamnesReport(report, answers);
   return <div className={styles.report}>
     <div className={styles.reportMethod}><span>{report.source === "ai" ? "AI-assisterad analys med regelkontroll" : "Regelbaserad analys"}</span><span>Preliminärt samtalsunderlag</span></div>
     {safety.level !== "clear" && <div className={safety.level === "emergency" || safety.level === "medical_review" ? styles.alert : styles.warning}>
@@ -38,6 +40,28 @@ export function AnamnesReport({ report, answers }: { report: Report; answers: An
     </div>}
 
     {safety.level !== "emergency" && <>
+      <section className={styles.directionCard} aria-labelledby="anamnes-direction-title">
+        <h3 id="anamnes-direction-title">{explanation.direction.heading}</h3>
+        {explanation.direction.hypothesis && <p className={styles.patternLanguage}>{explanation.direction.hypothesis.pinyin}</p>}
+        <p>{explanation.direction.body}</p>
+        <h4>Örtformler att utvärdera</h4>
+        <p>{explanation.direction.formulaMessage}</p>
+        {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}</li>)}</ul>}
+        <div className={styles.therapistNotice}><strong>Behöver utvärderas av en terapeut</strong><p>{explanation.direction.evaluationNotice}</p></div>
+      </section>
+      <section className={styles.reportSection} aria-labelledby="anamnes-overview-title">
+        <h3 id="anamnes-overview-title">Sammanfattning av dina svar</h3>
+        <p>Du har lämnat {explanation.coverage.answered} svar. Här sammanfattas det du själv har uppgett; det är inte en fastställd förklaring till besvären.</p>
+        {explanation.overview.length > 0 && <ul className={styles.overviewList}>{explanation.overview.map(line => <li key={line}>{line}</li>)}</ul>}
+        {explanation.observations.length > 0 && <dl className={styles.observationList}>{explanation.observations.map(item => <div key={item.questionId}><dt>{item.prompt}</dt><dd>{item.answer}</dd></div>)}</dl>}
+        {explanation.limitations.length > 0 && <div className={styles.notice}><strong>Vad går att säga utifrån svaren?</strong><ul className={styles.evidenceList}>{explanation.limitations.map(line => <li key={line}>{line}</li>)}</ul></div>}
+        <h4 className={styles.nextStepsTitle}>Så går du vidare</h4><ul className={styles.evidenceList}>{explanation.nextSteps.map(line => <li key={line}>{line}</li>)}</ul>
+        {explanation.comparison && <details className={styles.reportDetails}><summary>Hur svaren har jämförts</summary><p>Det här visar delar av flera regeljämförelser som inte gav ett tydligt mönster. Fynden hör inte nödvändigtvis till samma förklaring och ska inte läsas som en diagnos.</p>
+          {explanation.comparison.supporting.length > 0 && <><h5>Svar som gav stöd i någon jämförelse</h5><ul className={styles.evidenceList}>{explanation.comparison.supporting.map(line => <li key={line}>{line}</li>)}</ul></>}
+          {explanation.comparison.opposing.length > 0 && <><h5>Svar som talade emot någon jämförelse</h5><ul className={styles.evidenceList}>{explanation.comparison.opposing.map(line => <li key={line}>{line}</li>)}</ul></>}
+          {explanation.comparison.unmetCriteria.length > 0 && <><h5>Villkor som inte kunde bekräftas</h5><ul className={styles.evidenceList}>{explanation.comparison.unmetCriteria.map(item => <li key={item.questionId}>{item.prompt} <strong>{item.answer}.</strong> {item.status === "different_answer" ? "Det angivna svaret uppfyller inte ett obligatoriskt villkor i en av jämförelserna." : item.status === "not_asked" ? "Den här uppgiften har inte efterfrågats eller besvarats ännu." : "Uppgiften är osäker eller utelämnad och räknas inte som ett bekräftat fynd."}</li>)}</ul></>}
+        </details>}
+      </section>
       <section className={styles.reportSection} aria-labelledby="anamnes-pattern-title">
         <h3 id="anamnes-pattern-title">TCM-mönster att undersöka</h3>
         {analysis.status === "insufficient" && <p className={styles.notice}>Underlaget räcker inte för en tydlig mönsterhypotes. Systemet väljer därför ingen huvudförklaring och försöker inte fylla luckorna med en produktmatchning.</p>}

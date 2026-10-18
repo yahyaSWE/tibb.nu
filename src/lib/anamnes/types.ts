@@ -85,7 +85,8 @@ export const AiDifferentialSchema = z.object({
   patternIds: z.array(PatternIdSchema).max(6), followUpQuestionIds: z.array(QuestionIdSchema).max(5),
 }).strict();
 export type AiDifferential = z.infer<typeof AiDifferentialSchema>;
-export const InterviewRoundSchema = z.number().int().min(0).max(5);
+export const INTERVIEW_MAX_ROUNDS = 10;
+export const InterviewRoundSchema = z.number().int().min(0).max(INTERVIEW_MAX_ROUNDS);
 export const InterviewRequestSchema = z.object({
   answers: AnswerMapSchema, narrative: NarrativeSchema.default(''), aiConsent: z.boolean().default(false), aiConsentVersion: z.string().max(128).optional(),
   round: InterviewRoundSchema, formulaReferencesEnabled: z.boolean().default(true),

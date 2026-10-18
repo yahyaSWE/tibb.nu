@@ -1,5 +1,6 @@
 import { questionById } from "./questions";
 import { NarrativeSchema, type AnswerMap, type Report } from "./types";
+import { explainAnamnesReport } from "./report-explanation";
 
 export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrative = ''): string {
   const originalNarrative = NarrativeSchema.parse(narrative);
@@ -15,6 +16,18 @@ export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrati
   if (report.safety.level === "emergency") {
     lines.push("Avbryt och sök vård. Ring 112 vid ett akut nödläge.");
   } else {
+    const explanation = explainAnamnesReport(report, answers);
+    lines.push("", "PRELIMINÄR TCM-INRIKTNING", explanation.direction.heading, explanation.direction.body,
+      explanation.direction.formulaMessage,
+      ...explanation.direction.references.map(reference => `Formelreferens att utvärdera: ${reference.name}${reference.partial ? " – delvis överensstämmelse, täcker inte hela symtombilden" : ""}`),
+      "Behöver utvärderas av en terapeut.", explanation.direction.evaluationNotice);
+    lines.push("", "SAMMANFATTNING OCH FORTSÄTTNING", ...explanation.overview,
+      ...explanation.observations.map(item => `${item.prompt} ${item.answer}`),
+      ...explanation.limitations, "NÄSTA STEG", ...explanation.nextSteps);
+    if (explanation.comparison?.unmetCriteria.length) {
+      lines.push("", "UPPGIFTER SOM BEGRÄNSAR REGELJÄMFÖRELSEN", "Villkor från flera ofullständiga jämförelser, inte en fastställd mönsterhypotes.",
+        ...explanation.comparison.unmetCriteria.map(item => `${item.prompt} ${item.answer}. ${item.status === "different_answer" ? "Svaret uppfyller inte ett obligatoriskt villkor i en jämförelse." : "Uppgiften kunde inte bekräftas."}`));
+    }
     lines.push("", "PRELIMINÄRA TCM-MÖNSTER", report.analysis.primary ? `Primär hypotes: ${report.analysis.primary.name}` : "Ingen tydlig huvudförklaring kan väljas.");
     const patterns = report.analysis.status === "insufficient" ? [] : report.analysis.primary ? [report.analysis.primary, ...report.analysis.secondary] : report.analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
     for (const pattern of patterns) {

@@ -29,3 +29,28 @@ test('an emergency summary contains the care direction and answers, with no patt
   assert.doesNotMatch(summary,/PRELIMINÄRA TCM-MÖNSTER|FORMELREFERENSER|Ba Zhen Tang/);
   assert.match(summary,/tecken på allvarlig allergisk reaktion\? Ja/);
 });
+
+test('an insufficient summary explains the stated pain history and unmet criteria without inventing a diagnosis', () => {
+  const input: AnswerMap = {adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no',focus:'pain',duration:'years',trend:'variable',priorAssessment:'unknown',temperature:'neutral',irritability:'yes',ribTension:'no',stressRelief:'yes',painLocation:'muscles',painCharacter:'distending',painWarmth:'neutral',painMovement:'better',weatherPain:'yes',stiffness:'yes',tongueColor:'red'};
+  const report = buildReport(input, formulaSeed);
+  const summary = formatAnamnesSummary(report, input);
+  assert.equal(report.analysis.status, 'insufficient');
+  assert.match(summary, /Område: Muskler och leder/);
+  assert.match(summary, /Tidigare vårdbedömning: Vet inte/);
+  assert.match(summary, /Hur påverkas värken av mjuk rörelse\? Lindras/);
+  assert.match(summary, /betyder inte att dina besvär saknar en förklaring/);
+  assert.match(summary, /UPPGIFTER SOM BEGRÄNSAR REGELJÄMFÖRELSEN/);
+  assert.match(summary, /obligatoriskt villkor/);
+  assert.doesNotMatch(summary, /Primär hypotes:|Lever-Qi-stagnation|Du Huo Ji Sheng Tang/);
+});
+
+test('a copied supported direction keeps the therapist assessment beside its existing formula reference', () => {
+  const report = buildReport(answers, formulaSeed);
+  assert.ok(report.analysis.primary);
+  assert.ok(report.formulaMatches.length > 0);
+  const summary = formatAnamnesSummary(report, answers);
+  assert.ok(summary.includes(`Svaren lutar inom TCM-modellen åt ${report.analysis.primary.name}`));
+  assert.ok(summary.includes(`Formelreferens att utvärdera: ${report.formulaMatches[0].name}`));
+  assert.match(summary, /Behöver utvärderas av en terapeut/);
+  assert.match(summary, /innan eventuell användning av örter/);
+});

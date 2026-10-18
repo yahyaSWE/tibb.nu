@@ -43,6 +43,10 @@ export function getSafetyAssessment(input: AnswerMap, narrative = ''): SafetyAss
   const answers = validateAnswers(input);
   const narrativeSafety = getNarrativeSafety(narrative);
   const missingQuestionIds = safetyQuestionIds.filter(id => !answered(answers,id));
+  // A visitor who has already been asked about a potentially inflamed joint
+  // must not have an unknown/withheld response interpreted as a reassuring no.
+  // An unasked question remains available to the adaptive interview.
+  if (answers.focus === 'pain' && Object.hasOwn(answers,'jointWarmth') && !answered(answers,'jointWarmth')) missingQuestionIds.push('jointWarmth');
   if (answers.emergency === 'yes' || narrativeSafety?.level === 'emergency') return { level: 'emergency', blocksFormulas: true, flags: [...(answers.emergency === 'yes' ? ['Avbryt anamnesen. Vid akut eller livshotande tillstånd: ring 112.'] : []),...(narrativeSafety?.flags ?? [])], missingQuestionIds: [...missingQuestionIds] };
   const medicalFlags = [
     answers.clinicalRedFlags === 'yes' && 'Varningssymtom behöver bedömas i hälso- och sjukvården innan TCM-bedömning.',

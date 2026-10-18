@@ -173,3 +173,25 @@
 .storyEditor textarea { display:block; box-sizing:border-box; width:100%; min-height:160px; padding:18px; border:1px solid var(--border,#d2ddc9); border-radius:16px; font:inherit; line-height:1.7; color:inherit; background:#fffdf7; resize:vertical; }
 .storyEditor textarea:focus-visible { outline:2px solid #35584d; outline-offset:3px; }
 .narrativeText { white-space:pre-wrap; overflow-wrap:anywhere; }
+.overviewList { display:grid; grid-template-columns:1fr 1fr; gap:10px; list-style:none; padding:0; margin:20px 0; }
+.overviewList li { padding:13px 16px; border-radius:12px; background:var(--sage); font-size:13px; line-height:1.6; }
+.observationList { margin:20px 0; border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+.observationList > div { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); gap:20px; padding:13px 17px; font-size:12px; line-height:1.7; }
+.observationList > div + div { border-top:1px solid var(--line); }
+.observationList dt { color:var(--muted); }
+.observationList dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+.nextStepsTitle { font-size:25px; margin-top:22px; }
+.completionPanel { padding:25px; margin-top:28px; border:1px solid var(--line); background:var(--sage); border-radius:18px; }
+.completionPanel h3 { font-size:29px; margin-bottom:12px; }
+.completionPanel p { font-size:13px; line-height:1.85; margin-bottom:18px; }
+.directionCard { padding:27px; margin:26px 0; border:1px solid #aabca5; border-radius:19px; background:var(--sage); }
+.directionCard h3 { font-size:31px; line-height:1.25; margin-bottom:14px; }
+.directionCard > p { font-size:13px; line-height:1.85; margin-bottom:15px; }
+.directionCard h4 { font-size:25px; margin:23px 0 10px; }
+.directionReferences { padding:0; margin:16px 0; display:grid; gap:10px; list-style:none; }
+.directionReferences li { padding:14px 17px; border-radius:12px; background:#fffdf8; font-size:14px; }
+.directionReferences span { display:block; font-size:12px; line-height:1.7; margin-top:5px; }
+.therapistNotice { padding-top:18px; margin-top:22px; border-top:1px solid #b7c8b0; font-size:13px; line-height:1.85; }
+.therapistNotice p { color:inherit; margin-top:6px; }
+@media (max-width:600px) { .overviewList { grid-template-columns:1fr; } .observationList > div { grid-template-columns:1fr; gap:4px; } .completionPanel { padding:20px 16px; } }
+@media (max-width:600px) { .directionCard { padding:21px 17px; } .directionCard h3 { font-size:28px; } }

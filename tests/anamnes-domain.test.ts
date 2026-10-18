@@ -78,6 +78,26 @@ test('every omitted, unknown and withheld safety answer blocks formula reference
   }
 });
 
+test('an explicitly uncertain joint safety response in a pain history blocks formulas in both analysis modes', () => {
+  const input: AnswerMap = {...qiBlood,focus:'pain'};
+  const independent = analyzePatterns(input);
+  assert.equal(getSafetyAssessment(input).level,'clear','an unasked discriminator must remain available to the interview');
+  assert.ok(buildReport(input,formulaSeed).formulaMatches.length > 0);
+  for (const jointWarmth of ['unknown','prefer_not']) {
+    const uncertain = {...input,jointWarmth};
+    for (const source of ['rules','ai'] as const) {
+      const report = buildReport(uncertain,formulaSeed,{source,acceptedPatternIds:['qiBloodDeficiency']});
+      assert.equal(report.safety.level,'incomplete');
+      assert.ok(report.safety.missingQuestionIds.includes('jointWarmth'));
+      assert.equal(report.formulaStatus,'safety_blocked');
+      assert.deepEqual(report.formulaMatches,[]);
+      assert.deepEqual(report.analysis,independent,'safety gate does not change independent qualification thresholds');
+    }
+  }
+  assert.equal(getSafetyAssessment({...input,jointWarmth:'no'}).level,'clear');
+  assert.equal(getSafetyAssessment({...input,jointWarmth:'yes'}).level,'medical_review');
+});
+
 test('deterministic emergency and higher-risk gates cannot be overridden by AI IDs or catalog changes', () => {
   const risks: AnswerMap[] = [{adult:'no'},{pregnancy:'yes'},{medication:'yes'},{chronicDisease:'yes'},{liverKidney:'yes'},{allergy:'yes'},{clinicalRedFlags:'yes'},{jointWarmth:'yes'},{urination:'burning'},{chestTightness:'yes'},{breathing:'yes'},{palpitations:'yes',priorAssessment:'no'},{trend:'worsening',priorAssessment:'no'}];
   for (const risk of risks) {

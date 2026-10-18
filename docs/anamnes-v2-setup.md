@@ -21,14 +21,40 @@ upp till tre frågor i taget ur den kontrollerade frågebanken. Fyra viktiga
 bakgrundsfrågor kan inte hoppas över av modellen. AI:n kan avsluta tidigare
 när besökarens bekräftade svar räcker för ett preliminärt underlag. En separat
 minimigräns för bekräftade svar gäller oberoende av modellens egen bedömning.
-Okända eller avböjda svar räknas inte som kliniskt kända uppgifter.
+Okända eller avböjda bakgrundssvar räknas som besvarade för frågeflödet,
+men aldrig som kliniskt kända uppgifter. Ett sådant bakgrundssvar stoppar
+inte ensamt hela rapporten. Samtliga åtta säkerhetssvar måste fortfarande
+vara tydliga och godkända, och minst sex symtomsvar måste vara kända.
 
 Besökaren kan komplettera beskrivningen, gå tillbaka och avsluta när som
 helst. Ett tidigt avslut kan ge otillräckligt underlag utan mönster eller
-formelreferenser. Högst fem frågeomgångar med tre frågor vardera tillåts,
-följt av en avslutande analys av de senaste svaren. Det innebär högst sex
+formelreferenser. Högst tio frågeomgångar med tre frågor vardera tillåts,
+följt av en avslutande analys av de senaste svaren. Det innebär högst elva
 leverantörsförsök för ett normalt sammanhängande AI-flöde. Budgeten och
 trafikgränserna gäller fortfarande, även vid nya försök eller omstarter.
+
+Frågevalet prioriterar valt besvärsområde och obesvarade särskiljande frågor
+för mönster som ännu kan stödjas. Ett uttryckligt svar som inte uppfyller
+ett obligatoriskt mönstervillkor får inte kompenseras med fler allmänna
+poäng. Samtalet kan avslutas när relevanta frågor är slut; modellen ska
+inte gå igenom hela frågebanken för att tvinga fram ett resultat.
+
+Vid AI-fel fortsätter den pågående sessionen med lokala följdfrågor och
+behåller tidigare svar, utan fler automatiska AI-försök. Ett nytt AI-val
+görs från introduktionen. Rapporten sammanfattar bekräftade svar,
+osäkerheter och begränsningar även när inget mönster kan väljas. Besökaren
+kan välja att komplettera underlaget med relevanta obesvarade frågor
+lokalt. Varken frågegränsen eller kompletteringen sänker mönsterkraven
+eller säkerhetsspärrarna.
+
+Rapportens inledande ruta visar ”Svaren lutar inom TCM-modellen åt …” endast
+när den samlade analysen har ett kvalificerat primärt mönster och
+säkerhetsbedömningen är tydlig. Högst tre befintliga formelmatchningar visas
+som referenser att utvärdera med terapeut, med delvis överensstämmelse markerad.
+Rutan skapar inga nya mönster eller formler. Vid osäkerhet, jämna alternativ,
+AI-osäkerhet eller säkerhetsspärr visas ingen sådan inriktning. Terapeutens
+bedömning behövs före eventuell användning. Texten följer även med i den
+kopierbara sammanfattningen.
 
 Fritexten är opålitlig data. Den kan påverka frågevalet men fyller aldrig i
 formulärsvar eller skapar poänggivande symtom. Endast uttryckligen bekräftade

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { formulaSeed } from '../src/lib/anamnes/catalog-seed';
 import { analyzePatterns, buildReport, getNarrativeSafety, getSafetyAssessment, makeReportSummary, matchFormulas } from '../src/lib/anamnes/engine';
-import { finalizeInterviewReport, getInterviewFallbackQuestions, getPendingInterviewBackgroundQuestions, getPendingInterviewSafetyQuestions, INTERVIEW_MAX_ROUNDS, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from '../src/lib/anamnes/interview';
+import { finalizeInterviewReport, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, getPendingInterviewBackgroundQuestions, getPendingInterviewSafetyQuestions, INTERVIEW_MAX_ROUNDS, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from '../src/lib/anamnes/interview';
 import { questionBank, questionById } from '../src/lib/anamnes/questions';
 import { formatAnamnesSummary } from '../src/lib/anamnes/summary';
 import { AiInterviewSchema, IntakeRequestSchema, InterviewRequestSchema, InterviewResponseSchema, NarrativeSchema, type AnswerMap } from '../src/lib/anamnes/types';
@@ -71,7 +71,39 @@ test('local fallback collects background and related structured questions withou
   }
 });
 
-test('minimum sufficiency requires confirmed safety, background and at least six real symptom answers', () => {
+test('pain interviews prioritize explicit pain discriminators and stop chasing contradicted core patterns', () => {
+  const background: AnswerMap = {...clearSafety,focus:'pain',duration:'years',trend:'variable',priorAssessment:'unknown'};
+  assert.deepEqual(getInterviewFallbackQuestions(background,analyzePatterns(background)),['painLocation','painCharacter','painMovement']);
+  // Synthetic regression: several pain observations do not independently
+  // establish a core pattern. A neutral heat response and denied rib tension
+  // must not trigger an endless search for points to rescue those patterns.
+  const answers: AnswerMap = {...background,temperature:'neutral',irritability:'yes',ribTension:'no',stressRelief:'yes',painLocation:'muscles',painCharacter:'distending',painWarmth:'neutral',painMovement:'better',weatherPain:'yes',stiffness:'yes',tongueColor:'red'};
+  const analysis = analyzePatterns(answers);
+  assert.equal(interviewHasEnoughAnswers(answers),true,'unknown prior assessment must not erase an otherwise completed history');
+  assert.equal(analysis.status,'insufficient','question flow does not lower qualification thresholds');
+  assert.deepEqual(getInterviewCompletionQuestionIds(answers,analysis),['jointWarmth']);
+  assert.deepEqual(sanitizeInterviewQuestionIds(['heaviness','backWeakness','jointWarmth'],answers,analysis),['jointWarmth']);
+  const completed = {...answers,jointWarmth:'no'};
+  assert.deepEqual(getInterviewCompletionQuestionIds(completed,analyzePatterns(completed)),[]);
+  const report = finalizeInterviewReport(buildReport(completed,formulaSeed),completed);
+  assert.equal(report.analysis.status,'insufficient');
+  assert.deepEqual(report.formulaMatches,[]);
+});
+
+test('completion questions target still-feasible hypotheses and do not repeat unknown or withheld answers', () => {
+  const answers: AnswerMap = {...clearSafety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'unknown',energy:'low',appetite:'low',stool:'loose',weakVoice:'unknown',exertion:'prefer_not',pallor:'no',dizziness:'no',sinking:'no',tongueColor:'normal'};
+  const questions = getInterviewCompletionQuestionIds(answers,analyzePatterns(answers));
+  assert.ok(questions.includes('afterMealBloat'),'unresolved supported digestive hypothesis can be clarified');
+  assert.ok(questions.length <= 5);
+  for (const id of questions) {
+    assert.equal(Object.hasOwn(answers,id),false);
+    assert.equal(questionById.get(id)!.professionalOnly,false);
+  }
+  const limited = {...answers,clinicalRedFlags:'unknown'};
+  assert.deepEqual(getInterviewCompletionQuestionIds(limited,analyzePatterns(limited)),[],'uncertain safety cannot authorize symptom follow-ups');
+});
+
+test('minimum sufficiency requires clear safety, answered background and at least six real symptom answers', () => {
   assert.equal(interviewHasEnoughAnswers(enough),true);
   for (const missing of ['adult','pregnancy','focus','duration','trend','priorAssessment','exertion'] as const) {
     const answers = {...enough};
@@ -80,15 +112,18 @@ test('minimum sufficiency requires confirmed safety, background and at least six
   }
   for (const id of ['pregnancy','medication','chronicDisease','liverKidney','allergy','emergency','clinicalRedFlags'] as const) assert.equal(interviewHasEnoughAnswers({...enough,[id]:'yes'}),false,id);
   for (const value of ['unknown','prefer_not']) assert.equal(interviewHasEnoughAnswers({...enough,exertion:value}),false);
+  for (const id of ['focus','duration','trend','priorAssessment'] as const) {
+    for (const value of ['unknown','prefer_not']) assert.equal(interviewHasEnoughAnswers({...enough,[id]:value}),true,`${id}:${value}`);
+  }
   // A story containing symptom words must never count as structured confirmations.
   assert.equal(interviewHasEnoughAnswers(clearSafety),false);
 });
 
-test('five batches are a hard bounded interview, with explicit rejection of unbounded or invalid round numbers', () => {
-  assert.equal(INTERVIEW_MAX_ROUNDS,5);
+test('ten batches are a bounded interview, with explicit rejection of unbounded or invalid round numbers', () => {
+  assert.equal(INTERVIEW_MAX_ROUNDS,10);
   for (let round=0; round<INTERVIEW_MAX_ROUNDS; round++) assert.equal(interviewReachedLimit(round),false);
-  assert.equal(interviewReachedLimit(5),true);
-  for (const round of [-1,6,100,0.5,Infinity,NaN]) {
+  assert.equal(interviewReachedLimit(INTERVIEW_MAX_ROUNDS),true);
+  for (const round of [-1,INTERVIEW_MAX_ROUNDS+1,100,0.5,Infinity,NaN]) {
     assert.throws(() => interviewReachedLimit(round));
     assert.equal(InterviewRequestSchema.safeParse({answers:{},round}).success,false);
   }
@@ -174,7 +209,9 @@ test('finishing an incomplete interview suppresses hypotheses and formulas while
   assert.deepEqual(final.formulaMatches,[]);
   assert.equal(final.formulaStatus,'insufficient');
   assert.deepEqual(final.followUpQuestionIds,[]);
-  for (const id of ['focus','duration','priorAssessment']) assert.ok(final.analysis.missingQuestionIds.includes(id as 'focus'));
+  assert.ok(final.analysis.missingQuestionIds.includes('priorAssessment'));
+  assert.equal(final.analysis.missingQuestionIds.includes('focus'),false);
+  assert.equal(final.analysis.missingQuestionIds.includes('duration'),false);
   assert.deepEqual(final.analysis.patterns,original.analysis.patterns);
   assert.deepEqual(final.analysis.baGang,original.analysis.baGang);
   assert.deepEqual(final.analysis.conflicts,original.analysis.conflicts);

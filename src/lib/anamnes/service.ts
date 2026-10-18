@@ -6,7 +6,7 @@ import { publicFormulaCatalog } from "./catalog";
 import { requestAiDifferential, requestAiInterview, createAnalysisReceipt } from "./ai";
 import { getAnamnesConfigStatus } from "./config";
 import { getAnamnesAnalysisMode } from "./settings";
-import { finalizeInterviewReport, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
+import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
 
 export async function getPublicAnamnesCatalog() {
   const status = getAnamnesConfigStatus();
@@ -60,16 +60,24 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   // Ten question batches may be followed by one final analysis of the last
   // confirmed answers. The final call may never produce another batch.
   const remaining = getInterviewCompletionQuestionIds(answers,analysis);
+  const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis, { allowNarrativeQuestions: !!value.narrative });
+  const comparisonIds = value.formulaReferencesEnabled ? getFormulaComparisonQuestionIds(answers,analysis,catalog) : [];
   const hasQualifiedPattern = differential.patternIds.length > 0 && analysis.patterns.some(pattern => pattern.qualified);
   // A provider's generic confidence must not close an empty report while the
   // independent rules still have meaningful discriminators to ask about.
-  const exhausted = remaining.length === 0;
-  const complete = finalRound || exhausted || differential.sufficient && enough && hasQualifiedPattern && interviewHasCompletedFocusQuestions(answers);
+  const exhausted = remaining.length === 0 && curatedIds.length === 0 && comparisonIds.length === 0;
+  const focusCompleted = interviewHasCompletedFocusQuestions(answers);
+  const complete = finalRound || exhausted || differential.sufficient && enough && hasQualifiedPattern && focusCompleted && curatedIds.length === 0 && comparisonIds.length === 0;
   // Even a valid model answer cannot close the interview without a minimum
   // confirmed history. Empty/answered/professional choices fall back to known
   // unanswered public questions and are never turned into invented answers.
-  const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis);
-  const questionIds = complete ? [] : curatedIds.length ? curatedIds : getInterviewFallbackQuestions(answers, analysis);
+  // Formula criteria enter only once the independent history is sufficient;
+  // until then the narrative and differential drive the interview. This
+  // server-side comparison includes opposing findings and no product bias is
+  // added to the model prompt. Pain safety questions retain priority.
+  const clarifyReference = differential.sufficient && enough && hasQualifiedPattern && focusCompleted && comparisonIds.length > 0;
+  const nextIds = clarifyReference ? comparisonIds : curatedIds.length ? curatedIds : [...getInterviewFallbackQuestions(answers, analysis),...comparisonIds];
+  const questionIds = complete ? [] : [...new Set(nextIds)].slice(0,3);
   const currentReport = ReportSchema.parse({ ...buildReport(answers, catalog, { narrative: value.narrative, source: "ai", formulaReferencesEnabled: value.formulaReferencesEnabled, acceptedPatternIds: differential.patternIds, followUpQuestionIds: questionIds }), followUpQuestionIds: questionIds });
   const report = complete ? finalizeInterviewReport(currentReport, answers) : currentReport;
   // Only a completed interview may authenticate a report for clinic storage.

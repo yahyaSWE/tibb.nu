@@ -64,7 +64,7 @@ function evidenceLabels(items: Evidence[], maximum: number): string[] {
 }
 
 function reportDirection(report: Report): ReportDirection {
-  const evaluationNotice = 'Resultatet är ett preliminärt samtalsunderlag, inte en medicinsk diagnos. En behandlare behöver bedöma helheten och kontrollera säkerheten innan eventuell användning av örter.';
+  const evaluationNotice = 'Preliminärt TCM-underlag. En terapeut behöver bekräfta bedömningen och kontrollera säkerheten före eventuell användning av örter.';
   if (report.safety.blocksFormulas || report.safety.level !== 'clear') {
     return {
       status:'safety_blocked',

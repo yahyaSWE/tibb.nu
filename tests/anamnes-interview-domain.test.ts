@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { formulaSeed } from '../src/lib/anamnes/catalog-seed';
 import { analyzePatterns, buildReport, getNarrativeSafety, getSafetyAssessment, makeReportSummary, matchFormulas } from '../src/lib/anamnes/engine';
-import { finalizeInterviewReport, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, getPendingInterviewBackgroundQuestions, getPendingInterviewSafetyQuestions, INTERVIEW_MAX_ROUNDS, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from '../src/lib/anamnes/interview';
+import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, getPendingInterviewBackgroundQuestions, getPendingInterviewSafetyQuestions, INTERVIEW_MAX_ROUNDS, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from '../src/lib/anamnes/interview';
+import { rule } from '../src/lib/anamnes/patterns';
 import { questionBank, questionById } from '../src/lib/anamnes/questions';
 import { formatAnamnesSummary } from '../src/lib/anamnes/summary';
-import { AiInterviewSchema, IntakeRequestSchema, InterviewRequestSchema, InterviewResponseSchema, NarrativeSchema, type AnswerMap } from '../src/lib/anamnes/types';
+import { AiInterviewSchema, IntakeRequestSchema, InterviewRequestSchema, InterviewResponseSchema, MedicationNamesSchema, NarrativeSchema, type AnswerMap } from '../src/lib/anamnes/types';
 
 const clearSafety: AnswerMap = { adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no' };
 const enough: AnswerMap = { ...clearSafety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',tongueColor:'pale',exertion:'tired' };
@@ -22,6 +23,16 @@ test('narrative contracts preserve ordinary own words, bound the input and rejec
   assert.equal(request.aiConsent,false);
   assert.equal(request.formulaReferencesEnabled,true);
   assert.equal(InterviewRequestSchema.safeParse({...request,provider:'override'}).success,false);
+});
+
+test('medication names preserve plain user text without becoming an AI input field', () => {
+  assert.equal(MedicationNamesSchema.parse('  Läkemedel A\nTillskott B  '), 'Läkemedel A\nTillskott B');
+  assert.equal(MedicationNamesSchema.parse('å'.repeat(1000)).length, 1000);
+  for (const value of [null, {}, 1, 'a'.repeat(1001), 'text\u0000text', 'text\u202etext', 'text\u2066text', 'läke\u200bmedel']) {
+    assert.equal(MedicationNamesSchema.safeParse(value).success, false);
+  }
+  assert.equal(IntakeRequestSchema.safeParse({ answers: clearSafety, medicationNames: 'Läkemedel A' }).success, false);
+  assert.equal(InterviewRequestSchema.safeParse({ answers: clearSafety, round: 0, medicationNames: 'Läkemedel A' }).success, false);
 });
 
 test('AI interview output is restricted to curated IDs and explicit sufficiency, never free text, products or doses', () => {
@@ -69,6 +80,37 @@ test('local fallback collects background and related structured questions withou
     assert.equal(questionById.get(id)!.professionalOnly,false);
     assert.equal(Object.hasOwn(background,id),false);
   }
+});
+
+test('narrative-driven selection can clarify another reviewed TCM area without inventing answers', () => {
+  const answers: AnswerMap = {...clearSafety,focus:'other',duration:'months',trend:'stable',priorAssessment:'unknown'};
+  const original = structuredClone(answers);
+  const analysis = analyzePatterns(answers);
+  const ids = ['sleepOnset','nightWaking','rumination'];
+  assert.deepEqual(sanitizeInterviewQuestionIds(ids,answers,analysis),[]);
+  assert.deepEqual(sanitizeInterviewQuestionIds(ids,answers,analysis,{allowNarrativeQuestions:true}),ids);
+  assert.deepEqual(answers,original);
+  assert.deepEqual(sanitizeInterviewQuestionIds(['pulse','sleepOnset','nightWaking','nightWaking','rumination'],{...answers,sleepOnset:'unknown'},analysis,{allowNarrativeQuestions:true}),['nightWaking','rumination']);
+  assert.deepEqual(sanitizeInterviewQuestionIds(ids,{},analysis,{allowNarrativeQuestions:true}),['emergency','clinicalRedFlags','adult']);
+});
+
+test('formula clarification follows an independent primary and includes current catalog counterevidence', () => {
+  const analysis = analyzePatterns(enough);
+  assert.equal(analysis.primary?.id,'qiBloodDeficiency');
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed),['tongueCoating','temperature']);
+  assert.deepEqual(getFormulaComparisonQuestionIds({...enough,tongueCoating:'unknown',temperature:'prefer_not'},analysis,formulaSeed),[]);
+  assert.deepEqual(getFormulaComparisonQuestionIds(clearSafety,analyzePatterns(clearSafety),formulaSeed),[]);
+  assert.deepEqual(getFormulaComparisonQuestionIds({...enough,medication:'yes'},analysis,formulaSeed),[]);
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[]),[]);
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed.map(formula => ({...formula,active:false}))),[]);
+  const reference = formulaSeed.find(formula => formula.id==='ba-zhen-tang')!;
+  const changed = {...reference,requiredQuestionIds:['cough' as const],opposingRules:[rule('phlegm','yellow')],supportingRules:[rule('windSensitivity','yes')]};
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[changed]),['cough','phlegm','windSensitivity']);
+  assert.deepEqual(analyzePatterns(enough),analysis,'catalog criteria cannot alter independent evidence');
+  const outside: AnswerMap = {...clearSafety,focus:'digestion',duration:'months',trend:'stable',priorAssessment:'yes',foodTrigger:'yes',reflux:'sour',afterMealBloat:'yes',stoolOdor:'yes',onset:'after_food',abdominalPain:'distending',nausea:'yes'};
+  const outsideAnalysis = analyzePatterns(outside);
+  assert.equal(outsideAnalysis.primary?.id,'foodStagnation');
+  assert.deepEqual(getFormulaComparisonQuestionIds(outside,outsideAnalysis,formulaSeed),[]);
 });
 
 test('pain interviews prioritize explicit pain discriminators and stop chasing contradicted core patterns', () => {

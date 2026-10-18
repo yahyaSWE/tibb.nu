@@ -87,8 +87,8 @@ test('a clear qualified main pattern can give direction with only existing check
   assert.equal(direction.hypothesis?.name,report.analysis.primary.name);
   assert.match(direction.heading,/Svaren lutar inom TCM-modellen åt/);
   assert.deepEqual(direction.references,report.formulaMatches.slice(0,3).map(formula => ({name:formula.name,partial:formula.partial})));
-  assert.match(direction.evaluationNotice,/inte en medicinsk diagnos/);
-  assert.match(direction.evaluationNotice,/behandlare.*innan eventuell användning av örter/);
+  assert.match(direction.evaluationNotice,/Preliminärt TCM-underlag/);
+  assert.match(direction.evaluationNotice,/terapeut.*före eventuell användning av örter/);
   assert.doesNotMatch(JSON.stringify(direction),/dosering|köp|rekommenderas att ta/);
 
   const partialReport = {...report,formulaMatches:report.formulaMatches.map(formula => ({...formula,partial:true}))};

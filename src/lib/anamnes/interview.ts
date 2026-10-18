@@ -1,7 +1,7 @@
 import { getSafetyAssessment, safetyQuestionIds } from './engine';
 import { patternById } from './patterns';
 import { baseQuestionIds, getInitialQuestions, questionById, validateAnswers } from './questions';
-import { INTERVIEW_MAX_ROUNDS, InterviewRoundSchema, type AnswerMap, type PatternAnalysis, type QuestionId, type Report } from './types';
+import { INTERVIEW_MAX_ROUNDS, InterviewRoundSchema, type AnswerMap, type FormulaRecord, type PatternAnalysis, type QuestionId, type Report } from './types';
 
 export { INTERVIEW_MAX_ROUNDS } from './types';
 export const mandatoryInterviewQuestions: readonly QuestionId[] = ['emergency','clinicalRedFlags','adult','pregnancy','medication','chronicDisease','liverKidney','allergy'];
@@ -28,12 +28,15 @@ export function getPendingInterviewBackgroundQuestions(input: AnswerMap): Questi
 }
 
 /** Curated IDs only; never repeat answered/withheld questions or expose professional pulse assessment. */
-export function sanitizeInterviewQuestionIds(ids: readonly unknown[], input: AnswerMap, analysis?: PatternAnalysis): QuestionId[] {
+export function sanitizeInterviewQuestionIds(ids: readonly unknown[], input: AnswerMap, analysis?: PatternAnalysis, options: { allowNarrativeQuestions?: boolean } = {}): QuestionId[] {
   const answers = validateAnswers(input);
   const pendingSafety = getPendingInterviewSafetyQuestions(answers);
   // A model or stale client cannot skip the fixed safety questions.
   if (pendingSafety.length) return pendingSafety.slice(0,3);
-  const meaningful = analysis ? new Set(remainingInterviewQuestionIds(answers,analysis)) : null;
+  // A narrative may point to a different part of the reviewed question bank
+  // before any structured symptom supports a local hypothesis. Let AI ask
+  // those questions, without counting the narrative as a confirmed answer.
+  const meaningful = analysis && !options.allowNarrativeQuestions ? new Set(remainingInterviewQuestionIds(answers,analysis)) : null;
   const unique = new Set<QuestionId>();
   const pendingPainSafety: QuestionId[] = analysis && answers.focus === 'pain' && !Object.hasOwn(answers,'jointWarmth') && analysis.patterns.some(pattern => pattern.qualified) ? ['jointWarmth'] : [];
   for (const id of [...getPendingInterviewBackgroundQuestions(answers),...pendingPainSafety,...ids]) {
@@ -111,6 +114,20 @@ function remainingInterviewQuestionIds(input: AnswerMap, analysis: PatternAnalys
 /** Meaningful, unseen follow-ups for both the interview and optional report completion. */
 export function getInterviewCompletionQuestionIds(input: AnswerMap, analysis: PatternAnalysis): QuestionId[] {
   return remainingInterviewQuestionIds(input,analysis).slice(0,5);
+}
+
+/** Clarify a reference only after the independent differential supports it. */
+export function getFormulaComparisonQuestionIds(input: AnswerMap, analysis: PatternAnalysis, catalog: readonly FormulaRecord[]): QuestionId[] {
+  const answers = validateAnswers(input);
+  if (getSafetyAssessment(answers).level !== 'clear' || analysis.status !== 'preliminary' || !analysis.primary) return [];
+  const qualified = new Set(analysis.patterns.filter(pattern => pattern.qualified).map(pattern => pattern.id));
+  const candidates = catalog.filter(formula => formula.active && formula.primaryPatternIds.includes(analysis.primary!.id) && formula.requiredPatternIds.every(id => qualified.has(id))).slice(0,3);
+  // Ask about counterevidence as well as support. A missing answer stays
+  // missing; neither catalog membership nor a question creates a match.
+  return [...new Set(candidates.flatMap(formula => [...formula.requiredQuestionIds,...formula.opposingRules.map(rule => rule.questionId),...formula.supportingRules.map(rule => rule.questionId)]))].filter(id => {
+    const question = questionById.get(id);
+    return question && !question.professionalOnly && !Object.hasOwn(answers,id);
+  });
 }
 
 /** Local fallback uses the same question bank without manufacturing symptoms from free text. */

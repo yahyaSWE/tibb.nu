@@ -80,6 +80,9 @@ export type Report = z.infer<typeof ReportSchema>;
 // Fritext är opålitlig användardata, inte instruktioner eller bekräftade fynd.
 // Behåll vanliga radbrytningar, men avvisa osynliga kontroll-/riktningskoder.
 export const NarrativeSchema = z.string().trim().max(4000).refine(value => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Cf}]/u.test(value), 'Ta bort osynliga kontrolltecken från beskrivningen.');
+// Visitor-supplied names are retained for the therapist, never interpreted as
+// clinical findings or included in an external model request.
+export const MedicationNamesSchema = z.string().trim().max(1000, 'Ange högst 1 000 tecken.').refine(value => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Cf}]/u.test(value), 'Ta bort osynliga kontrolltecken från läkemedelsnamnen.');
 export const IntakeRequestSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(''), aiConsent: z.boolean().default(false), aiConsentVersion: z.string().max(128).optional(), formulaReferencesEnabled: z.boolean().default(true) }).strict();
 export const AiDifferentialSchema = z.object({
   patternIds: z.array(PatternIdSchema).max(6), followUpQuestionIds: z.array(QuestionIdSchema).max(5),

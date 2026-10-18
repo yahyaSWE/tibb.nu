@@ -52,5 +52,24 @@ test('a copied supported direction keeps the therapist assessment beside its exi
   assert.ok(summary.includes(`Svaren lutar inom TCM-modellen åt ${report.analysis.primary.name}`));
   assert.ok(summary.includes(`Formelreferens att utvärdera: ${report.formulaMatches[0].name}`));
   assert.match(summary, /Behöver utvärderas av en terapeut/);
-  assert.match(summary, /innan eventuell användning av örter/);
+  assert.match(summary, /före eventuell användning av örter/);
+});
+
+test('medication names are exported as visitor-supplied text only for an affirmative answer', () => {
+  const input: AnswerMap = { ...answers, medication: 'yes' };
+  const report = buildReport(input, formulaSeed);
+  const before = structuredClone(report);
+  const names = '  Syntetiskt läkemedel A\nSyntetiskt tillskott B  ';
+  const summary = formatAnamnesSummary(report, input, '', names);
+  assert.match(summary, /Angivna läkemedel eller kosttillskott \(besökarens egna uppgifter\): Syntetiskt läkemedel A\nSyntetiskt tillskott B/);
+  assert.equal(report.safety.blocksFormulas, true);
+  assert.deepEqual(report.formulaMatches, []);
+  assert.deepEqual(report, before);
+  for (const answer of ['no', 'unknown', 'prefer_not']) {
+    const changed = { ...input, medication: answer };
+    assert.doesNotMatch(formatAnamnesSummary(report, changed, '', names), /Syntetiskt läkemedel A|Syntetiskt tillskott B/);
+  }
+  const unanswered = { ...input };
+  delete unanswered.medication;
+  assert.doesNotMatch(formatAnamnesSummary(report, unanswered, '', names), /Syntetiskt läkemedel A|Syntetiskt tillskott B/);
 });

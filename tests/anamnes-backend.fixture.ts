@@ -221,6 +221,9 @@ test("AI sees independent vocabulary and coded answers with strict JSON, no cata
   assert.equal(JSON.stringify(lastProviderBody).includes("Xiao Yao San"), false);
   assert.equal(JSON.stringify(lastProviderBody).includes(admin.email), false);
   assert.equal(JSON.stringify(lastProviderBody).includes("strict\":true"), true);
+  const providerInput = JSON.parse((lastProviderBody.input as { content: { text: string }[] }[])[0].content[0].text);
+  assert.ok(providerInput.independentPatternGuide.some((pattern: {id:string;name:string}) => pattern.id === "foodStagnation" && pattern.name === "Födostagnation"));
+  assert.equal(providerInput.independentPatternGuide.length, providerInput.allowedPatternIds.length);
   assert.ok(result.report.followUpQuestionIds.length <= 5);
 });
 
@@ -283,6 +286,83 @@ test("narrative is untrusted data only, never confirmed symptoms, model prose or
   assert.equal((lastProviderBody.text as { format: { strict: boolean } }).format.strict, true);
   assert.ok(result.report.formulaMatches.length <= 3);
   assert.ok(!result.report.analysis.secondary.some((finding) => finding.id === "kidneyYinDeficiency"));
+});
+
+test("narrative-specific TCM questions survive local focus filtering and receive updated confirmed answers", async () => {
+  await configure();
+  const answers: AnswerMap = {adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"other",duration:"months",trend:"stable",priorAssessment:"unknown"};
+  const aiConsentVersion = getAnamnesConfigStatus().ai.consentVersion;
+  const narrative = "Syntetiskt fall: en påhittad vuxen vill beskriva svårigheter att somna och grubblande på kvällen.";
+  providerReply = response({patternIds:["liverBloodShenDisturbance"],questionIds:["sleepOnset","nightWaking","rumination"],sufficient:false});
+  const first = await interviewAnamnes({answers,narrative,aiConsent:true,aiConsentVersion,round:1});
+  assert.deepEqual(first.questionIds,["sleepOnset","nightWaking","rumination"]);
+  assert.equal(first.complete,false);
+  assert.equal(first.report.analysis.primary,null,'narrative cannot confirm a pattern');
+  assert.deepEqual(first.report.analysis.patterns,analyzePatterns(answers).patterns);
+  const providerInput = JSON.parse((lastProviderBody.input as { content: { text: string }[] }[])[0].content[0].text);
+  assert.equal(providerInput.untrustedNarrative,narrative);
+  assert.deepEqual(providerInput.confirmedAnswers,answers);
+  assert.equal(providerInput.confirmedAnswers.sleepOnset,undefined);
+  assert.match(String(lastProviderBody.instructions),/klassisk TCM-differentiering/);
+  assert.match(String(lastProviderBody.instructions),/motsägande tecken/);
+  const changed = {...answers,sleepOnset:"unknown",nightWaking:"prefer_not"};
+  const second = await interviewAnamnes({answers:changed,narrative,aiConsent:true,aiConsentVersion,round:2});
+  assert.deepEqual(second.questionIds,["rumination"]);
+  const nextInput = JSON.parse((lastProviderBody.input as { content: { text: string }[] }[])[0].content[0].text);
+  assert.deepEqual(nextInput.confirmedAnswers,changed);
+  assert.deepEqual(first.report.formulaMatches,[]);
+  assert.equal(requests,2);
+});
+
+test("valid narrative followups prevent false exhaustion but the maximum round still ends the interview", async () => {
+  await configure();
+  const aiConsentVersion = getAnamnesConfigStatus().ai.consentVersion;
+  const answers: AnswerMap = {adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"pain",duration:"years",trend:"variable",priorAssessment:"unknown",temperature:"neutral",irritability:"yes",ribTension:"no",stressRelief:"yes",painLocation:"muscles",painCharacter:"distending",painWarmth:"neutral",painMovement:"better",weatherPain:"yes",stiffness:"yes",tongueColor:"red",jointWarmth:"no"};
+  const input = {answers,narrative:"Syntetiskt fall: besvär med både värk och sömn.",aiConsent:true,aiConsentVersion};
+  providerReply = response({patternIds:[],questionIds:["sleepOnset"],sufficient:true});
+  const ongoing = await interviewAnamnes({...input,round:6});
+  assert.equal(ongoing.complete,false);
+  assert.deepEqual(ongoing.questionIds,["sleepOnset"]);
+  assert.equal(ongoing.receipt,undefined);
+  const ended = await interviewAnamnes({...input,round:INTERVIEW_MAX_ROUNDS});
+  assert.equal(ended.complete,true);
+  assert.deepEqual(ended.questionIds,[]);
+  assert.deepEqual(ended.report.formulaMatches,[]);
+});
+
+test("a supported independent TCM pattern outside the assortment keeps an explicit no-match", async () => {
+  await configure();
+  const answers: AnswerMap = {adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"digestion",duration:"months",trend:"stable",priorAssessment:"yes",foodTrigger:"yes",reflux:"sour",afterMealBloat:"yes",stoolOdor:"yes",onset:"after_food",abdominalPain:"distending",nausea:"yes"};
+  providerReply = response({patternIds:["foodStagnation"],questionIds:[],sufficient:true});
+  const result = await interviewAnamnes({answers,narrative:"Syntetiskt matsmältningsfall.",aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion,round:1});
+  assert.equal(result.complete,true);
+  assert.equal(result.report.analysis.primary?.id,"foodStagnation");
+  assert.equal(result.report.formulaStatus,"no_match");
+  assert.deepEqual(result.report.formulaMatches,[]);
+  assert.equal(JSON.stringify(lastProviderBody).includes("Xiao Yao San"),false);
+});
+
+test("formula checks clarify counterevidence after independent analysis and preserve explicit AI followups", async () => {
+  await configure();
+  const aiConsentVersion = getAnamnesConfigStatus().ai.consentVersion;
+  const answers: AnswerMap = {adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"energy",duration:"months",trend:"stable",priorAssessment:"yes",energy:"low",pallor:"yes",dizziness:"yes",weakVoice:"yes",tongueColor:"pale",exertion:"tired"};
+  assert.equal(analyzePatterns(answers).primary?.id,"qiBloodDeficiency");
+  providerReply = response({patternIds:["qiBloodDeficiency"],questionIds:["dryEyes"],sufficient:true});
+  const input = {narrative:"Syntetiskt fall: påhittad trötthet och torrhet.",aiConsent:true,aiConsentVersion};
+  const clarify = await interviewAnamnes({...input,answers,round:3});
+  assert.equal(clarify.complete,false);
+  assert.deepEqual(clarify.questionIds,["tongueCoating","temperature"]);
+  assert.equal(clarify.report.analysis.primary?.id,"qiBloodDeficiency");
+  const checked = {...answers,tongueCoating:"normal",temperature:"neutral"};
+  const followup = await interviewAnamnes({...input,answers:checked,round:4});
+  assert.equal(followup.complete,false,'sufficient=true must not erase an explicit valid question');
+  assert.deepEqual(followup.questionIds,["dryEyes"]);
+  const completed = await interviewAnamnes({...input,answers:{...checked,dryEyes:"unknown"},round:5});
+  assert.equal(completed.complete,true);
+  assert.equal(completed.report.analysis.primary?.id,"qiBloodDeficiency");
+  assert.ok(completed.report.formulaMatches.some(formula => formula.name==="Ba Zhen Tang"));
+  assert.ok(completed.report.formulaMatches.every(formula => !formula.productAvailable && formula.productUrl===null));
+  assert.equal(JSON.stringify(lastProviderBody).includes("Ba Zhen Tang"),false);
 });
 
 test("interview cannot finish from model confidence alone or exceed its ten question batches", async () => {
@@ -389,7 +469,11 @@ test("a qualified pain hypothesis cannot automatically finish before the joint s
     assert.deepEqual(result.report.formulaMatches,[]);
   }
   assert.equal(requests,beforeUncertain,'uncertain focused safety must not trigger an AI request');
-  const completed = await interviewAnamnes({answers:{...answers,jointWarmth:"no"},aiConsent:true,aiConsentVersion,round:5});
+  const further = await interviewAnamnes({answers:{...answers,jointWarmth:"no"},aiConsent:true,aiConsentVersion,round:5});
+  assert.equal(further.complete,false,'a requested relevant followup survives the sufficient flag');
+  assert.deepEqual(further.questionIds,["backWeakness"]);
+  providerReply = response({patternIds:["windColdDampBi"],questionIds:[],sufficient:true});
+  const completed = await interviewAnamnes({answers:{...answers,jointWarmth:"no",backWeakness:"no"},aiConsent:true,aiConsentVersion,round:6});
   assert.equal(completed.complete,true);
   assert.equal(completed.reason,"enough");
   assert.equal(completed.report.safety.level,"clear");
@@ -509,9 +593,31 @@ test("encrypted narrative and signed analysis remain bound together and never tr
   assert.equal(requests, 1);
 });
 
-test("existing encrypted cases without a narrative field remain readable", async () => {
+test("medication names require an affirmative answer, remain encrypted and never trigger a provider call", async () => {
   await configure();
-  const answers = completeAnswers();
+  const input = { answers: { ...completeAnswers(), medication: "yes" }, sendConsent: true, submissionConsentVersion: anamnesSubmissionConsentVersion(), contact: { name: "Synthetic medication case", email: "medication@example.test" } };
+  for (const medicationNames of [undefined, "", "   ", "a".repeat(1001), "Syntetiskt\u202epreparat"]) {
+    await assert.rejects(submitAnamnes({ ...input, medicationNames }));
+  }
+  const medicationNames = "Syntetiskt läkemedel A\nSyntetiskt tillskott B";
+  const stored = await submitAnamnes({ ...input, medicationNames: `  ${medicationNames}  ` });
+  const details = await getAnamnesCase(admin, stored.reference);
+  assert.equal(details!.intake.medicationNames, medicationNames);
+  assert.equal(details!.report.safety.blocksFormulas, true);
+  assert.deepEqual(details!.report.formulaMatches, []);
+  assert.equal(details!.report.source, "rules");
+  const row = await getDb().prepare("SELECT * FROM anamnes_cases WHERE id=?").get(stored.reference);
+  assert.equal(JSON.stringify(row).includes("Syntetiskt läkemedel A"), false);
+  for (const medication of ["no", "unknown", "prefer_not"]) {
+    const changed = await submitAnamnes({ ...input, answers: { ...input.answers, medication }, medicationNames });
+    assert.equal((await getAnamnesCase(admin, changed.reference))!.intake.medicationNames, "");
+  }
+  assert.equal(requests, 0);
+});
+
+test("existing encrypted cases without the new free-text fields remain readable", async () => {
+  await configure();
+  const answers = { ...completeAnswers(), medication: "yes" };
   const { report } = await analyzeAnamnes({ answers });
   const id = randomUUID();
   const createdAt = new Date().toISOString();
@@ -526,6 +632,7 @@ test("existing encrypted cases without a narrative field remain readable", async
   await getDb().prepare("INSERT INTO anamnes_cases(id,encrypted_payload,created_at,expires_at) VALUES(?,?,?,?)").run(id, encrypted, createdAt, new Date(Date.now() + 86400000).toISOString());
   const read = await getAnamnesCase(admin, id);
   assert.equal(read!.intake.narrative, "");
+  assert.equal(read!.intake.medicationNames, "");
   assert.deepEqual(read!.intake.answers, answers);
   assert.deepEqual(read!.report, report);
   assert.equal(requests, 0);

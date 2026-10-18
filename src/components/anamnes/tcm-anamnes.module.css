@@ -106,6 +106,18 @@
 .questionSection { font-size: 12px; font-weight: 600; color: var(--olive); margin-bottom: 12px; }
 .questionOptions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 25px; }
 .questionOptions .option { min-height: 62px; }
+.safetyQuestions { display: grid; gap: 22px; }
+.safetyQuestion { min-width: 0; border: 0; border-bottom: 1px solid var(--line); padding: 0 0 22px; margin: 0; scroll-margin-top: 110px; }
+.safetyQuestion legend { font-size: 14px; font-weight: 600; line-height: 1.7; padding: 0; }
+.safetyQuestion:focus { outline: 2px solid var(--olive); outline-offset: 6px; }
+.safetyQuestion > p { margin-top: 8px; }
+.safetyOptions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 13px; }
+.safetyOptions .option { padding: 11px 13px; min-height: 46px; }
+.medicationDetails { display: grid; gap: 8px; margin-top: 17px; font-size: 13px; }
+.medicationDetails > label { font-weight: 600; }
+.medicationDetails textarea { width: 100%; resize: vertical; min-height: 96px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf8; color: var(--ink); font: inherit; line-height: 1.7; }
+.medicationDetails .smallNote { margin: 0; }
+@media (max-width: 600px) { .safetyOptions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .privacyPanel { padding: 24px; margin-block: 27px; border: 1px solid var(--line); border-radius: 17px; }
 .privacyPanel h3 { font-size: 29px; margin-bottom: 13px; }
 .privacyPanel p { font-size: 13px; line-height: 1.85; }
@@ -195,3 +207,12 @@
 .therapistNotice p { color:inherit; margin-top:6px; }
 @media (max-width:600px) { .overviewList { grid-template-columns:1fr; } .observationList > div { grid-template-columns:1fr; gap:4px; } .completionPanel { padding:20px 16px; } }
 @media (max-width:600px) { .directionCard { padding:21px 17px; } .directionCard h3 { font-size:28px; } }
+.reportDetailsPanel { padding:16px 20px; border:1px solid var(--line); border-radius:15px; background:#fffdf8; }
+.reportDetailsPanel > summary { padding:8px 0; min-height:40px; font-size:14px; }
+.reportDetailsPanel > summary:focus-visible { outline:2px solid var(--olive); outline-offset:5px; border-radius:4px; }
+.reportDetailsContent { padding-top:12px; }
+.reportDetailsContent > .reportSection:first-of-type { border-top:0; padding-top:0; margin-top:18px; }
+.reportDetailsSafety { font-size:12px; line-height:1.75; color:var(--green); }
+.reportDetailsSafety p + p { margin-top:8px; }
+.reportDetailsSafety .evidenceList { margin-bottom:0; }
+@media (max-width:600px) { .reportDetailsPanel { padding:12px 16px; } }

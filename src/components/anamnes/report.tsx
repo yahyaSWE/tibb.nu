@@ -23,14 +23,19 @@ function PatternCard({ finding, label }: { finding: PatternFinding; label: strin
   </article>;
 }
 
-export function AnamnesReport({ report, answers }: { report: Report; answers: AnswerMap }) {
+export function AnamnesReport({ report, answers, medicationNames = "" }: { report: Report; answers: AnswerMap; medicationNames?: string }) {
   const { analysis, safety } = report;
   const candidates = analysis.status === "insufficient" ? [] : analysis.primary ? [analysis.primary, ...analysis.secondary] : analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const blocked = safety.blocksFormulas;
   const noMatch = report.formulaStatus === "no_match";
   const explanation = explainAnamnesReport(report, answers);
+  const visibleMatches = !blocked && report.formulaReferencesEnabled ? report.formulaMatches.slice(0, 3) : [];
+  const generalFormulaNotes = new Set([
+    "Produktens exakta innehåll och säkerhetsuppgifter är ännu inte verifierade. Namnet är en klassisk referens, inte en tillgänglig eller godkänd produkt.",
+    "Det faktiska innehållet, medicinska risker och lämpligheten måste bedömas individuellt före eventuell användning.",
+  ]);
+  const specificFormulaNotes = visibleMatches.flatMap(match => match.safetyNotes.filter(note => !generalFormulaNotes.has(note)).map(note => ({ formula: match.name, note })));
   return <div className={styles.report}>
-    <div className={styles.reportMethod}><span>{report.source === "ai" ? "AI-assisterad analys med regelkontroll" : "Regelbaserad analys"}</span><span>Preliminärt samtalsunderlag</span></div>
     {safety.level !== "clear" && <div className={safety.level === "emergency" || safety.level === "medical_review" ? styles.alert : styles.warning}>
       <strong>{safety.level === "emergency" ? "Avbryt och sök akut hjälp" : safety.level === "medical_review" ? "Medicinsk bedömning behöver prioriteras" : safety.level === "incomplete" ? "Säkerhetsunderlaget är ofullständigt" : "Individuell säkerhetsbedömning behövs"}</strong>
       {safety.flags.length > 0 && <ul className={styles.evidenceList}>{safety.flags.map(flag => <li key={flag}>{flag}</li>)}</ul>}
@@ -40,15 +45,22 @@ export function AnamnesReport({ report, answers }: { report: Report; answers: An
     </div>}
 
     {safety.level !== "emergency" && <>
-      <section className={styles.directionCard} aria-labelledby="anamnes-direction-title">
+      {safety.level === "clear" && <section className={styles.directionCard} aria-labelledby="anamnes-direction-title">
         <h3 id="anamnes-direction-title">{explanation.direction.heading}</h3>
-        {explanation.direction.hypothesis && <p className={styles.patternLanguage}>{explanation.direction.hypothesis.pinyin}</p>}
-        <p>{explanation.direction.body}</p>
-        <h4>Örtformler att utvärdera</h4>
-        <p>{explanation.direction.formulaMessage}</p>
+        {explanation.direction.status !== "preliminary" && <p>{explanation.direction.body}</p>}
+        {explanation.direction.references.length > 0 ? <h4>{explanation.direction.references.length === 1 ? "Örtformel att utvärdera" : "Örtformler att utvärdera"}</h4> : <p>{explanation.direction.formulaMessage}</p>}
         {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}</li>)}</ul>}
-        <div className={styles.therapistNotice}><strong>Behöver utvärderas av en terapeut</strong><p>{explanation.direction.evaluationNotice}</p></div>
-      </section>
+        {visibleMatches.length > 0 && <div className={styles.reportDetailsSafety}>
+          {visibleMatches.some(match => !match.productAvailable) && <p>Klassiska formelreferenser. En verifierad leverantörsprodukt är ännu inte kopplad till alla referenser.</p>}
+          {!explanation.direction.references.length && visibleMatches.some(match => match.partial) && <p>Formeljämförelserna är delvisa och täcker inte hela symtombilden.</p>}
+          {specificFormulaNotes.length > 0 && <ul className={styles.evidenceList}>{specificFormulaNotes.map(({ formula, note }, index) => <li key={`${formula}-${index}`}><strong>{formula}:</strong> {note}</li>)}</ul>}
+        </div>}
+        <p className={styles.therapistNotice}>{explanation.direction.evaluationNotice}</p>
+      </section>}
+      <details className={`${styles.reportDetails} ${styles.reportDetailsPanel}`}>
+        <summary>Så har svaren bedömts</summary>
+        <div className={styles.reportDetailsContent}>
+          <div className={styles.reportMethod}><span>{report.source === "ai" ? "AI-assisterad analys med regelkontroll" : "Regelbaserad analys"}</span></div>
       <section className={styles.reportSection} aria-labelledby="anamnes-overview-title">
         <h3 id="anamnes-overview-title">Sammanfattning av dina svar</h3>
         <p>Du har lämnat {explanation.coverage.answered} svar. Här sammanfattas det du själv har uppgett; det är inte en fastställd förklaring till besvären.</p>
@@ -100,14 +112,16 @@ export function AnamnesReport({ report, answers }: { report: Report; answers: An
           {match.productAvailable && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
         </article>)}</div>}
       </section>
+        </div>
+      </details>
     </>}
-    <AnamnesAnswers answers={answers} />
+    <AnamnesAnswers answers={answers} medicationNames={medicationNames} />
   </div>;
 }
 
-export function AnamnesAnswers({ answers, expanded = false }: { answers: AnswerMap; expanded?: boolean }) {
+export function AnamnesAnswers({ answers, expanded = false, medicationNames = "" }: { answers: AnswerMap; expanded?: boolean; medicationNames?: string }) {
   const rows = [...questionById.values()].filter(question => Object.hasOwn(answers, question.id));
-  return <details className={styles.answersDetails} open={expanded}><summary>Alla lämnade svar ({rows.length})</summary><dl className={styles.answerList}>{rows.map(question => <div key={question.id}><dt>{question.prompt}</dt><dd>{question.options.find(option => option.value === answers[question.id])?.label ?? "Svar behöver granskas"}</dd></div>)}</dl></details>;
+  return <details className={styles.answersDetails} open={expanded}><summary>Alla lämnade svar ({rows.length})</summary><dl className={styles.answerList}>{rows.map(question => <div key={question.id}><dt>{question.prompt}</dt><dd>{question.options.find(option => option.value === answers[question.id])?.label ?? "Svar behöver granskas"}{question.id === "medication" && answers.medication === "yes" && medicationNames.trim() && <p className={styles.narrativeText}>Angivna läkemedel eller kosttillskott (egna uppgifter): {medicationNames}</p>}</dd></div>)}</dl></details>;
 }
 
 export function AnamnesNarrative({ narrative }: { narrative: string }) {

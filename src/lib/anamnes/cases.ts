@@ -5,7 +5,7 @@ import { getDb, transaction } from "../database";
 import type { User } from "../types";
 import { anamnesAiConfig, anamnesEncryptionKey, anamnesRetentionDays, anamnesSubmissionsAvailable, anamnesSubmissionConsentVersion } from "./config";
 import { AnamnesError } from "./http";
-import { AnswerMapSchema, NarrativeSchema, ReportSchema, type AnswerMap, type Report } from "./types";
+import { AnswerMapSchema, MedicationNamesSchema, NarrativeSchema, ReportSchema, type AnswerMap, type Report } from "./types";
 import { validateAnswers } from "./questions";
 import { buildReport } from "./engine";
 import { publicFormulaCatalog } from "./catalog";
@@ -14,13 +14,13 @@ import { finalizeInterviewReport } from "./interview";
 
 const IdSchema = z.string().uuid();
 const ContactSchema = z.object({ name: z.string().trim().min(1).max(120), email: z.email().max(254), phone: z.string().trim().max(50).default("") }).strict();
-export const SubmitAnamnesSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), formulaReferencesEnabled: z.boolean().default(true), sendConsent: z.literal(true), submissionConsentVersion: z.string().regex(/^[a-f0-9]{64}$/), contact: ContactSchema, report: ReportSchema.optional(), receipt: AnalysisReceiptSchema.optional() }).strict().refine((value) => !!value.report === !!value.receipt, { message: "Rapportens underlag saknas." });
+export const SubmitAnamnesSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), medicationNames: MedicationNamesSchema.default(""), formulaReferencesEnabled: z.boolean().default(true), sendConsent: z.literal(true), submissionConsentVersion: z.string().regex(/^[a-f0-9]{64}$/), contact: ContactSchema, report: ReportSchema.optional(), receipt: AnalysisReceiptSchema.optional() }).strict().refine((value) => !!value.report === !!value.receipt, { message: "Rapportens underlag saknas." }).refine((value) => value.answers.medication !== "yes" || !!value.medicationNames, { path: ["medicationNames"], message: "Ange namnen på dina läkemedel eller kosttillskott." }).transform(value => ({ ...value, medicationNames: value.answers.medication === "yes" ? value.medicationNames : "" }));
 export const AnamnesReviewInputSchema = z.object({ expectedRevision: z.number().int().min(0), notes: z.string().max(10000), tongueNotes: z.string().max(5000), pulseNotes: z.string().max(5000), corrections: z.string().max(10000), finalAssessment: z.string().max(10000) }).strict();
 export type AnamnesReviewInput = z.infer<typeof AnamnesReviewInputSchema>;
 export type AnamnesReview = Omit<AnamnesReviewInput, "expectedRevision"> & { revision: number; authorId: number; authorName: string; reviewedAt: string };
 const StoredConsentSchema = z.object({ submissionVersion: z.string(), submissionNotice: z.string(), recordedAt: z.string(), retentionDays: z.number().int(), aiNotice: z.string().nullable(), aiConsentVersion: z.string().nullable() }).strict();
 const StoredProvenanceSchema = z.object({ source: z.enum(["rules", "ai"]), provider: z.string().nullable(), model: z.string().nullable(), analysisReceipt: AnalysisReceiptSchema.nullable() }).strict();
-export type StoredAnamnesCase = { id: string; createdAt: string; expiresAt: string; revision: number; intake: { answers: AnswerMap; narrative: string }; report: Report; contact: z.infer<typeof ContactSchema>; reviews: AnamnesReview[]; consent?: z.infer<typeof StoredConsentSchema>; provenance?: z.infer<typeof StoredProvenanceSchema> };
+export type StoredAnamnesCase = { id: string; createdAt: string; expiresAt: string; revision: number; intake: { answers: AnswerMap; narrative: string; medicationNames: string }; report: Report; contact: z.infer<typeof ContactSchema>; reviews: AnamnesReview[]; consent?: z.infer<typeof StoredConsentSchema>; provenance?: z.infer<typeof StoredProvenanceSchema> };
 export function therapistAccess(user: User | null): boolean {
   const allowed = (process.env.ANAMNES_THERAPIST_EMAILS ?? "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
   return user?.role === "admin" && allowed.includes(user.email.toLowerCase());
@@ -49,7 +49,7 @@ function decrypt(value: string, associatedData: string): unknown {
     return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8")) as unknown;
   } catch { throw new AnamnesError("Anamnesen kunde inte öppnas.", 503); }
 }
-const CasePayloadSchema = z.object({ intake: z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default("") }).strict(), report: ReportSchema, contact: ContactSchema, sendConsentAt: z.string(), consent: StoredConsentSchema.optional(), provenance: StoredProvenanceSchema.optional() }).strict();
+const CasePayloadSchema = z.object({ intake: z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), medicationNames: MedicationNamesSchema.default("") }).strict(), report: ReportSchema, contact: ContactSchema, sendConsentAt: z.string(), consent: StoredConsentSchema.optional(), provenance: StoredProvenanceSchema.optional() }).strict();
 const ReviewPayloadSchema = AnamnesReviewInputSchema.omit({ expectedRevision: true }).extend({ revision: z.number().int().positive(), authorId: z.number().int().positive(), authorName: z.string(), reviewedAt: z.string() }).strict();
 export async function pruneExpiredAnamnesCases(now = new Date()) {
   return (await getDb().prepare("DELETE FROM anamnes_cases WHERE expires_at<=?").run(now.toISOString())).changes;
@@ -74,7 +74,7 @@ export async function submitAnamnes(input: unknown): Promise<{ reference: string
   const ai = anamnesAiConfig();
   const consent = { submissionVersion: value.submissionConsentVersion, submissionNotice: process.env.ANAMNES_SUBMISSION_PRIVACY_NOTICE!.trim(), recordedAt: createdAt, retentionDays, aiNotice: report.source === "ai" ? ai.privacyNotice : null, aiConsentVersion: value.receipt?.aiConsentVersion ?? null };
   const provenance = { source: report.source, provider: report.source === "ai" ? ai.providerLabel : null, model: report.source === "ai" ? ai.model : null, analysisReceipt: value.receipt ?? null };
-  const encrypted = encrypt({ intake: { answers, narrative: value.narrative }, report, contact: value.contact, sendConsentAt: createdAt, consent, provenance }, `case:${id}`);
+  const encrypted = encrypt({ intake: { answers, narrative: value.narrative, medicationNames: value.medicationNames }, report, contact: value.contact, sendConsentAt: createdAt, consent, provenance }, `case:${id}`);
   await transaction(async () => {
     await pruneExpiredAnamnesCases();
     await getDb().prepare("INSERT INTO anamnes_cases(id,encrypted_payload,created_at,expires_at) VALUES(?,?,?,?)").run(id, encrypted, createdAt, expiresAt);

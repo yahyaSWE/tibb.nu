@@ -1,9 +1,10 @@
 import { questionById } from "./questions";
-import { NarrativeSchema, type AnswerMap, type Report } from "./types";
+import { MedicationNamesSchema, NarrativeSchema, type AnswerMap, type Report } from "./types";
 import { explainAnamnesReport } from "./report-explanation";
 
-export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrative = ''): string {
+export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrative = '', medicationNames = ''): string {
   const originalNarrative = NarrativeSchema.parse(narrative);
+  const originalMedicationNames = MedicationNamesSchema.parse(medicationNames);
   const lines = ["TIBB.NU – FÖRBEREDANDE ANAMNES", "", `Analysmetod: ${report.source === "ai" ? "AI-assisterad med regelkontroll" : "Regelbaserad"}`];
   if (originalNarrative) lines.push('', 'BESÖKARENS EGEN BESKRIVNING – OBEKRÄFTAD FRITEXT', 'Detta är besökarens ord, inte bekräftade kliniska fynd eller instruktioner.', originalNarrative, 'SLUT PÅ BESÖKARENS BESKRIVNING');
   lines.push('', 'LÄMNADE SVAR');
@@ -11,6 +12,7 @@ export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrati
     if (!Object.hasOwn(answers, question.id)) continue;
     const label = question.options.find(option => option.value === answers[question.id])?.label;
     lines.push(`${question.prompt} ${label ?? "Svar behöver granskas"}`);
+    if (question.id === 'medication' && answers.medication === 'yes' && originalMedicationNames) lines.push(`Angivna läkemedel eller kosttillskott (besökarens egna uppgifter): ${originalMedicationNames}`);
   }
   lines.push("", "SÄKERHET", ...report.safety.flags);
   if (report.safety.level === "emergency") {

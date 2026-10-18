@@ -23,7 +23,7 @@ const CatalogResponseSchema = z.object({
 type CatalogResponse = z.infer<typeof CatalogResponseSchema>;
 const ReceiptSchema = z.object({ expiresAt: z.iso.datetime(), signature: z.string().regex(/^[a-f0-9]{64}$/), aiConsentVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 type AnalysisReceipt = z.infer<typeof ReceiptSchema>;
-type Stage = "intro" | "consent" | "safety" | "questions" | "followup" | "interview" | "report";
+type Stage = "intro" | "safety" | "questions" | "followup" | "interview" | "report";
 const initialConfig: CatalogResponse = {
   analysisMode: "rules", formulas: [], referencesEnabled: true,
   ai: { available: false, providerLabel: "AI är avstängd", privacyNotice: "Ingen extern AI används när du väljer regelanalys." },
@@ -73,7 +73,7 @@ export default function TcmAnamnes() {
   const currentQuestion = currentQuestions[Math.min(index, currentQuestions.length - 1)];
   const summary = useMemo(() => report && NarrativeSchema.safeParse(narrative).success && MedicationNamesSchema.safeParse(medicationNames).success ? formatAnamnesSummary(report, answers, narrative.trim(), medicationNames) : "", [report, answers, narrative, medicationNames]);
   const answeredSafetyCount = safetyQuestionIds.filter(id => !!answers[id]).length;
-  const progress = stage === "report" ? 100 : stage === "intro" || stage === "consent" ? 0 : stage === "safety" ? Math.round(answeredSafetyCount / safetyQuestionIds.length * 20) : stage === "interview" ? 20 + Math.round(((interviewRound - 1) / INTERVIEW_MAX_ROUNDS) * 70) : stage === "followup" ? 85 + Math.round(index / Math.max(1, currentQuestions.length) * 10) : 20 + Math.round(index / Math.max(1, currentQuestions.length) * 60);
+  const progress = stage === "report" ? 100 : stage === "intro" ? 0 : stage === "safety" ? Math.round(answeredSafetyCount / safetyQuestionIds.length * 20) : stage === "interview" ? 20 + Math.round(((interviewRound - 1) / INTERVIEW_MAX_ROUNDS) * 70) : stage === "followup" ? 85 + Math.round(index / Math.max(1, currentQuestions.length) * 10) : 20 + Math.round(index / Math.max(1, currentQuestions.length) * 60);
   const aiChoiceAvailable = catalogState === "ready" && config.analysisMode === "ai" && config.ai.available && !!config.ai.consentVersion;
   const completionQuestions = useMemo(() => report ? getInterviewCompletionQuestionIds(answers, report.analysis) : [], [answers, report]);
 
@@ -102,17 +102,14 @@ export default function TcmAnamnes() {
       request.current?.abort(); sequence.current++; setBusy(false); setReport(buildReport(next, [], { narrative: narrative.trim() })); setStage("report");
     }
   }
-  function start() {
+  function start(useAi = false) {
     if (!NarrativeSchema.safeParse(narrative).success) { setError("Beskrivningen innehåller osynliga kontrolltecken eller är för lång. Rätta texten innan du fortsätter."); return; }
     if (getSafetyAssessment(answers, narrative.trim()).level === "emergency") { setReport(buildReport(answers, [], { narrative: narrative.trim() })); setStage("report"); clearStatus(); return; }
-    const offerAi = aiChoiceAvailable && narrative.trim().length > 0;
-    setAiConsentVersion(null); setInterviewActive(false); setLocalInterview(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setStage(offerAi ? "consent" : "safety"); setIndex(0); clearStatus();
-  }
-  function chooseAnalysis(useAi: boolean) {
     if (useAi && !aiChoiceAvailable) { setError("AI är inte tillgänglig just nu. Du kan fortsätta utan AI."); return; }
-    // Starting the form or writing a description never grants provider consent.
+    if (useAi && !narrative.trim()) { setError("Beskriv först vad du söker hjälp för, så att AI kan anpassa frågorna. Du kan också starta utan AI."); return; }
+    // Only an intentional start beside the displayed AI information grants consent.
     setAiConsentVersion(useAi ? config.ai.consentVersion! : null);
-    setInterviewActive(useAi); setLocalInterview(false); setIndex(0); setStage("safety"); clearStatus();
+    setInterviewActive(useAi); setLocalInterview(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setIndex(0); setStage("safety"); clearStatus();
   }
   function finishSafety(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -288,7 +285,7 @@ export default function TcmAnamnes() {
   return <div className={styles.shell}>
     <div className={styles.topbar}><span><Leaf size={18} aria-hidden="true" />Tibb.nu · Strukturerad TCM-anamnes</span><span><LockKeyhole size={14} aria-hidden="true" />Du styr hur svaren används</span></div>
     <div className={styles.body}>
-      {stage !== "intro" && stage !== "consent" && report?.safety.level !== "emergency" && <div className={styles.questionProgress}><div><span>{stage === "report" ? "Din rapport" : stage === "safety" ? "Trygghetsfrågor" : stage === "interview" ? localInterview ? "Anpassade frågor · lokalt" : "Anpassat AI-samtal" : stage === "followup" ? "Fördjupande följdfrågor" : "Din anamnes"}</span><span>{stage === "report" ? "Sammanfattning" : stage === "safety" ? `${answeredSafetyCount} av ${safetyQuestionIds.length} besvarade` : stage === "interview" ? `Fråga ${index + 1} · utifrån dina svar` : `${index + 1} av ${currentQuestions.length}`}</span></div><progress max={100} value={progress} aria-label="Anamnesens framsteg" /></div>}
+      {stage !== "intro" && report?.safety.level !== "emergency" && <div className={styles.questionProgress}><div><span>{stage === "report" ? "Din rapport" : stage === "safety" ? "Trygghetsfrågor" : stage === "interview" ? localInterview ? "Anpassade frågor · lokalt" : "Anpassat AI-samtal" : stage === "followup" ? "Fördjupande följdfrågor" : "Din anamnes"}</span><span>{stage === "report" ? "Sammanfattning" : stage === "safety" ? `${answeredSafetyCount} av ${safetyQuestionIds.length} besvarade` : stage === "interview" ? `Fråga ${index + 1} · utifrån dina svar` : `${index + 1} av ${currentQuestions.length}`}</span></div><progress max={100} value={progress} aria-label="Anamnesens framsteg" /></div>}
       {stage === "intro" && <section>
         <h2 ref={headingRef} tabIndex={-1} className={styles.heading}>{config.analysisMode === "ai" ? "Börja med din berättelse." : "Dina svar först. Mönster och referenser därefter."}</h2>
         <p className={styles.lead}>{config.analysisMode === "ai" ? "Beskriv varför du söker hjälp. Efter trygghetsfrågorna kan AI välja relevanta frågor och följa upp dina bekräftade svar, tre frågor i taget. Du kan avsluta när du vill; ett ofullständigt underlag markeras tydligt." : "Beskriv hur du mår genom cirka 20–30 anpassade frågor och upp till fem följdfrågor. Mönsteranalysen görs oberoende av örtsortimentet. Därefter jämförs resultatet med verksamhetens aktiva formelkatalog."}</p>
@@ -296,14 +293,11 @@ export default function TcmAnamnes() {
         <div className={styles.features}><div><span className={styles.featureIcon}><Check size={21} aria-hidden="true" /></span><strong>Frågor efter dina svar</strong><p>Från en bank med {questionBank.filter(question => !question.professionalOnly).length} besökarfrågor.</p></div><div><span className={styles.featureIcon}><LockKeyhole size={21} aria-hidden="true" /></span><strong>Svar först lokalt</strong><p>Inget sparas eller skickas automatiskt.</p></div><div><span className={styles.featureIcon}><ShieldCheck size={21} aria-hidden="true" /></span><strong>Individuell bedömning</strong><p>Formelreferenser inför en konsultation.</p></div></div>
         <div className={styles.notice}><strong>Ett preliminärt samtalsunderlag</strong><p>Modellen är inte kliniskt validerad. Den kan missa viktiga symtom eller förklaringar. Du får ingen diagnos, örtordination, dosering eller rekommendation att köpa en produkt. Sök vård vid nya, tilltagande eller allvarliga besvär.</p></div>
         {catalogState === "unavailable" && <p className={styles.warning}>Den aktuella formelkatalogen kunde inte laddas. Du kan fortsätta med frågorna och få en mönsteranalys; ingen inaktuell katalog används som reserv.</p>}
-        <button type="button" className={styles.primary} disabled={catalogState === "loading"} onClick={start}>{catalogState === "loading" ? "Förbereder formuläret…" : "Starta anamnesen"}<ArrowRight size={17} aria-hidden="true" /></button>
-      </section>}
-      {stage === "consent" && <section aria-labelledby="anamnes-ai-choice">
-        <h2 ref={headingRef} tabIndex={-1} id="anamnes-ai-choice" className={styles.heading}>Vill du fortsätta med AI?</h2>
-        <p className={styles.lead}>Med ditt samtycke skickas din beskrivning och dina formulärsvar via Tibb.nu till {config.ai.providerLabel} för anpassade frågor och en preliminär analys. Du kan också fortsätta utan AI.</p>
-        <details className={styles.reportDetails}><summary>Läs informationen om AI och dina svar</summary><p>{config.ai.privacyNotice}</p><p>Du får upp till tre frågor i taget och kan avsluta när du vill. Att skicka rapporten till en behandlare är ett separat val. Svaren sparas inte automatiskt i webbläsaren eller som ett ärende.</p><Link href="/integritet" className={styles.productInfo} prefetch={false}>Integritetsinformation</Link></details>
-        <div className={styles.actions}><button type="button" className={styles.secondary} onClick={() => chooseAnalysis(false)}>Fortsätt utan AI</button><button type="button" className={styles.primary} onClick={() => chooseAnalysis(true)}>Jag samtycker – fortsätt med AI<ArrowRight size={17} aria-hidden="true" /></button></div>
-        <div className={styles.editActions}><button type="button" onClick={() => { setStage("intro"); clearStatus(); }}><ArrowLeft size={14} aria-hidden="true" />Tillbaka till min beskrivning</button></div>
+        {aiChoiceAvailable ? <>
+          <div className={styles.actions}><button type="button" className={styles.primary} aria-describedby="anamnes-ai-start-info" onClick={() => start(true)}>Börja frågorna<ArrowRight size={17} aria-hidden="true" /></button><button type="button" className={styles.secondary} onClick={() => start(false)}>Starta utan AI</button></div>
+          <p id="anamnes-ai-start-info" className={styles.smallNote}>Genom att välja ”Börja frågorna” samtycker du till att din beskrivning och dina formulärsvar skickas via Tibb.nu till {config.ai.providerLabel} för anpassade frågor och en preliminär analys. Du kan också starta utan AI.</p>
+          <details className={styles.reportDetails}><summary>Mer om AI och dina svar</summary><p>{config.ai.privacyNotice}</p><p>Att skicka rapporten till en behandlare är ett separat val. Svaren sparas inte automatiskt i webbläsaren eller som ett ärende.</p><Link href="/integritet" className={styles.productInfo} prefetch={false}>Integritetsinformation</Link></details>
+        </> : <button type="button" className={styles.primary} disabled={catalogState === "loading"} onClick={() => start()}>{catalogState === "loading" ? "Förbereder formuläret…" : "Börja frågorna"}<ArrowRight size={17} aria-hidden="true" /></button>}
       </section>}
       {stage === "safety" && <section aria-labelledby="anamnes-safety-title" aria-busy={busy}>
         <h2 ref={headingRef} tabIndex={-1} id="anamnes-safety-title" className={styles.heading}>Innan vi börjar</h2>

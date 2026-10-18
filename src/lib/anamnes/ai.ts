@@ -56,41 +56,85 @@ async function boundedProviderJson(response: Response): Promise<unknown> {
       chunks.push(part.value);
     }
   } finally { reader.releaseLock(); }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  const body = Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
+  if (response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "text/event-stream") return JSON.parse(body) as unknown;
+  // Compatible gateways may stream even when JSON was requested. Only a
+  // completed Responses event can authorize using output; partial deltas,
+  // [DONE] alone, failures and truncated streams never become an analysis.
+  let completed: Record<string, unknown> | null = null;
+  const doneItems: unknown[] = [];
+  for (const frame of body.split(/\r?\n\r?\n/)) {
+    const lines = frame.split(/\r?\n/);
+    const data = lines.filter(line => line.startsWith("data:")).map(line => line.slice(5).replace(/^ /, "")).join("\n");
+    if (!data || data === "[DONE]") continue;
+    const event = z.object({ type: z.string(), response: z.record(z.string(), z.unknown()).optional(), item: z.unknown().optional() }).passthrough().parse(JSON.parse(data));
+    const eventName = lines.find(line => line.startsWith("event:"))?.slice(6).trim();
+    if (eventName && eventName !== event.type) throw new Error("Provider stream event mismatch");
+    if (event.type === "error" || ["response.failed", "response.incomplete", "response.cancelled"].includes(event.type)) throw new Error("Provider stream failed");
+    if (event.type === "response.output_item.done") {
+      const item = z.object({ type: z.string(), status: z.string().optional() }).passthrough().parse(event.item);
+      if (item.type === "message") {
+        if (item.status !== "completed" || doneItems.length >= 20) throw new Error("Provider stream item incomplete");
+        doneItems.push(item);
+      }
+    }
+    if (event.type === "response.completed" || event.type === "response.done") {
+      if (completed || !event.response || event.response.status !== "completed") throw new Error("Provider stream incomplete");
+      completed = event.response;
+    }
+  }
+  if (!completed) throw new Error("Provider stream incomplete");
+  return Object.hasOwn(completed, "output") ? completed : { ...completed, output: doneItems };
 }
 const ResponsesEnvelopeSchema = z.object({ status: z.literal("completed"), output: z.array(z.object({ type: z.string(), content: z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()).optional() }).passthrough()).min(1).max(20) }).passthrough();
+type AiFailureCode = "disabled" | "configuration" | "global_quota" | "upstream_http" | "timeout" | "network" | "invalid_envelope" | "invalid_model_output" | "refusal" | "local_unavailable";
+function unavailable(code: AiFailureCode, httpStatus?: number): null {
+  // Fixed categories and an HTTP status are enough to diagnose fallback.
+  // Never include raw errors, upstream bodies, patient data or credentials.
+  console.warn("anamnes_ai_unavailable", { code, ...(httpStatus ? { httpStatus } : {}) });
+  return null;
+}
 async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string, systemInstructions: string, answers: AnswerMap, narrative: string): Promise<T | null> {
   // Read the current database choice for every attempt. A stale browser's
   // consent or a crafted request cannot override an administrator's choice.
-  if (await getAnamnesAnalysisMode() !== "ai") return null;
+  if (await getAnamnesAnalysisMode() !== "ai") return unavailable("disabled");
   const config = anamnesAiConfig();
-  if (!config.available || !config.endpoint) return null;
+  if (!config.available || !config.endpoint) return unavailable("configuration");
+  let phase: "budget" | "request" | "envelope" | "output" = "budget";
   try {
     // A durable deployment-wide fixed 24-hour window, starting with its first
     // attempt, applies in addition to per-client limits. Failed provider
     // attempts count too; the shared budget key contains no patient data.
-    if (!(await rateLimit("anamnes-ai-global:v1", anamnesAiDailyLimit(), 24 * 60))) return null;
+    if (!(await rateLimit("anamnes-ai-global:v1", anamnesAiDailyLimit(), 24 * 60))) return unavailable("global_quota");
     const questions = questionBank.filter((question) => !question.professionalOnly);
     const { $schema: _schemaDialect, ...jsonSchema } = z.toJSONSchema(schema);
+    phase = "request";
     const response = await fetch(config.endpoint, {
       method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12000),
-      headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
-        model: config.model, store: false, instructions: systemInstructions,
+        model: config.model, store: false, stream: false, instructions: systemInstructions,
+        // Sonnet 5 enables thinking by default. Keep the reviewed, short ID
+        // response budget instead of spending it on hidden reasoning tokens.
+        ...(new URL(config.endpoint).hostname === "openrouter.ai" && config.model === "anthropic/claude-sonnet-5" ? { reasoning: { enabled: false } } : {}),
         input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ kind: "untrusted_patient_answer_data", ...(narrative ? { untrustedNarrative: narrative } : {}), confirmedAnswers: answers, allowedPatternIds: patternIds, independentPatternGuide: patternCatalog.map(pattern => ({ id: pattern.id, name: pattern.name, pinyin: pattern.pinyin, requiredQuestionIds: pattern.requiredQuestionIds, supportingQuestionIds: [...new Set(pattern.supportingRules.map(rule => rule.questionId))], opposingQuestionIds: [...new Set(pattern.opposingRules.map(rule => rule.questionId))] })), questions: questions.map(({ id, section, prompt, options }) => ({ id, section, prompt, options })) }) }] }],
         max_output_tokens: 800,
         text: { format: { type: "json_schema", name: schemaName, strict: true, schema: jsonSchema } },
       }),
     });
+    if (!response.ok) return unavailable("upstream_http", response.status);
+    phase = "envelope";
     const envelope = ResponsesEnvelopeSchema.parse(await boundedProviderJson(response));
     const parts = envelope.output.flatMap((message) => message.content ?? []);
-    if (parts.some((part) => part.type === "refusal")) return null;
+    if (parts.some((part) => part.type === "refusal")) return unavailable("refusal");
     const outputs = parts.filter((part) => part.type === "output_text");
-    if (outputs.length !== 1 || !outputs[0].text) return null;
+    if (outputs.length !== 1 || !outputs[0].text) return unavailable("invalid_model_output");
+    phase = "output";
     return schema.parse(JSON.parse(outputs[0].text));
-  } catch {
+  } catch (error) {
     // No upstream data, patient answers or credentials enter ordinary logs.
-    return null;
+    if (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) return unavailable("timeout");
+    return unavailable(phase === "request" ? "network" : phase === "envelope" ? "invalid_envelope" : phase === "output" ? "invalid_model_output" : "local_unavailable");
   }
 }
 function allowedModelIds(answers: AnswerMap, analysis: PatternAnalysis) {

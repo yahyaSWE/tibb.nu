@@ -27,7 +27,9 @@ assert.match(process.env.TIBB_DATABASE_PATH ?? "", /tibb-anamnes-backend-[^/\\]+
 let admin: User;
 let student: User;
 const originalFetch = globalThis.fetch;
+const originalWarn = console.warn;
 let requests = 0;
+let aiDiagnostics: unknown[][] = [];
 let providerReply: unknown;
 let lastProviderBody: Record<string, unknown>;
 const fresh = () => new Request("https://website.example.test/api/anamnes/analyze", { method: "POST", headers: { origin: "https://website.example.test", "content-type": "application/json" }, body: "{}" });
@@ -68,17 +70,20 @@ before(async () => {
 });
 beforeEach(async () => {
   await getDb().prepare("DELETE FROM app_meta WHERE key='anamnes_analysis_mode'").run();
-  clearConfiguration(); requests = 0; providerReply = response({ patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] });
+  clearConfiguration(); requests = 0; aiDiagnostics = []; providerReply = response({ patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] });
+  console.warn = (...values: unknown[]) => { aiDiagnostics.push(values); };
   globalThis.fetch = async (url, init) => {
     requests++;
     assert.equal(url, "https://api.openai.com/v1/responses");
     assert.equal(init?.cache, "no-store");
     assert.equal(init?.redirect, "error");
+    assert.equal(new Headers(init?.headers).get("accept"), "application/json");
     lastProviderBody = JSON.parse(String(init?.body));
+    assert.equal(lastProviderBody.stream, false);
     return Response.json(providerReply);
   };
 });
-after(async () => { globalThis.fetch = originalFetch; clearConfiguration(); await getDb().close(); });
+after(async () => { globalThis.fetch = originalFetch; console.warn = originalWarn; clearConfiguration(); await getDb().close(); });
 
 test("catalog seeds only ten unverified formulas and hides supplier evidence", async () => {
   const entries = await getFormulaCatalog();
@@ -225,6 +230,32 @@ test("AI sees independent vocabulary and coded answers with strict JSON, no cata
   assert.ok(providerInput.independentPatternGuide.some((pattern: {id:string;name:string}) => pattern.id === "foodStagnation" && pattern.name === "Födostagnation"));
   assert.equal(providerInput.independentPatternGuide.length, providerInput.allowedPatternIds.length);
   assert.ok(result.report.followUpQuestionIds.length <= 5);
+});
+
+test("only the exact OpenRouter Sonnet 5 configuration disables default thinking for the bounded output budget", async () => {
+  await configure();
+  const scenarios = [
+    { provider: "responses-compatible", endpoint: "https://openrouter.ai/api/v1/responses", model: "anthropic/claude-sonnet-5", disabled: true },
+    { provider: "responses-compatible", endpoint: "https://openrouter.ai/api/v1/responses", model: "anthropic/claude-sonnet-4.6", disabled: false },
+    { provider: "responses-compatible", endpoint: "https://openrouter.ai/api/v1/responses", model: "anthropic/claude-sonnet-5.5", disabled: false },
+    { provider: "responses-compatible", endpoint: "https://vendor.example/v1/responses", model: "anthropic/claude-sonnet-5", disabled: false },
+    { provider: "responses-compatible", endpoint: "https://openrouter.ai.vendor.example/v1/responses", model: "anthropic/claude-sonnet-5", disabled: false },
+    { provider: "openai", endpoint: "https://openrouter.ai/api/v1/responses", model: "anthropic/claude-sonnet-5", disabled: false },
+  ];
+  globalThis.fetch = async (_url, init) => {
+    lastProviderBody = JSON.parse(String(init?.body));
+    return Response.json(providerReply);
+  };
+  for (const scenario of scenarios) {
+    process.env.ANAMNES_AI_PROVIDER = scenario.provider;
+    process.env.ANAMNES_AI_ENDPOINT = scenario.endpoint;
+    process.env.ANAMNES_AI_MODEL = scenario.model;
+    const result = await analyzeAnamnes({ answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion });
+    assert.equal(result.report.source, "ai");
+    assert.deepEqual(lastProviderBody.reasoning, scenario.disabled ? { enabled: false } : undefined);
+    assert.equal(lastProviderBody.max_output_tokens, 800);
+    assert.equal(lastProviderBody.model, scenario.model);
+  }
 });
 
 test("narrative interview requires current separate consent, AI mode and every clear safety answer", async () => {
@@ -524,6 +555,87 @@ test("AI malformed JSON, refusals, incomplete and unrecognized model IDs fall ba
   assert.equal((await analyzeAnamnes({ answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion })).report.source, "rules");
 });
 
+test("completed Responses SSE is accepted when a compatible gateway streams despite the JSON request", async () => {
+  await configure();
+  const answers = completeAnswers();
+  const input = { answers, narrative: "Syntetiskt fall: uppblåst mage efter mat.", aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion, round: 0 };
+  const output = { patternIds: ["spleenQiDeficiency"], questionIds: ["weakVoice"], sufficient: false };
+  const completed = response(output);
+  globalThis.fetch = async (_url, init) => {
+    assert.equal(JSON.parse(String(init?.body)).stream, false);
+    assert.equal(new Headers(init?.headers).get("accept"), "application/json");
+    return new Response(`: keepalive\r\n\r\nevent: response.created\r\ndata: ${JSON.stringify({ type: "response.created", response: { status: "in_progress" } })}\r\n\r\nevent: response.completed\r\ndata: ${JSON.stringify({ type: "response.completed", response: completed })}\r\n\r\ndata: [DONE]\r\n\r\n`, { headers: { "Content-Type": "text/event-stream; charset=utf-8" } });
+  };
+  const result = await interviewAnamnes(input);
+  assert.equal(result.report.source, "ai");
+  assert.equal(result.reason, "continue");
+  assert.deepEqual(result.questionIds, ["weakVoice"]);
+});
+
+test("Responses done events use completed message items and never partial deltas", async () => {
+  await configure();
+  const output = { patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] };
+  const completed = response(output);
+  const item = { ...completed.output[0], status: "completed" };
+  const events = [
+    { type: "response.content_part.delta", delta: "synthetic ignored partial text" },
+    { type: "response.output_item.done", item },
+    { type: "response.done", response: { status: "completed" } },
+  ];
+  const bytes = new TextEncoder().encode(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join("") + "data: [DONE]\n\n");
+  globalThis.fetch = async () => new Response(new ReadableStream({ start(controller) {
+    // Transport chunks need not align with SSE frames or UTF-8 characters.
+    for (let offset = 0; offset < bytes.length; offset += 7) controller.enqueue(bytes.slice(offset, offset + 7));
+    controller.close();
+  } }), { headers: { "Content-Type": "text/event-stream" } });
+  assert.equal((await analyzeAnamnes({ answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion })).report.source, "ai");
+});
+
+test("Responses SSE failures, truncation, invalid outputs and oversized bodies fall back safely", async () => {
+  await configure();
+  const completed = response({ patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] });
+  const frame = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
+  const done = frame({ type: "response.completed", response: completed });
+  const invalidStreams = [
+    "data: [DONE]\n\n",
+    frame({ type: "response.output_item.done", item: { ...completed.output[0], status: "completed" } }),
+    frame({ type: "response.content_part.delta", delta: JSON.stringify(completed) }) + frame({ type: "response.done", response: { status: "completed" } }),
+    frame({ type: "response.incomplete", response: { status: "incomplete", output: completed.output } }),
+    done + frame({ type: "error", error: { message: "synthetic private upstream details" } }),
+    "event: response.failed\n" + done,
+    frame({ type: "response.completed", response: response({ patternIds: ["invented"], followUpQuestionIds: [] }) }),
+    frame({ type: "response.completed", response: response({ patternIds: [], followUpQuestionIds: [], prescription: "synthetic forbidden prose" }) }),
+    done + done,
+    ":" + "x".repeat(64 * 1024) + "\n\n" + done,
+  ];
+  for (const stream of invalidStreams) {
+    globalThis.fetch = async () => new Response(stream, { headers: { "Content-Type": "text/event-stream" } });
+    assert.equal((await analyzeAnamnes({ answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion })).report.source, "rules");
+  }
+});
+
+test("AI fallback diagnostics contain fixed categories only, never provider or patient content", async () => {
+  await configure();
+  const secretCanary = "SYNTHETIC_PRIVATE_CANARY_NEVER_LOG";
+  process.env.ANAMNES_AI_API_KEY = secretCanary;
+  process.env.ANAMNES_AI_MODEL = secretCanary;
+  const input = { answers: completeAnswers(), narrative: `${secretCanary}: en påhittad vuxen beskriver magen.`, aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion };
+  const scenarios: { reply: () => Promise<Response>; code: string; httpStatus?: number }[] = [
+    { reply: async () => new Response(secretCanary, { status: 402 }), code: "upstream_http", httpStatus: 402 },
+    { reply: async () => { throw new DOMException(secretCanary, "TimeoutError"); }, code: "timeout" },
+    { reply: async () => { throw new TypeError(secretCanary); }, code: "network" },
+    { reply: async () => Response.json({ status: secretCanary, output: [] }), code: "invalid_envelope" },
+    { reply: async () => Response.json(response({ patternIds: [secretCanary], followUpQuestionIds: [] })), code: "invalid_model_output" },
+    { reply: async () => Response.json({ status: "completed", output: [{ type: "message", content: [{ type: "refusal", refusal: secretCanary }] }] }), code: "refusal" },
+  ];
+  for (const scenario of scenarios) {
+    globalThis.fetch = scenario.reply;
+    assert.equal((await analyzeAnamnes(input)).report.source, "rules");
+    assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: scenario.code, ...(scenario.httpStatus ? { httpStatus: scenario.httpStatus } : {}) }]);
+  }
+  assert.equal(JSON.stringify(aiDiagnostics).includes(secretCanary), false);
+});
+
 test("compatible endpoint configuration rejects non-public or credential-bearing endpoints", async () => {
   await configure();
   process.env.ANAMNES_AI_PROVIDER = "responses-compatible";
@@ -543,6 +655,7 @@ test("deployment-wide durable AI budget falls back after the configured daily ca
   assert.equal((await analyzeAnamnes(input)).report.source, "ai");
   assert.equal((await analyzeAnamnes(input)).report.source, "rules");
   assert.equal(requests, 1);
+  assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: "global_quota" }]);
   assert.equal((await getDb().prepare("SELECT count FROM rate_limits WHERE key='anamnes-ai-global:v1'").get())!.count, 1);
   await getDb().prepare("DELETE FROM rate_limits WHERE key='anamnes-ai-global:v1'").run();
 });

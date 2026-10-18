@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { anamnesAiConfig, anamnesAiDailyLimit, anamnesEncryptionKey } from "./config";
 import { rateLimit } from "../db";
-import { AiDifferentialSchema, AiInterviewSchema, ReportSchema, patternIds, type AiDifferential, type AiInterview, type AnswerMap, type PatternAnalysis, type Report } from "./types";
+import { AiDifferentialSchema, AiInterviewSchema, PatternIdSchema, QuestionIdSchema, ReportSchema, patternIds, type AiDifferential, type AiInterview, type AnswerMap, type PatternAnalysis, type Report } from "./types";
 import { questionBank } from "./questions";
 import { patternCatalog } from "./patterns";
 import { getAnamnesAnalysisMode } from "./settings";
@@ -136,6 +136,15 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
     // attempts count too; the shared budget key contains no patient data.
     if (!(await rateLimit("anamnes-ai-global:v1", anamnesAiDailyLimit(), 24 * 60))) return unavailable("global_quota");
     const questions = questionBank.filter((question) => !question.professionalOnly);
+    // Some compatible providers ignore array limits. Validate the complete
+    // bounded vocabulary first, including IDs beyond the eventual cutoff.
+    const wirePatterns = z.array(PatternIdSchema).max(patternIds.length);
+    const wireQuestions = z.array(QuestionIdSchema).max(questionBank.length);
+    const wireSchema = schemaName === "anamnes_interview"
+      ? AiInterviewSchema.extend({ patternIds: wirePatterns, questionIds: wireQuestions })
+      : AiDifferentialSchema.extend({ patternIds: wirePatterns, followUpQuestionIds: wireQuestions });
+    // Keep requesting the small public caps even when a gateway fails to
+    // enforce them; the broader wire schema is only an inbound tolerance.
     const { $schema: _schemaDialect, ...jsonSchema } = z.toJSONSchema(schema);
     const example = schemaName === "anamnes_interview" ? '{"patternIds":[],"questionIds":[],"sufficient":false}' : '{"patternIds":[],"followUpQuestionIds":[]}';
     phase = "request";
@@ -167,7 +176,15 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
     let parsed: unknown;
     try { parsed = parseModelJson(outputs.map(part => part.text).join("")); }
     catch { return unavailable("invalid_model_output", undefined, { subcode: "json_invalid" }); }
-    const validated = schema.safeParse(parsed);
+    const wire = wireSchema.safeParse(parsed);
+    if (!wire.success) return unavailable("invalid_model_output", undefined, { subcode: "schema_invalid", issueCodes: [...new Set(wire.error.issues.map(issue => safeIssueCodes.has(issue.code) ? issue.code : "other"))] });
+    // Stable deduplication preserves the model's order; existing public caps
+    // and the independent eligibility checks remain the final authority.
+    const bounded = {
+      ...wire.data, patternIds: [...new Set(wire.data.patternIds)].slice(0, 6),
+      ...("questionIds" in wire.data ? { questionIds: [...new Set(wire.data.questionIds)].slice(0, 3) } : { followUpQuestionIds: [...new Set(wire.data.followUpQuestionIds)].slice(0, 5) }),
+    };
+    const validated = schema.safeParse(bounded);
     if (!validated.success) return unavailable("invalid_model_output", undefined, { subcode: "schema_invalid", issueCodes: [...new Set(validated.error.issues.map(issue => safeIssueCodes.has(issue.code) ? issue.code : "other"))] });
     return validated.data;
   } catch (error) {

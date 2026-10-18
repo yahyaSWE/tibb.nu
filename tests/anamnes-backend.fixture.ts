@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createCipheriv, randomBytes, randomUUID } from "node:crypto";
 import { createFirstAdmin, getDb, getUser } from "../src/lib/db";
 import type { User } from "../src/lib/types";
-import { FormulaRecordSchema, INTERVIEW_MAX_ROUNDS, type AnswerMap } from "../src/lib/anamnes/types";
+import { FormulaRecordSchema, INTERVIEW_MAX_ROUNDS, patternIds, type AnswerMap } from "../src/lib/anamnes/types";
 import { getInitialQuestions, questionBank } from "../src/lib/anamnes/questions";
 import { getSafetyAssessment, analyzePatterns } from "../src/lib/anamnes/engine";
 import { getFormulaCatalog, saveFormulaCatalogEntry, deleteFormulaCatalogEntry, publicFormulaCatalog } from "../src/lib/anamnes/catalog";
@@ -614,7 +614,7 @@ test("model JSON compatibility accepts only complete objects and canonicalizes k
   assert.deepEqual(result.questionIds, ["weakVoice"]);
 });
 
-test("model JSON compatibility never repairs unknown IDs, keys, types, counts, surrounding prose or multiple answers", async () => {
+test("model JSON compatibility never repairs unknown IDs, keys, types, unbounded counts, surrounding prose or multiple answers", async () => {
   await configure();
   const input = { answers: completeAnswers(), aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion };
   const valid = JSON.stringify({ patternIds: ["spleenQiDeficiency"], followUpQuestionIds: ["weakVoice"] });
@@ -626,7 +626,7 @@ test("model JSON compatibility never repairs unknown IDs, keys, types, counts, s
     JSON.stringify({ patternIds: ["INVENTED"], followUpQuestionIds: [] }),
     JSON.stringify({ PatternIds: [], followUpQuestionIds: [] }),
     JSON.stringify({ patternIds: [], followUpQuestionIds: [], prescription: "forbidden" }),
-    JSON.stringify({ patternIds: Array(7).fill("spleenQiDeficiency"), followUpQuestionIds: [] }),
+    JSON.stringify({ patternIds: Array(patternIds.length + 1).fill("spleenQiDeficiency"), followUpQuestionIds: [] }),
     JSON.stringify({ patternIds: "spleenQiDeficiency", followUpQuestionIds: [] }),
   ];
   for (const text of invalid) {
@@ -639,6 +639,35 @@ test("model JSON compatibility never repairs unknown IDs, keys, types, counts, s
   globalThis.fetch = async () => Response.json({ status: "completed", output: [{ type: "reasoning", content: [{ type: "output_text", text: valid }] }] });
   assert.equal((await analyzeAnamnes(input)).report.source, "rules");
   assert.deepEqual(aiDiagnostics.at(-1), ["anamnes_ai_unavailable", { code: "invalid_model_output", subcode: "output_missing" }]);
+});
+
+test("validated known model IDs are stably deduplicated and capped only after checking the entire response", async () => {
+  await configure();
+  const answers = completeAnswers();
+  const input = { answers, narrative: "Syntetiskt fall: magen efter mat.", aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion, round: 0 };
+  providerReply = response({ patternIds: [...patternIds.slice(0, 8)], questionIds: ["weakVoice", "weakVoice", "pallor", "dizziness", "dryEyes"], sufficient: false });
+  const interview = await interviewAnamnes(input);
+  assert.equal(interview.report.source, "ai");
+  assert.deepEqual(interview.questionIds, ["weakVoice", "pallor", "dizziness"]);
+  const requestedInterview = (lastProviderBody.text as { format: { schema: { properties: Record<string, { maxItems: number }> } } }).format.schema;
+  assert.equal(requestedInterview.properties.patternIds.maxItems, 6);
+  assert.equal(requestedInterview.properties.questionIds.maxItems, 3);
+  providerReply = response({ patternIds: Array(7).fill("spleenQiDeficiency"), followUpQuestionIds: ["weakVoice", "weakVoice", "pallor", "dizziness", "dryEyes", "hairNails", "tinnitus"] });
+  const differential = await requestAiDifferential(answers, analyzePatterns(answers));
+  assert.deepEqual(differential?.patternIds, ["spleenQiDeficiency"]);
+  assert.deepEqual(differential?.followUpQuestionIds, ["weakVoice", "pallor", "dizziness", "dryEyes", "hairNails"]);
+  assert.equal((lastProviderBody.text as { format: { schema: { properties: Record<string, { maxItems: number }> } } }).format.schema.properties.followUpQuestionIds.maxItems, 5);
+  for (const output of [
+    { patternIds: [], questionIds: ["weakVoice", "pallor", "dizziness", "invented-tail"], sufficient: false },
+    { patternIds: [...patternIds.slice(0, 6), "invented-tail"], questionIds: ["weakVoice"], sufficient: false },
+    { patternIds: [], questionIds: ["weakVoice", "pallor", "dizziness", 42], sufficient: false },
+    { patternIds: [], questionIds: ["weakVoice", "pallor", "dizziness", "dryEyes"], sufficient: false, extra: "forbidden" },
+  ]) {
+    providerReply = response(output);
+    assert.equal((await interviewAnamnes(input)).report.source, "rules");
+  }
+  providerReply = response({ patternIds: [], followUpQuestionIds: ["weakVoice", "pallor", "dizziness", "dryEyes", "hairNails", "invented-tail"] });
+  assert.equal(await requestAiDifferential(answers, analyzePatterns(answers)), null);
 });
 
 test("Responses SSE failures, truncation, invalid outputs and oversized bodies fall back safely", async () => {

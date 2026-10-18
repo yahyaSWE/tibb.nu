@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     assertAnamnesOrigin(request);
-    // The questionnaire and interview share the same budget. Changing route
-    // cannot reset a visitor's allowance.
-    await enforceAnamnesRateLimit(request, "analyze");
+    // Allow the finite reviewed interview to finish while retaining a request
+    // rate limit and the separate deployment-wide provider spending budget.
+    await enforceAnamnesRateLimit(request, "interview");
     return anamnesJson(await interviewAnamnes(await anamnesRequestJson(request)));
   } catch (error) { return anamnesResponseError(error); }
 }

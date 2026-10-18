@@ -29,7 +29,7 @@ export function anamnesAiConfig() {
   const endpoint = provider === "openai" ? "https://api.openai.com/v1/responses" : provider === "responses-compatible" ? configuredCompatibleEndpoint() : null;
   const providerLabel = provider === "openai" ? "OpenAI" : endpoint ? new URL(endpoint).hostname : "AI";
   const available = enabled("ANAMNES_AI_ENABLED") && activationReviewed() && !!endpoint && !!model && !!apiKey && privacyNotice.length >= 30;
-  return { available, provider, providerLabel, model, apiKey, privacyNotice, endpoint, consentVersion: consentVersion("ai-v2-narrative-interview", provider, endpoint, model, privacyNotice) };
+  return { available, provider, providerLabel, model, apiKey, privacyNotice, endpoint, consentVersion: consentVersion("ai-v3-consultation-context", provider, endpoint, model, privacyNotice) };
 }
 function configuredCompatibleEndpoint(): string | null {
   try {
@@ -43,7 +43,7 @@ export function anamnesSubmissionsAvailable() {
   return enabled("ANAMNES_SUBMISSIONS_ENABLED") && activationReviewed() && !!anamnesEncryptionKey() && therapistEmails().length > 0 && (process.env.ANAMNES_SUBMISSION_PRIVACY_NOTICE?.trim().length ?? 0) >= 30;
 }
 export function anamnesSubmissionConsentVersion() {
-  return consentVersion("clinic-submission-v2-narrative", "Joart Group AB 559363-3893", process.env.ANAMNES_SUBMISSION_PRIVACY_NOTICE?.trim(), anamnesRetentionDays(), therapistEmails().sort());
+  return consentVersion("clinic-submission-v3-consultation-context", "Joart Group AB 559363-3893", process.env.ANAMNES_SUBMISSION_PRIVACY_NOTICE?.trim(), anamnesRetentionDays(), therapistEmails().sort());
 }
 export function getAnamnesConfigStatus() {
   const ai = anamnesAiConfig();

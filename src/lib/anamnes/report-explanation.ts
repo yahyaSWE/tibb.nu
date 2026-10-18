@@ -185,9 +185,6 @@ export function explainAnamnesReport(report: Report, input: AnswerMap): AnamnesR
   } else {
     nextSteps.push('Boka en konsultation för att gå igenom besvär, svar och eventuella skillnader i underlaget tillsammans med en behandlare.');
   }
-  if (answers.priorAssessment === 'no' || answers.priorAssessment === 'unknown' || !Object.hasOwn(answers,'priorAssessment')) {
-    nextSteps.push('Ta upp om besvären har bedömts i hälso- och sjukvården. Formuläret kan inte utesluta medicinska orsaker.');
-  }
   if (report.followUpQuestionIds.length) nextSteps.push('Kompletterande frågor finns nedan. Svara bara på det du känner till; osäkra uppgifter kan tas upp vid konsultationen.');
 
   return {direction,overview,observations,limitations,nextSteps,comparison,coverage};

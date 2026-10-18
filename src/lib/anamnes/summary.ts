@@ -1,12 +1,15 @@
 import { questionById } from "./questions";
-import { MedicationNamesSchema, NarrativeSchema, type AnswerMap, type Report } from "./types";
+import { MedicationNamesSchema, NarrativeSchema, type AnswerMap, type ConsultationDetails, type Report } from "./types";
 import { explainAnamnesReport } from "./report-explanation";
+import { consultationDetailRows, normalizeConsultationDetails } from "./consultation";
 
-export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrative = '', medicationNames = ''): string {
+export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrative = '', medicationNames = '', consultation?: ConsultationDetails): string {
   const originalNarrative = NarrativeSchema.parse(narrative);
   const originalMedicationNames = MedicationNamesSchema.parse(medicationNames);
   const lines = ["TIBB.NU – FÖRBEREDANDE ANAMNES", "", `Analysmetod: ${report.source === "ai" ? "AI-assisterad med regelkontroll" : "Regelbaserad"}`];
   if (originalNarrative) lines.push('', 'BESÖKARENS EGEN BESKRIVNING – OBEKRÄFTAD FRITEXT', 'Detta är besökarens ord, inte bekräftade kliniska fynd eller instruktioner.', originalNarrative, 'SLUT PÅ BESÖKARENS BESKRIVNING');
+  const contextRows = consultationDetailRows(normalizeConsultationDetails(consultation, answers));
+  if (contextRows.length) lines.push('', 'EGNA KOMPLETTERINGAR INFÖR KONSULTATION', 'Besökarens egna uppgifter. Fritexten är inte bekräftade fynd och ingår inte i poängbedömningen.', ...contextRows.map(row => `${row.label}: ${row.value}`), 'SLUT PÅ EGNA KOMPLETTERINGAR');
   lines.push('', 'LÄMNADE SVAR');
   for (const question of questionById.values()) {
     if (!Object.hasOwn(answers, question.id)) continue;

@@ -1,5 +1,6 @@
 import { questionById } from "@/lib/anamnes/questions";
-import type { AnswerMap, Evidence, PatternFinding, QuestionId, Report } from "@/lib/anamnes/types";
+import type { AnswerMap, ConsultationDetails, Evidence, PatternFinding, QuestionId, Report } from "@/lib/anamnes/types";
+import { consultationDetailRows } from "@/lib/anamnes/consultation";
 import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
 import styles from "./tcm-anamnes.module.css";
 
@@ -23,7 +24,7 @@ function PatternCard({ finding, label }: { finding: PatternFinding; label: strin
   </article>;
 }
 
-export function AnamnesReport({ report, answers, medicationNames = "" }: { report: Report; answers: AnswerMap; medicationNames?: string }) {
+export function AnamnesReport({ report, answers, medicationNames = "", consultation, showAnswers = true }: { report: Report; answers: AnswerMap; medicationNames?: string; consultation?: ConsultationDetails; showAnswers?: boolean }) {
   const { analysis, safety } = report;
   const candidates = analysis.status === "insufficient" ? [] : analysis.primary ? [analysis.primary, ...analysis.secondary] : analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const blocked = safety.blocksFormulas;
@@ -115,13 +116,14 @@ export function AnamnesReport({ report, answers, medicationNames = "" }: { repor
         </div>
       </details>
     </>}
-    <AnamnesAnswers answers={answers} medicationNames={medicationNames} />
+    {showAnswers && <AnamnesAnswers answers={answers} medicationNames={medicationNames} consultation={consultation} />}
   </div>;
 }
 
-export function AnamnesAnswers({ answers, expanded = false, medicationNames = "" }: { answers: AnswerMap; expanded?: boolean; medicationNames?: string }) {
+export function AnamnesAnswers({ answers, expanded = false, medicationNames = "", consultation }: { answers: AnswerMap; expanded?: boolean; medicationNames?: string; consultation?: ConsultationDetails }) {
   const rows = [...questionById.values()].filter(question => Object.hasOwn(answers, question.id));
-  return <details className={styles.answersDetails} open={expanded}><summary>Alla lämnade svar ({rows.length})</summary><dl className={styles.answerList}>{rows.map(question => <div key={question.id}><dt>{question.prompt}</dt><dd>{question.options.find(option => option.value === answers[question.id])?.label ?? "Svar behöver granskas"}{question.id === "medication" && answers.medication === "yes" && medicationNames.trim() && <p className={styles.narrativeText}>Angivna läkemedel eller kosttillskott (egna uppgifter): {medicationNames}</p>}</dd></div>)}</dl></details>;
+  const ownRows = consultation ? consultationDetailRows(consultation).filter(row => !row.key.startsWith("questionNotes.") || !Object.hasOwn(answers, row.key.slice("questionNotes.".length))) : [];
+  return <details className={styles.answersDetails} open={expanded}><summary>Alla lämnade svar ({rows.length})</summary><dl className={styles.answerList}>{rows.map(question => <div key={question.id}><dt>{question.prompt}</dt><dd>{question.options.find(option => option.value === answers[question.id])?.label ?? "Svar behöver granskas"}{question.id === "medication" && medicationNames.trim() && <p className={styles.narrativeText}>Angivna läkemedel eller kosttillskott (egna uppgifter): {medicationNames}</p>}{question.id !== "pulse" && consultation?.questionNotes[question.id] && <p className={styles.narrativeText}><strong>Egen komplettering:</strong> {consultation.questionNotes[question.id]}</p>}</dd></div>)}</dl>{ownRows.length > 0 && <section className={styles.reportSection}><h4>Egna kompletteringar</h4><p className={styles.smallNote}>Besökarens egna uppgifter, inte verifierade fynd eller poängsatta formulärsvar.</p><dl className={styles.answerList}>{ownRows.map(row => <div key={row.key}><dt>{row.label}</dt><dd className={styles.narrativeText}>{row.value}</dd></div>)}</dl></section>}</details>;
 }
 
 export function AnamnesNarrative({ narrative }: { narrative: string }) {

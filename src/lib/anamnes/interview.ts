@@ -1,12 +1,12 @@
 import { getSafetyAssessment, safetyQuestionIds } from './engine';
 import { patternById } from './patterns';
-import { baseQuestionIds, getInitialQuestions, questionById, validateAnswers } from './questions';
-import { INTERVIEW_MAX_ROUNDS, InterviewRoundSchema, type AnswerMap, type FormulaRecord, type PatternAnalysis, type QuestionId, type Report } from './types';
+import { baseQuestionIds, getInitialQuestions, isPublicQuestion, questionById, validateAnswers } from './questions';
+import { type AnswerMap, type FormulaRecord, type PatternAnalysis, type QuestionId, type Report } from './types';
 
-export { INTERVIEW_MAX_ROUNDS } from './types';
 export const mandatoryInterviewQuestions: readonly QuestionId[] = ['emergency','clinicalRedFlags','adult','pregnancy','medication','chronicDisease','liverKidney','allergy'];
-export const mandatoryInterviewBackgroundQuestions: readonly QuestionId[] = ['focus','duration','trend','priorAssessment'];
-const backgroundIds: readonly QuestionId[] = [...mandatoryInterviewBackgroundQuestions,'onset'];
+export const mandatoryInterviewBackgroundQuestions: readonly QuestionId[] = ['focus','duration','onset','trend'];
+export const coreInterviewQuestions: readonly QuestionId[] = ['temperature','energy','sleep','appetite','stool','thirst','sweating','emotion','pain'];
+const backgroundIds: readonly QuestionId[] = [...mandatoryInterviewBackgroundQuestions,'priorAssessment'];
 const undecided = new Set(['unknown','prefer_not']);
 const isKnown = (answers: AnswerMap, id: QuestionId) => Object.hasOwn(answers,id) && !undecided.has(answers[id]!);
 const focusedPainQuestionIds: readonly QuestionId[] = ['painLocation','painCharacter','painMovement','weatherPain','painWarmth','jointWarmth','stiffness'];
@@ -42,7 +42,7 @@ export function sanitizeInterviewQuestionIds(ids: readonly unknown[], input: Ans
   for (const id of [...getPendingInterviewBackgroundQuestions(answers),...pendingPainSafety,...ids]) {
     if (typeof id !== 'string') continue;
     const question = questionById.get(id as QuestionId);
-    if (question && !question.professionalOnly && !Object.hasOwn(answers,question.id) && (!meaningful || meaningful.has(question.id))) unique.add(question.id);
+    if (question && isPublicQuestion(question) && !Object.hasOwn(answers,question.id) && (!meaningful || meaningful.has(question.id))) unique.add(question.id);
     if (unique.size === 3) break;
   }
   return [...unique];
@@ -57,9 +57,9 @@ export function interviewHasEnoughAnswers(input: AnswerMap): boolean {
   return symptomIds.filter(id => isKnown(answers,id as QuestionId)).length >= 6;
 }
 
-/** Ten bounded question batches may be followed by one final, possibly incomplete report. */
-export function interviewReachedLimit(round: number): boolean {
-  return InterviewRoundSchema.parse(round) === INTERVIEW_MAX_ROUNDS;
+/** Completion follows content coverage rather than a count of question batches. */
+export function interviewHasCoreCoverage(answers: AnswerMap): boolean {
+  return coreInterviewQuestions.every(id => Object.hasOwn(answers,id));
 }
 
 /** Stopping early cannot turn an unfinished interview into a confident report. */
@@ -83,7 +83,9 @@ function remainingInterviewQuestionIds(input: AnswerMap, analysis: PatternAnalys
   const answers = validateAnswers(input);
   const pendingSafety = getPendingInterviewSafetyQuestions(answers);
   if (pendingSafety.length) return pendingSafety;
-  if (getSafetyAssessment(answers).level !== 'clear') return [];
+  // Safety-sensitive cases can still provide a local history. Only acute
+  // danger stops intake; external AI and formula gates remain separate.
+  if (getSafetyAssessment(answers).level === 'emergency') return [];
   const initial = getInitialQuestions(answers).map(question => question.id);
   // Pain characteristics and the warm/swollen-joint safety check are more
   // useful initially than a tongue observation or an assumed deficiency.
@@ -102,12 +104,12 @@ function remainingInterviewQuestionIds(input: AnswerMap, analysis: PatternAnalys
     const definition = patternById.get(finding.id)!;
     return [...definition.coreRules.map(rule => rule.questionId),...definition.requiredQuestionIds,...(!finding.qualified ? definition.supportingRules.map(rule => rule.questionId) : [])];
   });
-  // Collect a small general picture only while the interview lacks its minimum
-  // symptom history. Do not walk the whole bank after useful questions run out.
-  const general: readonly QuestionId[] = interviewHasEnoughAnswers(answers) ? [] : ['temperature','energy','sleep','appetite','stool','thirst','sweating','emotion','pain'];
+  // Retain a general TCM picture even when six specific symptoms are already
+  // known. Do not walk the whole bank after useful questions run out.
+  const general = coreInterviewQuestions;
   return [...new Set([...getPendingInterviewBackgroundQuestions(answers),...focused,...missingForPatterns,...general])].filter(id => {
     const question = questionById.get(id);
-    return question && !question.professionalOnly && !Object.hasOwn(answers,id);
+    return question && isPublicQuestion(question) && !Object.hasOwn(answers,id);
   });
 }
 
@@ -126,7 +128,7 @@ export function getFormulaComparisonQuestionIds(input: AnswerMap, analysis: Patt
   // missing; neither catalog membership nor a question creates a match.
   return [...new Set(candidates.flatMap(formula => [...formula.requiredQuestionIds,...formula.opposingRules.map(rule => rule.questionId),...formula.supportingRules.map(rule => rule.questionId)]))].filter(id => {
     const question = questionById.get(id);
-    return question && !question.professionalOnly && !Object.hasOwn(answers,id);
+    return question && isPublicQuestion(question) && !Object.hasOwn(answers,id);
   });
 }
 

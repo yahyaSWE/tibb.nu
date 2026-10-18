@@ -50,7 +50,7 @@ export const formulaSeed: readonly FormulaRecord[] = [
   {
     ...common,id:'gui-pi-tang',name:'Gui Pi Tang',pinyin:'Gui Pi Tang',swedishName:'Referens vid kombinerad Hjärt-/Mjältebrist',
     primaryPatternIds:['heartSpleenDeficiency'],secondaryPatternIds:['heartBloodDeficiency','spleenQiDeficiency'],requiredPatternIds:['heartSpleenDeficiency'],
-    supportingRules:[rule('palpitations','yes',4),rule('appetite','low',3),rule('energy','low',3),rule('rumination','yes',3)],opposingRules:[rule('thirst','strong_cold',4),rule('tongueCoating','yellow_greasy',4)],requiredQuestionIds:['palpitations','priorAssessment','appetite','pallor'],
+    supportingRules:[rule('palpitations','yes',4),rule('appetite','low',3),rule('energy','low',3),rule('rumination','yes',3)],opposingRules:[rule('thirst','strong_cold',4),rule('tongueCoating','yellow_greasy',4)],requiredQuestionIds:['palpitations','appetite','pallor'],
     theoryExplanation:'Jämförs endast när både Hjärt-Blodbrist och Mjälte-Qi-brist har stöd. Hjärtklappning behöver medicinsk bedömning, oavsett TCM-mönster.',
   },
   {

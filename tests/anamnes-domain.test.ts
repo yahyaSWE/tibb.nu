@@ -211,6 +211,28 @@ test('admin-managed additions, deactivation and pattern mapping require no AI-co
   assert.equal(validateFormulaRules({...addition,supportingRules:[{questionId:'energy',values:['arbitrary'],weight:2}]}),false);
 });
 
+test('legacy formula criteria ignore retired background questions but retain missing symptoms and safety gates', () => {
+  const input = { ...qiBlood };
+  delete input.priorAssessment;
+  const base = formulaSeed.find(formula => formula.id === 'ba-zhen-tang')!;
+  const legacy: FormulaRecord = { ...base, requiredQuestionIds: [...base.requiredQuestionIds, 'priorAssessment', 'tongueMoisture'] };
+  const report = buildReport(input, [legacy]);
+  assert.equal(report.formulaStatus, 'matched');
+  const match = report.formulaMatches[0];
+  assert.equal(match.missingQuestionIds.includes('priorAssessment'), false);
+  assert.equal(match.missingQuestionIds.includes('tongueMoisture'), true);
+  assert.equal(match.partial, true);
+  assert.deepEqual(report.analysis, analyzePatterns(input), 'retiring a background criterion must not change symptom qualification');
+  const completed = buildReport({ ...input, tongueMoisture: 'normal' }, [legacy]);
+  assert.equal(completed.formulaMatches[0].missingQuestionIds.includes('tongueMoisture'), false);
+  assert.equal(completed.formulaMatches[0].missingQuestionIds.includes('priorAssessment'), false);
+  for (const risk of [{ medication: 'yes' }, { emergency: 'yes' }] satisfies AnswerMap[]) {
+    const blocked = buildReport({ ...input, ...risk }, [legacy]);
+    assert.equal(blocked.safety.blocksFormulas, true);
+    assert.deepEqual(blocked.formulaMatches, []);
+  }
+});
+
 test('a real product is exposed only with all verified evidence, ingredients and a server-enriched internal product URL', () => {
   const base = formulaSeed.find(formula => formula.id === 'ba-zhen-tang')!;
   const verified: FormulaRecord = {...base,productId:1,productUrl:'/butik/verifierad-produkt',ingredients:['Verifierad dokumenterad råvara'],productIdentityVerified:true,ingredientsVerified:true,safetyVerified:true,regulatoryVerified:true,identityEvidence:'Underlag granskat',ingredientEvidence:'Underlag granskat',safetyEvidence:'Underlag granskat',regulatoryEvidence:'Underlag granskat'};

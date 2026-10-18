@@ -19,7 +19,8 @@ export const questionBank: readonly Question[] = [
   q('duration','Bakgrund','Hur länge har besvären funnits?',[['days','Dagar'],['weeks','Veckor'],['months','Månader'],['years','År']]),
   q('onset','Bakgrund','Hur började besvären?',[['gradual','Gradvis'],['sudden','Plötsligt'],['after_illness','Efter sjukdom'],['after_stress','Efter belastning eller stress'],['after_food','Efter en måltid']]),
   q('trend','Bakgrund','Hur har besvären utvecklats?',[['stable','Ungefär oförändrade'],['improving','Blivit bättre'],['worsening','Blivit tydligt värre'],['variable','Kommer och går']]),
-  q('priorAssessment','Bakgrund','Har de aktuella besvären bedömts av legitimerad vårdpersonal?',[['yes','Ja'],['no','Nej'],['scheduled','Undersökning är planerad']]),
+  // Retain the label for historical records; never ask it in a new intake.
+  {...q('priorAssessment','Bakgrund','Har de aktuella besvären bedömts av legitimerad vårdpersonal?',[['yes','Ja'],['no','Nej'],['scheduled','Undersökning är planerad']]), retired: true},
   q('temperature','Temperatur och vätskor','Hur brukar du uppleva din kroppstemperatur?',[['cold','Ofta frusen'],['hot','Ofta varm'],['mixed','Växlar mellan varmt och kallt'],['neutral','Ingen tydlig avvikelse']]),
   q('thirst','Temperatur och vätskor','Hur upplever du törst?',[['strong_cold','Mycket törstig, föredrar kall dryck'],['small_sips','Torr eller törstig men dricker lite i taget'],['low','Sällan törstig'],['normal','Ingen tydlig avvikelse']]),
   q('sweating','Temperatur och vätskor','När märker du framför allt svettning?',[['spontaneous','Lätt utan ansträngning'],['night','Under natten'],['exertion','Främst vid ansträngning eller värme'],['little','Svettas sällan'],['normal','Ingen tydlig avvikelse']]),
@@ -87,7 +88,8 @@ export const questionBank: readonly Question[] = [
   q('pulse','Behandlarobservation','Vilken pulskvalitet har behandlaren dokumenterat?',[['weak','Svag'],['wiry','Strängformig'],['rapid','Snabb'],['slow','Långsam'],['slippery','Halkande'],['thin','Tunn'],['normal','Ingen tydlig avvikelse']], 'Endast för behörig behandlares komplettering. Besökaren ska inte själv bedöma sin puls.', true),
 ];
 export const questionById = new Map<QuestionId, Question>(questionBank.map(question => [question.id, question]));
-export const baseQuestionIds: readonly QuestionId[] = questionBank.slice(0,23).map(question => question.id);
+export const isPublicQuestion = (question: Question) => !question.professionalOnly && !question.retired;
+export const baseQuestionIds: readonly QuestionId[] = questionBank.slice(0,23).filter(isPublicQuestion).map(question => question.id);
 const focusedQuestionIds: Record<string, QuestionId[]> = {
   digestion: ['afterMealBloat','nausea','foodTrigger','ribTension','heaviness','tongueCoating'],
   energy: ['weakVoice','exertion','pallor','dizziness','sinking','tongueColor'],
@@ -129,7 +131,7 @@ export function getFollowupQuestions(answers: AnswerMap, analysis: PatternAnalys
   const candidates = [...selectedIds, ...missing, 'tongueCoating', 'tongueColor', 'painCharacter', 'hotPalms', 'pallor'] as QuestionId[];
   return [...new Set(candidates)].filter(id => {
     const question = questionById.get(id);
-    return question && !question.professionalOnly && !initial.has(id) && (!answers[id] || ['unknown','prefer_not'].includes(answers[id]!));
+    return question && isPublicQuestion(question) && !initial.has(id) && !Object.hasOwn(answers,id);
   }).slice(0,5).map(id => questionById.get(id)!);
 }
 export function validateFormulaRules(formula: FormulaRecord): boolean {

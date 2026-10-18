@@ -32,6 +32,42 @@
 .anamnes-admin-delete { margin-top:24px; border-top:1px solid var(--border,#d2ddc9); padding-top:20px; }
 .anamnes-admin-sensitive { border-left:4px solid var(--green-dark,#35584d); padding-left:18px; }
 .anamnes-admin-setup-list { overflow-wrap:anywhere; }
+.anamnes-therapist-overview { margin-top:24px; }
+.anamnes-therapist-overview .anamnes-admin-status h2 { margin:0; }
+.anamnes-therapist-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:22px; }
+.anamnes-therapist-card { min-width:0; border:1px solid var(--border,#d2ddc9); border-radius:18px; padding:22px; background:#fafaf4; }
+.anamnes-therapist-card h3 { margin:0 0 14px; font-size:1.5rem; }
+.anamnes-therapist-card h4 { margin:20px 0 8px; font-family:var(--font-body,sans-serif); font-size:.9rem; font-weight:600; }
+.anamnes-therapist-card > p { margin-bottom:0; }
+.anamnes-therapist-facts { margin:12px 0 0; display:grid; gap:0; }
+.anamnes-therapist-facts > div { display:grid; grid-template-columns:minmax(110px,.8fr) minmax(0,1.4fr); gap:12px; border-top:1px solid var(--border,#d2ddc9); padding:11px 0; }
+.anamnes-therapist-facts dt { font-size:.85rem; font-weight:600; }
+.anamnes-therapist-facts dd { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.anamnes-therapist-facts dd p { margin:7px 0 0; }
+.anamnes-therapist-safety { background:#edf1e7; }
+.anamnes-therapist-safety.is-alert { background:#fff1e8; border-color:#c56e4b; }
+.anamnes-therapist-attention { padding:12px; border-left:3px solid #b76b42; background:#fff4e9; }
+.anamnes-therapist-card ul,.anamnes-therapist-hypothesis ul,.anamnes-therapist-formulas ul { padding-left:20px; line-height:1.7; }
+.anamnes-therapist-card li + li,.anamnes-therapist-hypothesis li + li { margin-top:6px; }
+.anamnes-therapist-details { margin:16px 0; border-top:1px solid var(--border,#d2ddc9); padding-top:14px; }
+.anamnes-therapist-details summary { font-weight:600; cursor:pointer; }
+.anamnes-therapist-question-list { list-style:none; padding:0!important; margin:12px 0 0; }
+.anamnes-therapist-question-list li { display:grid; gap:4px; padding:10px 0; border-bottom:1px solid var(--border,#d2ddc9); }
+.anamnes-therapist-question-list strong { font-size:.85rem; }
+.anamnes-therapist-differential { margin-top:24px; padding-top:24px; border-top:1px solid var(--border,#d2ddc9); }
+.anamnes-therapist-hypotheses { display:grid; gap:16px; }
+.anamnes-therapist-hypothesis { border:1px solid var(--border,#d2ddc9); border-radius:16px; padding:22px; }
+.anamnes-therapist-kicker { margin:0 0 6px; font-size:.8rem; font-weight:600; color:var(--green-dark,#35584d); }
+.anamnes-therapist-hypothesis h4 { margin:0; font-size:1.5rem; }
+.anamnes-therapist-evidence { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.anamnes-therapist-evidence h5 { font-family:var(--font-body,sans-serif); font-size:.9rem; margin:12px 0 8px; }
+.anamnes-therapist-evidence ul { margin:0; }
+.anamnes-therapist-formulas { margin-top:18px; padding:18px 22px; background:#edf1e7; border-radius:16px; }
+.anamnes-therapist-formulas h4 { margin:0 0 12px; }
+.anamnes-therapist-formulas li p { margin:6px 0 12px; }
+.anamnes-admin-audit { margin-top:24px; }
+.anamnes-admin-audit > summary { cursor:pointer; font-size:1.15rem; font-weight:600; }
+.anamnes-admin-audit-content { margin-top:22px; }
 .anamnes-analysis-choice-fieldset { padding:0!important; border:0!important; }
 .anamnes-analysis-choice-fieldset legend { padding:0; margin-bottom:14px; }
 .anamnes-analysis-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
@@ -43,3 +79,5 @@
 .anamnes-analysis-choice span span { margin-top:8px; line-height:1.7; }
 @media (max-width:760px) { .anamnes-analysis-choices { grid-template-columns:1fr; } }
 @media (max-width:760px) { .anamnes-admin-grid,.anamnes-admin-checks { grid-template-columns:1fr; } .anamnes-admin-editor fieldset { padding:16px; } }
+@media (max-width:900px) { .anamnes-therapist-grid { grid-template-columns:1fr; } }
+@media (max-width:600px) { .anamnes-therapist-card,.anamnes-therapist-hypothesis { padding:16px; } .anamnes-therapist-evidence { grid-template-columns:1fr; gap:8px; } .anamnes-therapist-facts > div { grid-template-columns:1fr; gap:5px; } }

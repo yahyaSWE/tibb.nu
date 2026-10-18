@@ -33,6 +33,7 @@ export interface Question {
   help?: string;
   options: { value: string; label: string }[];
   professionalOnly: boolean;
+  retired?: boolean;
 }
 export const EvidenceRuleSchema = z.object({
   questionId: QuestionIdSchema, values: z.array(z.string().min(1).max(60)).min(1).max(20), weight: z.number().int().min(1).max(5),
@@ -83,22 +84,44 @@ export const NarrativeSchema = z.string().trim().max(4000).refine(value => !/[\u
 // Visitor-supplied names are retained for the therapist, never interpreted as
 // clinical findings or included in an external model request.
 export const MedicationNamesSchema = z.string().trim().max(1000, 'Ange högst 1 000 tecken.').refine(value => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Cf}]/u.test(value), 'Ta bort osynliga kontrolltecken från läkemedelsnamnen.');
-export const IntakeRequestSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(''), aiConsent: z.boolean().default(false), aiConsentVersion: z.string().max(128).optional(), formulaReferencesEnabled: z.boolean().default(true) }).strict();
+const consultationText = (maximum: number) => z.string().trim().max(maximum).refine(value => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\p{Cf}]/u.test(value), 'Ta bort osynliga kontrolltecken från kompletteringen.');
+const ConsultationQuestionNotesSchema = z.unknown().superRefine((value, context) => {
+  // Inspect raw keys before record parsing can discard reserved object keys.
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || Object.keys(value).some(key => key === 'pulse' || !questionIds.includes(key as QuestionId))) {
+    context.addIssue({ code: 'custom', message: 'Kompletteringarna måste tillhöra formulärets besökarfrågor.' });
+  }
+}).pipe(z.partialRecord(QuestionIdSchema.exclude(['pulse']), consultationText(400)));
+export const ConsultationDetailsSchema = z.object({
+  locations: consultationText(500).default(''), intensity: z.number().min(0).max(10).nullable().default(null),
+  frequency: z.enum(['','daily','several_week','weekly','occasional','variable']).default(''),
+  dailyImpact: consultationText(1200).default(''), goal: consultationText(1000).default(''),
+  previousCare: consultationText(1500).default(''), lifestyle: consultationText(1500).default(''),
+  medicationDetails: consultationText(1500).default(''), conditionDetails: consultationText(1500).default(''), allergyDetails: consultationText(1500).default(''),
+  questionNotes: ConsultationQuestionNotesSchema.default({}),
+}).strict().superRefine((value, context) => {
+  if (Object.values(value.questionNotes).reduce((total, note) => total + (note?.length ?? 0), 0) > 6000) context.addIssue({ code: 'custom', path: ['questionNotes'], message: 'Ange sammanlagt högst 6 000 tecken i frågekommentarerna.' });
+});
+export type ConsultationDetails = z.infer<typeof ConsultationDetailsSchema>;
+export function emptyConsultationDetails(): ConsultationDetails { return ConsultationDetailsSchema.parse({}); }
+export const IntakeRequestSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(''), consultation: ConsultationDetailsSchema.default(emptyConsultationDetails), aiConsent: z.boolean().default(false), aiConsentVersion: z.string().max(128).optional(), formulaReferencesEnabled: z.boolean().default(true) }).strict();
 export const AiDifferentialSchema = z.object({
   patternIds: z.array(PatternIdSchema).max(6), followUpQuestionIds: z.array(QuestionIdSchema).max(5),
 }).strict();
 export type AiDifferential = z.infer<typeof AiDifferentialSchema>;
-export const INTERVIEW_MAX_ROUNDS = 10;
-export const InterviewRoundSchema = z.number().int().min(0).max(INTERVIEW_MAX_ROUNDS);
+// A transport counter, never a clinical stopping rule. The finite reviewed
+// vocabulary and no-repeat selection bound the actual interview.
+export const InterviewRoundSchema = z.number().int().min(0).max(1000);
 export const InterviewRequestSchema = z.object({
-  answers: AnswerMapSchema, narrative: NarrativeSchema.default(''), aiConsent: z.boolean().default(false), aiConsentVersion: z.string().max(128).optional(),
-  round: InterviewRoundSchema, formulaReferencesEnabled: z.boolean().default(true),
+  answers: AnswerMapSchema, narrative: NarrativeSchema.default(''), consultation: ConsultationDetailsSchema.default(emptyConsultationDetails), aiConsent: z.boolean().default(false), aiConsentVersion: z.string().max(128).optional(),
+  round: InterviewRoundSchema, finalize: z.boolean().default(false), formulaReferencesEnabled: z.boolean().default(true),
 }).strict();
 export type InterviewRequest = z.infer<typeof InterviewRequestSchema>;
 export const AiInterviewSchema = z.object({ patternIds: z.array(PatternIdSchema).max(6), questionIds: z.array(QuestionIdSchema).max(3), sufficient: z.boolean() }).strict();
 export type AiInterview = z.infer<typeof AiInterviewSchema>;
 export const InterviewResponseSchema = z.object({
-  report: ReportSchema, questionIds: z.array(QuestionIdSchema).max(3), complete: z.boolean(), reason: z.enum(['continue','enough','limit','fallback','safety']),
+  report: ReportSchema, questionIds: z.array(QuestionIdSchema).max(3), complete: z.boolean(), reason: z.enum(['continue','enough','exhausted','limit','fallback','safety']),
   receipt: z.object({ expiresAt: z.iso.datetime(), signature: z.string().regex(/^[a-f0-9]{64}$/), aiConsentVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
 }).strict();
 export type InterviewResponse = z.infer<typeof InterviewResponseSchema>;

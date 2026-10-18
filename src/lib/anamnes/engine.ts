@@ -1,6 +1,7 @@
 import { answerLabel, getFollowupQuestions, questionById, validateAnswers, validateFormulaRules } from './questions';
 import { patternById, patternCatalog, rule } from './patterns';
-import { FormulaRecordSchema, NarrativeSchema, type AnswerMap, type Evidence, type EvidenceRule, type FormulaMatch, type FormulaRecord, type PatternAnalysis, type PatternFinding, type PatternId, type QuestionId, type Report, type SafetyAssessment } from './types';
+import { FormulaRecordSchema, NarrativeSchema, type AnswerMap, type ConsultationDetails, type Evidence, type EvidenceRule, type FormulaMatch, type FormulaRecord, type PatternAnalysis, type PatternFinding, type PatternId, type QuestionId, type Report, type SafetyAssessment } from './types';
+import { consultationSafetyTexts, normalizeConsultationDetails } from './consultation';
 
 const unknown = new Set(['unknown','prefer_not']);
 const answered = (answers: AnswerMap, id: QuestionId) => Boolean(answers[id] && !unknown.has(answers[id]!));
@@ -25,7 +26,13 @@ function uniqueEvidence(values: Evidence[]): Evidence[] {
 }
 const sum = (evidence: Evidence[]) => evidence.reduce((total,item) => total + item.weight,0);
 export const safetyQuestionIds: readonly QuestionId[] = ['adult','pregnancy','medication','chronicDisease','liverKidney','allergy','emergency','clinicalRedFlags'];
-/** A mention gate, not symptom extraction or a diagnosis. Negation cannot safely clear it. */
+/** Only a complete, unqualified medication-denial sentence is ignored here. */
+function withoutClearMedicationDenial(text: string): string {
+  // Exceptions, uncertainty, past use and conditional wording need review.
+  if (/\b(?:men|förutom|utom|undantag|ibland|vid behov|endast|bara|dock|ändå|tidigare|slutat|pausat|längre|tror|kanske)\b/u.test(text)) return text;
+  return text.replace(/(^|[.!?\n]\s*)jag (?:tar|använder) inga (?:mediciner|läkemedel)(?=[.!?\n]|$)/gu, '$1');
+}
+/** A mention gate, never symptom extraction. Acute mentions remain conservative. */
 export function getNarrativeSafety(input: string): SafetyAssessment | null {
   const text = NarrativeSchema.parse(input).normalize('NFKC').toLocaleLowerCase('sv-SE');
   if (/(?:\bbröstsmärta\b|\bsmärta i bröst(?:et)?\b|\bakut brösttryck\b|\bsvår(?:a)? (?:andnöd|andningssvårigheter)\b|\bkan inte andas\b|\bplötslig(?:a)? (?:förlamning|ansiktsförlamning|talsvårigheter)\b|\bstroke\b|\banafylaxi\b|\bchest pain\b|\bsevere (?:breathlessness|shortness of breath)\b|\bcan(?:not|'t) breathe\b)/u.test(text)) {
@@ -34,14 +41,16 @@ export function getNarrativeSafety(input: string): SafetyAssessment | null {
   if (/(?:\bblod i (?:avföring(?:en)?|kräkning(?:ar)?)\b|\bkräk(?:s|er|t|te)? blod\b|\boförklarlig(?:a)? viktnedgång\b|\bofrivillig viktnedgång\b|\b(?:ihållande|långvarig|hög) feber\b|\bnytillkommen svår smärta\b|\bblood in (?:stool|vomit)\b|\bunexplained weight loss\b|\bpersistent fever\b)/u.test(text)) {
     return {level:'medical_review',blocksFormulas:true,missingQuestionIds:[],flags:['Din fritext nämner uppgifter som kan vara varningssymtom. Det är inte en bekräftad medicinsk observation; systemet kan inte tolka sammanhang eller negation säkert. Kontakta hälso- och sjukvården för bedömning innan eventuell TCM-rådgivning eller användning av örter.']};
   }
-  if (/(?:\bgravid(?:itet|itetsplanering)?\b|\bam(?:mar|mande|ning)\b|\bpregnan(?:t|cy)\b|\bbreastfeeding\b|\bläkemedel\b|\bmedicin(?:er|ering)?\b|\bblodförtunnande\b|\bwarfarin\b|\bwaran\b|\beliquis\b|\bxarelto\b|\binsulin\b|\bmetformin\b|\bkortison\b|\bantidepressiva\b|\bmedication\b|\b(?:lever|njur)(?:sjukdom|svikt)\b)/u.test(text)) {
+  if (/(?:\bgravid(?:itet|itetsplanering)?\b|\bam(?:mar|mande|ning)\b|\bpregnan(?:t|cy)\b|\bbreastfeeding\b|\bläkemedel\b|\bmedicin(?:er|ering)?\b|\bblodförtunnande\b|\bwarfarin\b|\bwaran\b|\beliquis\b|\bxarelto\b|\binsulin\b|\bmetformin\b|\bkortison\b|\bantidepressiva\b|\bmedication\b|\b(?:lever|njur)(?:sjukdom|svikt)\b)/u.test(withoutClearMedicationDenial(text))) {
     return {level:'consultation',blocksFormulas:true,missingQuestionIds:[],flags:['Din fritext nämner graviditet, amning, läkemedel eller ett annat möjligt säkerhetsförhållande. Systemet kan inte fastställa om uppgiften är aktuell eller nekad. En behandlare behöver klargöra detta och kontrollera säkerhet och eventuella interaktioner innan formelreferenser kan övervägas.']};
   }
   return null;
 }
-export function getSafetyAssessment(input: AnswerMap, narrative = ''): SafetyAssessment {
+export function getSafetyAssessment(input: AnswerMap, narrative = '', consultation?: ConsultationDetails): SafetyAssessment {
   const answers = validateAnswers(input);
-  const narrativeSafety = getNarrativeSafety(narrative);
+  const details = normalizeConsultationDetails(consultation, answers);
+  const textFindings = [narrative, ...consultationSafetyTexts(details)].map(getNarrativeSafety);
+  const narrativeSafety = textFindings.find(finding => finding?.level === 'emergency') ?? textFindings.find(finding => finding?.level === 'medical_review') ?? textFindings.find(finding => finding?.level === 'consultation');
   const missingQuestionIds = safetyQuestionIds.filter(id => !answered(answers,id));
   // A visitor who has already been asked about a potentially inflamed joint
   // must not have an unknown/withheld response interpreted as a reassuring no.
@@ -54,8 +63,8 @@ export function getSafetyAssessment(input: AnswerMap, narrative = ''): SafetyAss
     answers.jointWarmth === 'yes' && 'En röd, varm eller svullen led behöver medicinsk bedömning.',
     answers.chestTightness === 'yes' && 'Brösttryck behöver medicinsk bedömning. Vid pågående akut bröstsmärta eller svår andnöd: ring 112.',
     answers.breathing === 'yes' && 'Oförklarlig andfåddhet behöver medicinsk bedömning.',
-    answers.palpitations === 'yes' && answers.priorAssessment !== 'yes' && 'Hjärtklappning utan tidigare medicinsk bedömning behöver bedömas i vården.',
-    answers.trend === 'worsening' && answers.priorAssessment !== 'yes' && 'Tilltagande besvär utan medicinsk bedömning behöver följas upp i vården.',
+    answers.palpitations === 'yes' && 'Hjärtklappning behöver medicinsk bedömning.',
+    answers.trend === 'worsening' && 'Tilltagande besvär behöver följas upp i vården.',
   ].filter((value): value is string => Boolean(value));
   if (narrativeSafety?.level === 'medical_review') medicalFlags.push(...narrativeSafety.flags);
   if (medicalFlags.length) return { level: 'medical_review',blocksFormulas: true, flags: medicalFlags,missingQuestionIds: [...missingQuestionIds] };
@@ -66,6 +75,9 @@ export function getSafetyAssessment(input: AnswerMap, narrative = ''): SafetyAss
     answers.chronicDisease === 'yes' && 'Pågående eller långvarig sjukdom kräver individuell säkerhetsbedömning.',
     answers.liverKidney === 'yes' && 'Lever- eller njurproblem kräver medicinsk och produktspecifik säkerhetsbedömning.',
     answers.allergy === 'yes' && 'Allergi eller tidigare kraftig reaktion kräver kontroll av det faktiska produktinnehållet.',
+    details.medicationDetails && 'Kompletteringen om läkemedel eller kosttillskott behöver klargöras individuellt.',
+    details.conditionDetails && 'Kompletteringen om sjukdomar eller tidigare vård behöver klargöras individuellt.',
+    details.allergyDetails && 'Kompletteringen om allergier eller reaktioner behöver klargöras individuellt.',
   ].filter((value): value is string => Boolean(value));
   if (narrativeSafety?.level === 'consultation') consultationFlags.push(...narrativeSafety.flags);
   if (consultationFlags.length) return { level: 'consultation',blocksFormulas:true,flags:consultationFlags,missingQuestionIds: [...missingQuestionIds] };
@@ -147,9 +159,9 @@ export const analyzeAnswers = analyzePatterns;
 export function productVerificationComplete(formula: FormulaRecord): boolean {
   return formula.productId !== null && formula.productIdentityVerified && formula.ingredientsVerified && formula.safetyVerified && formula.regulatoryVerified && formula.ingredients.length > 0 && [formula.identityEvidence,formula.ingredientEvidence,formula.safetyEvidence,formula.regulatoryEvidence].every(value => value.trim().length > 0);
 }
-export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catalog: readonly FormulaRecord[], narrative = ''): FormulaMatch[] {
+export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catalog: readonly FormulaRecord[], narrative = '', consultation?: ConsultationDetails): FormulaMatch[] {
   const answers = validateAnswers(input);
-  if (getSafetyAssessment(answers,narrative).blocksFormulas || analysis.status !== 'preliminary') return [];
+  if (getSafetyAssessment(answers,narrative,consultation).blocksFormulas || analysis.status !== 'preliminary') return [];
   const qualifiedIds = new Set(analysis.patterns.filter(pattern => pattern.qualified).map(pattern => pattern.id));
   const activeCatalog = catalog.map(formula => FormulaRecordSchema.parse(formula)).filter(formula => formula.active && validateFormulaRules(formula));
   // A dominant differential outside the assortment must not be replaced by a
@@ -163,7 +175,9 @@ export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catal
     const opposing = uniqueEvidence([...observations(answers,formula.opposingRules), ...analysis.patterns.filter(pattern => mainPatterns.includes(pattern.id)).flatMap(pattern => pattern.opposing)]);
     const ruleSupport = observations(answers,formula.supportingRules);
     if (supporting.length < 3 || (formula.supportingRules.length > 0 && (ruleSupport.length < 2 || sum(ruleSupport) < 6)) || sum(opposing) >= 5) return [];
-    const missingQuestionIds = dedupe([...formula.requiredQuestionIds.filter(id => !answered(answers,id)), ...analysis.patterns.filter(pattern => mainPatterns.includes(pattern.id)).flatMap(pattern => pattern.missingQuestionIds)]);
+    // Legacy catalogs may still reference a retired background question. It
+    // must not become an impossible-to-answer missing symptom criterion.
+    const missingQuestionIds = dedupe([...formula.requiredQuestionIds.filter(id => !questionById.get(id)?.retired && !answered(answers,id)), ...analysis.patterns.filter(pattern => mainPatterns.includes(pattern.id)).flatMap(pattern => pattern.missingQuestionIds)]);
     const uncovered = analysis.patterns.filter(pattern => pattern.qualified && ![...formula.primaryPatternIds,...formula.secondaryPatternIds].includes(pattern.id));
     const partial = missingQuestionIds.length > 0 || opposing.length > 0 || uncovered.length > 0;
     const productUrl = productVerificationComplete(formula) && formula.productUrl && /^\/butik\/[a-z0-9-]+$/.test(formula.productUrl) ? formula.productUrl : null;
@@ -177,9 +191,9 @@ export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catal
     }];
   }).sort((a,b) => b.score-a.score || a.formulaId.localeCompare(b.formulaId)).slice(0,3);
 }
-export function buildReport(input: AnswerMap, catalog: readonly FormulaRecord[], options: { source?: 'rules'|'ai'; followUpQuestionIds?: readonly QuestionId[]; formulaReferencesEnabled?: boolean; acceptedPatternIds?: readonly PatternId[]; narrative?: string } = {}): Report {
+export function buildReport(input: AnswerMap, catalog: readonly FormulaRecord[], options: { source?: 'rules'|'ai'; followUpQuestionIds?: readonly QuestionId[]; formulaReferencesEnabled?: boolean; acceptedPatternIds?: readonly PatternId[]; narrative?: string; consultation?: ConsultationDetails } = {}): Report {
   const answers = validateAnswers(input);
-  const safety = getSafetyAssessment(answers,options.narrative ?? '');
+  const safety = getSafetyAssessment(answers,options.narrative ?? '',options.consultation);
   const analysis = analyzePatterns(answers);
   if (safety.level === 'emergency') {
     analysis.status = 'insufficient';
@@ -208,7 +222,7 @@ export function buildReport(input: AnswerMap, catalog: readonly FormulaRecord[],
     });
   }
   const formulaReferencesEnabled = options.formulaReferencesEnabled ?? true;
-  const formulaMatches = formulaReferencesEnabled && !safety.blocksFormulas ? matchFormulas(analysis,answers,catalog,options.narrative) : [];
+  const formulaMatches = formulaReferencesEnabled && !safety.blocksFormulas ? matchFormulas(analysis,answers,catalog,options.narrative,options.consultation) : [];
   const formulaStatus: Report['formulaStatus'] = !formulaReferencesEnabled ? 'disabled' : safety.blocksFormulas ? 'safety_blocked' : analysis.status !== 'preliminary' ? 'insufficient' : formulaMatches.length ? 'matched' : 'no_match';
   return {
     version:2,analysis,safety,formulaMatches,formulaStatus,formulaReferencesEnabled,source:options.source ?? 'rules',

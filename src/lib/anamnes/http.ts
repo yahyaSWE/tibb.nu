@@ -40,11 +40,11 @@ export async function anamnesRequestJson(request: Request) {
   try { return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown; }
   catch { throw new AnamnesError("Uppgifterna kunde inte läsas."); }
 }
-export async function enforceAnamnesRateLimit(request: Request, action: "analyze" | "submit" | "catalog") {
+export async function enforceAnamnesRateLimit(request: Request, action: "analyze" | "interview" | "submit" | "catalog") {
   // Unknown direct clients share a conservative bucket; user submitted fields
   // never become rate-limit identifiers. Only deployment-trusted IPs are used.
   const subject = trustedClientIp(request.headers) ?? "unattributed";
-  if (!(await rateLimit(`anamnes:${action}:${tokenHash(subject)}`, action === "catalog" ? 120 : action === "analyze" ? 12 : 4, 15)))
+  if (!(await rateLimit(`anamnes:${action}:${tokenHash(subject)}`, action === "catalog" ? 120 : action === "interview" ? 40 : action === "analyze" ? 12 : 4, 15)))
     throw new AnamnesError("För många försök. Vänta 15 minuter och försök igen.", 429);
 }
 export function anamnesJson(value: unknown, status = 200) {

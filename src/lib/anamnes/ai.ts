@@ -3,10 +3,12 @@ import { z } from "zod";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { anamnesAiConfig, anamnesAiDailyLimit, anamnesEncryptionKey } from "./config";
 import { rateLimit } from "../db";
-import { AiDifferentialSchema, AiInterviewSchema, PatternIdSchema, QuestionIdSchema, ReportSchema, patternIds, type AiDifferential, type AiInterview, type AnswerMap, type PatternAnalysis, type Report } from "./types";
-import { questionBank } from "./questions";
+import { AiDifferentialSchema, AiInterviewSchema, PatternIdSchema, QuestionIdSchema, ReportSchema, patternIds, type AiDifferential, type AiInterview, type AnswerMap, type ConsultationDetails, type PatternAnalysis, type Report } from "./types";
+import { isPublicQuestion, questionBank } from "./questions";
 import { patternCatalog } from "./patterns";
 import { getAnamnesAnalysisMode } from "./settings";
+import { consultationForAi, hasConsultationDetails, normalizeConsultationDetails } from "./consultation";
+import { getSafetyAssessment } from "./engine";
 
 export const AnalysisReceiptSchema = z.object({ expiresAt: z.iso.datetime(), signature: z.string().regex(/^[a-f0-9]{64}$/), aiConsentVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type AnalysisReceipt = z.infer<typeof AnalysisReceiptSchema>;
@@ -15,26 +17,27 @@ function canonicalJson(value: unknown): string {
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
   return JSON.stringify(value);
 }
-function receiptSignature(answers: AnswerMap, report: Report, expiresAt: string, consentVersion: string, narrative = ""): string | null {
+function receiptSignature(answers: AnswerMap, report: Report, expiresAt: string, consentVersion: string, narrative = "", consultation?: ConsultationDetails): string | null {
   const storageKey = anamnesEncryptionKey();
   if (!storageKey) return null;
   const purposeKey = createHmac("sha256", storageKey).update("tibb.anamnes.analysis-receipt.v1").digest();
-  // Empty narratives retain the v1 receipt payload, including receipts for
-  // visitors who completed the original coded-answer questionnaire.
-  return createHmac("sha256", purposeKey).update(canonicalJson({ version: 1, answers, report, expiresAt, aiConsentVersion: consentVersion, ...(narrative ? { narrative } : {}) })).digest("hex");
+  const details = normalizeConsultationDetails(consultation, answers);
+  // Empty added context retains the prior receipt payload. Any nonempty
+  // context is bound even when it is reserved for the clinic rather than AI.
+  return createHmac("sha256", purposeKey).update(canonicalJson({ version: 1, answers, report, expiresAt, aiConsentVersion: consentVersion, ...(narrative ? { narrative } : {}), ...(hasConsultationDetails(details) ? { consultation: details } : {}) })).digest("hex");
 }
-export function createAnalysisReceipt(answers: AnswerMap, report: Report, narrative = ""): AnalysisReceipt | null {
+export function createAnalysisReceipt(answers: AnswerMap, report: Report, narrative = "", consultation?: ConsultationDetails): AnalysisReceipt | null {
   if (report.source !== "ai") return null;
   const ai = anamnesAiConfig();
   if (!ai.available) return null;
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  const signature = receiptSignature(answers, ReportSchema.parse(report), expiresAt, ai.consentVersion, narrative);
+  const signature = receiptSignature(answers, ReportSchema.parse(report), expiresAt, ai.consentVersion, narrative, consultation);
   return signature ? { expiresAt, signature, aiConsentVersion: ai.consentVersion } : null;
 }
-export function verifyAnalysisReceipt(answers: AnswerMap, report: Report, receipt: AnalysisReceipt, narrative = ""): boolean {
+export function verifyAnalysisReceipt(answers: AnswerMap, report: Report, receipt: AnalysisReceipt, narrative = "", consultation?: ConsultationDetails): boolean {
   const config = anamnesAiConfig();
   if (!config.available || report.source !== "ai" || receipt.aiConsentVersion !== config.consentVersion || Date.parse(receipt.expiresAt) <= Date.now() || Date.parse(receipt.expiresAt) > Date.now() + 30 * 60 * 1000) return false;
-  const expected = receiptSignature(answers, ReportSchema.parse(report), receipt.expiresAt, receipt.aiConsentVersion, narrative);
+  const expected = receiptSignature(answers, ReportSchema.parse(report), receipt.expiresAt, receipt.aiConsentVersion, narrative, consultation);
   if (!expected) return false;
   const left = Buffer.from(expected, "hex");
   const right = Buffer.from(receipt.signature, "hex");
@@ -87,7 +90,7 @@ async function boundedProviderJson(response: Response): Promise<unknown> {
   return Object.hasOwn(completed, "output") ? completed : { ...completed, output: doneItems };
 }
 const ResponsesEnvelopeSchema = z.object({ status: z.literal("completed"), output: z.array(z.object({ type: z.string(), content: z.array(z.object({ type: z.string(), text: z.string().optional() }).passthrough()).optional() }).passthrough()).min(1).max(20) }).passthrough();
-type AiFailureCode = "disabled" | "configuration" | "global_quota" | "upstream_http" | "timeout" | "network" | "invalid_envelope" | "invalid_model_output" | "refusal" | "local_unavailable";
+type AiFailureCode = "disabled" | "configuration" | "safety" | "global_quota" | "upstream_http" | "timeout" | "network" | "invalid_envelope" | "invalid_model_output" | "refusal" | "local_unavailable";
 type OutputFailure = { subcode: "output_missing" | "output_multiple" | "json_invalid" | "schema_invalid"; issueCodes?: string[] };
 function unavailable(code: AiFailureCode, httpStatus?: number, details?: OutputFailure): null {
   // Fixed categories and an HTTP status are enough to diagnose fallback.
@@ -123,7 +126,7 @@ function parseModelJson(text: string): unknown {
   return value;
 }
 const safeIssueCodes = new Set(["invalid_type", "invalid_value", "too_big", "too_small", "unrecognized_keys"]);
-async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string, systemInstructions: string, answers: AnswerMap, narrative: string): Promise<T | null> {
+async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string, systemInstructions: string, answers: AnswerMap, narrative: string, consultation?: ConsultationDetails): Promise<T | null> {
   // Read the current database choice for every attempt. A stale browser's
   // consent or a crafted request cannot override an administrator's choice.
   if (await getAnamnesAnalysisMode() !== "ai") return unavailable("disabled");
@@ -131,11 +134,14 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
   if (!config.available || !config.endpoint) return unavailable("configuration");
   let phase: "budget" | "request" | "envelope" | "output" = "budget";
   try {
+    const details = normalizeConsultationDetails(consultation, answers);
+    if (getSafetyAssessment(answers, narrative, details).level !== "clear") return unavailable("safety");
+    const complaint = consultationForAi(details);
     // A durable deployment-wide fixed 24-hour window, starting with its first
     // attempt, applies in addition to per-client limits. Failed provider
     // attempts count too; the shared budget key contains no patient data.
     if (!(await rateLimit("anamnes-ai-global:v1", anamnesAiDailyLimit(), 24 * 60))) return unavailable("global_quota");
-    const questions = questionBank.filter((question) => !question.professionalOnly);
+    const questions = questionBank.filter(isPublicQuestion);
     // Some compatible providers ignore array limits. Validate the complete
     // bounded vocabulary first, including IDs beyond the eventual cutoff.
     const wirePatterns = z.array(PatternIdSchema).max(patternIds.length);
@@ -156,7 +162,7 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
         // Sonnet 5 enables thinking by default. Keep the reviewed, short ID
         // response budget instead of spending it on hidden reasoning tokens.
         ...(new URL(config.endpoint).hostname === "openrouter.ai" && config.model === "anthropic/claude-sonnet-5" ? { reasoning: { enabled: false } } : {}),
-        input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ kind: "untrusted_patient_answer_data", ...(narrative ? { untrustedNarrative: narrative } : {}), confirmedAnswers: answers, allowedPatternIds: patternIds, independentPatternGuide: patternCatalog.map(pattern => ({ id: pattern.id, name: pattern.name, pinyin: pattern.pinyin, requiredQuestionIds: pattern.requiredQuestionIds, supportingQuestionIds: [...new Set(pattern.supportingRules.map(rule => rule.questionId))], opposingQuestionIds: [...new Set(pattern.opposingRules.map(rule => rule.questionId))] })), questions: questions.map(({ id, section, prompt, options }) => ({ id, section, prompt, options })) }) }] }],
+        input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ kind: "untrusted_patient_answer_data", ...(narrative ? { untrustedNarrative: narrative } : {}), ...(hasConsultationDetails(details) ? { untrustedConsultation: complaint } : {}), confirmedAnswers: answers, allowedPatternIds: patternIds, independentPatternGuide: patternCatalog.map(pattern => ({ id: pattern.id, name: pattern.name, pinyin: pattern.pinyin, requiredQuestionIds: pattern.requiredQuestionIds, supportingQuestionIds: [...new Set(pattern.supportingRules.map(rule => rule.questionId))], opposingQuestionIds: [...new Set(pattern.opposingRules.map(rule => rule.questionId))] })), questions: questions.map(({ id, section, prompt, options }) => ({ id, section, prompt, options })) }) }] }],
         max_output_tokens: 800,
         text: { format: { type: "json_schema", name: schemaName, strict: true, schema: jsonSchema } },
       }),
@@ -196,17 +202,17 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
 function allowedModelIds(answers: AnswerMap, analysis: PatternAnalysis) {
   return {
     patterns: new Set(analysis.patterns.filter((pattern) => pattern.qualified).map((pattern) => pattern.id)),
-    questions: new Set(questionBank.filter((question) => !question.professionalOnly && !answers[question.id]).map((question) => question.id)),
+    questions: new Set(questionBank.filter((question) => isPublicQuestion(question) && !Object.hasOwn(answers,question.id)).map((question) => question.id)),
   };
 }
-export async function requestAiDifferential(answers: AnswerMap, analysis: PatternAnalysis, narrative = ""): Promise<AiDifferential | null> {
-  const value = await requestProviderOutput(AiDifferentialSchema, "anamnes_differential", instructions, answers, narrative);
+export async function requestAiDifferential(answers: AnswerMap, analysis: PatternAnalysis, narrative = "", consultation?: ConsultationDetails): Promise<AiDifferential | null> {
+  const value = await requestProviderOutput(AiDifferentialSchema, "anamnes_differential", instructions, answers, narrative, consultation);
   if (!value) return null;
   const allowed = allowedModelIds(answers, analysis);
   return { patternIds: [...new Set(value.patternIds)].filter((id) => allowed.patterns.has(id)), followUpQuestionIds: [...new Set(value.followUpQuestionIds)].filter((id) => allowed.questions.has(id)).slice(0, 5) };
 }
-export async function requestAiInterview(answers: AnswerMap, analysis: PatternAnalysis, narrative: string): Promise<AiInterview | null> {
-  const value = await requestProviderOutput(AiInterviewSchema, "anamnes_interview", interviewInstructions, answers, narrative);
+export async function requestAiInterview(answers: AnswerMap, analysis: PatternAnalysis, narrative: string, consultation?: ConsultationDetails): Promise<AiInterview | null> {
+  const value = await requestProviderOutput(AiInterviewSchema, "anamnes_interview", interviewInstructions, answers, narrative, consultation);
   if (!value) return null;
   const allowed = allowedModelIds(answers, analysis);
   return { patternIds: [...new Set(value.patternIds)].filter((id) => allowed.patterns.has(id)), questionIds: [...new Set(value.questionIds)].filter((id) => allowed.questions.has(id)).slice(0, 3), sufficient: value.sufficient };

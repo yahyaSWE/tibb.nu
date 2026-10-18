@@ -10,42 +10,74 @@ En mönsterhypotes är inte en medicinsk diagnos. Interna poäng är inte klinis
 
 ## Beskrivning med egna ord och stegvis AI-intervju
 
-När AI-läget är valt kan besökaren börja med en egen beskrivning på högst
-4 000 tecken. Texten är lokal tills besökaren gör ett uttryckligt AI-val och
-går vidare. Personnummer, namn och kontaktuppgifter bör inte anges i texten.
-Utan samtycke eller fungerande AI-anslutning används det lokala frågeflödet;
-texten kan fortfarande följa med i besökarens egen sammanfattning.
+Besökaren kan börja med en egen beskrivning på högst 4 000 tecken i båda
+analyslägena. Texten stannar lokalt tills ett uttryckligt AI-val eller en
+separat inskickning görs. AI-informationen visas vid startknappen; någon
+separat samtyckessida används inte. Att skriva eller öppna formuläret är
+inte ett AI-val. Personnummer, namn och kontaktuppgifter bör inte anges.
+I poängläget fyller texten inte i några strukturerade svar, men följer med
+i sammanfattningen och i ett separat inskickat konsultationsunderlag.
 
-Det anpassade AI-flödet börjar med åtta fasta trygghetsfrågor. Därefter väljs
-upp till tre frågor i taget ur den kontrollerade frågebanken. Fyra viktiga
-bakgrundsfrågor kan inte hoppas över av modellen. AI:n kan avsluta tidigare
-när besökarens bekräftade svar räcker för ett preliminärt underlag. En separat
-minimigräns för bekräftade svar gäller oberoende av modellens egen bedömning.
-Okända eller avböjda bakgrundssvar räknas som besvarade för frågeflödet,
-men aldrig som kliniskt kända uppgifter. Ett sådant bakgrundssvar stoppar
-inte ensamt hela rapporten. Samtliga åtta säkerhetssvar måste fortfarande
-vara tydliga och godkända, och minst sex symtomsvar måste vara kända.
+Åtta fasta trygghetsfrågor visas tillsammans. Därefter väljs högst tre
+frågor per AI-omgång ur den granskade frågebanken. Bakgrunden omfattar
+besvärsområde, varaktighet, debut och förlopp. Frågan `priorAssessment`
+visas inte längre för nya besökare och är inte ett obligatoriskt villkor;
+dess ID och äldre svar behålls för historiska underlag.
 
-Besökaren kan komplettera beskrivningen, gå tillbaka och avsluta när som
-helst. Ett tidigt avslut kan ge otillräckligt underlag utan mönster eller
-formelreferenser. Högst tio frågeomgångar med tre frågor vardera tillåts,
-följt av en avslutande analys av de senaste svaren. Det innebär högst elva
-leverantörsförsök för ett normalt sammanhängande AI-flöde. Budgeten och
-trafikgränserna gäller fortfarande, även vid nya försök eller omstarter.
+Frågeflödet täcker även en allmän TCM-bild: temperatur, energi, sömn, aptit,
+avföring, törst, svettning, känsloliv och smärta. Besvärsspecifika frågor,
+motsägande fynd och relevanta kriterier för formeljämförelse kompletterar
+denna kärna. Modellens `sufficient`-signal kan inte ensam avsluta samtalet
+medan relevanta granskade frågor återstår. Formelkriterier påverkar
+kompletteringen först efter den oberoende mönsterdifferentieringen.
 
-Frågevalet prioriterar valt besvärsområde och obesvarade särskiljande frågor
-för mönster som ännu kan stödjas. Ett uttryckligt svar som inte uppfyller
-ett obligatoriskt mönstervillkor får inte kompenseras med fler allmänna
-poäng. Samtalet kan avslutas när relevanta frågor är slut; modellen ska
-inte gå igenom hela frågebanken för att tvinga fram ett resultat.
+Det finns ingen fast klinisk gräns på tio omgångar. `round` är en teknisk
+räknare och `finalize:true` markerar besökarens uttryckliga avslut. Annars
+avslutas flödet när relevanta frågor är uttömda. Frågebanken är ändlig;
+besvarade eller avböjda frågor väljs inte igen. Budget, trafikgränser och
+validering gäller fortsatt och ska inte användas som kliniska slutregler.
+
+Besökaren kan gå tillbaka, komplettera texten och avsluta med det underlag
+som finns. Okända eller avböjda bakgrundssvar räknas som besvarade för
+navigation, aldrig som bekräftade fynd. För en preliminär mönsterrapport
+krävs fortfarande tydliga, godkända säkerhetssvar, besvarad bakgrund och
+minst sex kända symtomsvar samt regelstöd för själva mönstret. Ett tidigt
+avslut kan ge otillräckligt underlag utan mönster eller formelreferenser.
+Ett nekat obligatoriskt mönstervillkor får inte kompenseras med allmänna
+poäng, och frågeflödet ska inte tvinga fram en sortimentsmatchning.
 
 Vid AI-fel fortsätter den pågående sessionen med lokala följdfrågor och
 behåller tidigare svar, utan fler automatiska AI-försök. Ett nytt AI-val
 görs från introduktionen. Rapporten sammanfattar bekräftade svar,
 osäkerheter och begränsningar även när inget mönster kan väljas. Besökaren
 kan välja att komplettera underlaget med relevanta obesvarade frågor
-lokalt. Varken frågegränsen eller kompletteringen sänker mönsterkraven
-eller säkerhetsspärrarna.
+lokalt. Ett manuellt avslut eller en komplettering sänker inte
+mönsterkraven eller säkerhetsspärrarna. Lokalt läge markeras tydligt även
+när säkerhetsuppgifter gör att den valda AI-intervjun inte kan användas.
+
+### Frivilliga kompletteringar inför konsultationen
+
+`consultation` innehåller valfria uppgifter om lokalisation, intensitet
+0–10, frekvens, vardagspåverkan, mål, tidigare undersökningar/behandlingar
+och levnadsvanor. Varje publik fråga kan även få en kort egen kommentar.
+Fälten är avgränsad, opålitlig fritext och ger inga kliniska poäng.
+Besökaren kan granska dem före inskickning; behandlarvyn visar dem separat
+från bekräftade svar och maskinens rapport.
+
+Vid läkemedel/kosttillskott = ja krävs namn; dos, frekvens och anledning är
+en frivillig komplettering. Positiv sjukdoms- eller lever/njuruppgift kan
+kompletteras med diagnos/bakgrund, och allergi = ja med ämne och reaktion.
+Detaljer som hör till en nekad eller avböjd säkerhetsgren rensas på klient
+och server. Sjukdomskompletteringen behålls om antingen sjukdomsfrågan eller
+lever/njurfrågan besvarats ja.
+
+AI kan få beskrivningen, kompletteringar om besvären och kommentarer till
+symtomfrågor för att välja följdfrågor. De separata läkemedelsnamnen,
+`medicationDetails`, `conditionDetails`, `allergyDetails` och kommentarer
+till säkerhetsfrågorna undantas från leverantörsunderlaget. Det är ingen
+automatisk avidentifiering av annan fritext. Beskrivningen och
+kompletteringstexterna omfattas av lokal/serverbaserad säkerhetskontroll
+före eventuellt AI-anrop.
 
 Rapportens inledande ruta visar ”Svaren lutar inom TCM-modellen åt …” endast
 när den samlade analysen har ett kvalificerat primärt mönster och
@@ -64,17 +96,27 @@ modellsvar, örtordinationer, produktförslag eller doser visas.
 
 Fritext med möjliga varningssymtom eller säkerhetsförhållanden kan spärra AI
 och formelreferenser även när strukturerade svar är nekande. Spärren är en
-försiktig kontroll av omnämnanden, inte en tolkning av vem texten gäller eller
-om symtomet är aktuellt. Negation och sammanhang kan inte tolkas säkert av
-ordkontrollen. Besökaren får tydlig information och kan förtydliga sin text;
-akuta besvär ska inte hanteras genom att fortsätta formuläret.
+försiktig kontroll av omnämnanden, inte allmän språkförståelse. Endast en
+snävt definierad helmening som ”Jag tar inga mediciner” eller ”Jag använder
+inga läkemedel” undantas från läkemedelskontrollen. Undantag, osäkerhet,
+tidigare bruk eller villkorad formulering behåller spärren. Akuta omnämnanden
+bedöms fortsatt konservativt även om sammanhanget är oklart. Besökaren kan
+förtydliga texten; akuta besvär ska inte hanteras genom att fortsätta formuläret.
 
-Vid uttrycklig inskickning lagras även beskrivningen krypterat och visas
-separat som besökarens egna ord i behandlarvyn. Rapportsignaturen omfattar
-både svar och beskrivning: ändras texten måste analysen göras om. Befintliga
-ärenden som saknar beskrivning fungerar fortsatt. AI- och
-inskickningssamtyckenas versionsbindning har uppdaterats för fritextens nya
-ändamål, så tidigare samtycken kan inte tyst omfatta den nya behandlingen.
+Vid uttrycklig inskickning lagras beskrivning, läkemedelsnamn och
+kompletteringar i samma krypterade ärendeinnehåll som svar och rapport.
+Rapportsignaturen omfattar svar, beskrivning och normaliserade
+kompletteringar, även uppgifter som enbart är avsedda för behandlaren.
+Ändrat underlag kräver en ny analys. Befintliga ärenden utan de nya fälten
+kan fortfarande öppnas; kompletteringarna får tomma standardvärden.
+
+Samtyckesversionerna använder revisionssträngarna
+`ai-v3-consultation-context` och `clinic-submission-v3-consultation-context`.
+AI-versionen binds till leverantör, endpoint, modell och informationstext;
+inskickningsversionen binds till verksamhet, informationstext, lagringstid
+och behöriga behandlaradresser. Äldre samtycken omfattar inte tyst de nya
+kompletteringarna. Aktuell version kontrolleras före varje AI-anrop och
+varje inskickning.
 Uppdatera den faktiska informationstexten och dataskydds-/kliniska granskningen
 innan AI-flödet aktiveras för verkliga besökare.
 
@@ -183,7 +225,7 @@ I det vanliga analyssteget kan modellen föreslå mönster-ID:n och upp till fem
 
 Utöver begränsningen per klient finns en databaslagrad gemensam AI-budget för installationen. `ANAMNES_AI_DAILY_LIMIT` räknar leverantörsförsök under en 24-timmarsperiod räknad från periodens första försök, inklusive misslyckade försök. Budgeten används först efter kontroller av konfiguration, aktuell information/samtycke, säkerhetssvar och respektive frågeflödes krav på underlag. Förbrukad budget ger regelbaserad fallback, utan ytterligare leverantörsanrop. Gränsen avser försök, inte unika besökare; grund- och uppföljningsanalys kan använda varsitt försök. Den ersätter inte leverantörens egna kostnads- eller kreditgränser.
 
-Vid inskickning tar servern emot validerade svar, egen beskrivning, kontaktuppgifter och ett separat inskickningsval. Ett godtyckligt rapportobjekt från klienten betros inte. Nya osignerade underlag med ofullständiga säkerhets-, bakgrunds- eller symtomuppgifter markeras otillräckliga vid serverns omräkning. En AI-rapport kan följa med endast tillsammans med ett giltigt serverutfärdat HMAC-SHA256-signerat analyskvitto som knyter den oförändrade rapporten till samma svar och aktuell leverantörs-/modell-/informationskonfiguration. Kvittot gäller i 30 minuter. Ett manipulerat eller utgånget kvitto, eller ändrade svar/rapporter/konfiguration, avvisas och kräver en ny analys; det godkänns inte tyst. Inskickning gör inte ett extra dolt leverantörsanrop. Utan ett tidigare AI-analyskvitto beräknas en ny regelbaserad rapport på servern. Den skyddade terapeutvyn anger vilken metod som faktiskt användes, och sparar underlaget separat från behandlarens bedömning.
+Vid inskickning tar servern emot validerade svar, egen beskrivning, läkemedelsnamn, normaliserade kompletteringar, kontaktuppgifter och ett separat inskickningsval. Ett godtyckligt rapportobjekt från klienten betros inte. Nya osignerade underlag med ofullständiga säkerhets-, bakgrunds- eller symtomuppgifter markeras otillräckliga vid serverns omräkning. En AI-rapport kan följa med endast tillsammans med ett giltigt serverutfärdat HMAC-SHA256-signerat analyskvitto som knyter den oförändrade rapporten till samma svar, beskrivning, kompletteringar och aktuell leverantörs-/modell-/informationskonfiguration. Kvittot gäller i 30 minuter. Ett manipulerat eller utgånget kvitto, eller ändrat underlag eller konfiguration, avvisas och kräver en ny analys; det godkänns inte tyst. Tomma nya kompletteringar bevarar den tidigare kvittostrukturen. Inskickning gör inte ett extra dolt leverantörsanrop. Utan ett tidigare AI-analyskvitto beräknas en ny regelbaserad rapport på servern. Den skyddade terapeutvyn anger vilken metod som faktiskt användes, och sparar underlaget separat från behandlarens bedömning.
 
 I det krypterade ärendeinnehållet sparas även inskickningsinformationens exakta text och version, tidpunkt för det separata inskickningsvalet, då gällande lagringstid och, för sparade AI-rapporter, relevant AI-information/version, leverantör och modell. Analyskvittot lagras tillsammans med rapporten. Behöriga behandlare kan läsa denna historik i ärendet; kryptografiska signaturer visas inte i gränssnittet. Äldre ärenden utan denna detaljhistorik fungerar fortfarande och markeras som sådana. Historiken dokumenterar vad verktyget faktiskt tog emot, men avgör inte själv om verksamhetens rättsliga grund eller information är tillräcklig.
 

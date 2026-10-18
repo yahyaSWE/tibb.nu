@@ -6,7 +6,8 @@ import { publicFormulaCatalog } from "./catalog";
 import { requestAiDifferential, requestAiInterview, createAnalysisReceipt } from "./ai";
 import { getAnamnesConfigStatus } from "./config";
 import { getAnamnesAnalysisMode } from "./settings";
-import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, interviewReachedLimit, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
+import { normalizeConsultationDetails } from "./consultation";
+import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
 
 export async function getPublicAnamnesCatalog() {
   const status = getAnamnesConfigStatus();
@@ -16,16 +17,17 @@ export async function getPublicAnamnesCatalog() {
 export async function analyzeAnamnes(input: unknown) {
   const answers = validateAnswers(input && typeof input === "object" ? (input as Record<string, unknown>).answers : undefined);
   const value = IntakeRequestSchema.parse(input);
-  const safety = getSafetyAssessment(answers, value.narrative);
+  const consultation = normalizeConsultationDetails(value.consultation, answers);
+  const safety = getSafetyAssessment(answers, value.narrative, consultation);
   const analysis = analyzePatterns(answers);
   const catalog = await publicFormulaCatalog();
   // No network calls for incomplete safety screens or any safety flag. A
   // user's affirmative provider consent is separate from send-to-clinic consent.
   const ready = getInitialQuestions(answers).filter((question) => !question.professionalOnly).every((question) => !!answers[question.id]);
   const consentCurrent = value.aiConsentVersion === getAnamnesConfigStatus().ai.consentVersion;
-  const differential = value.aiConsent && consentCurrent && safety.level === "clear" && ready ? await requestAiDifferential(answers, analysis, value.narrative) : null;
-  const report = ReportSchema.parse(buildReport(answers, catalog, { narrative: value.narrative, source: differential ? "ai" : "rules", formulaReferencesEnabled: value.formulaReferencesEnabled, followUpQuestionIds: differential?.followUpQuestionIds, acceptedPatternIds: differential?.patternIds }));
-  const receipt = createAnalysisReceipt(answers, report, value.narrative);
+  const differential = value.aiConsent && consentCurrent && safety.level === "clear" && ready ? await requestAiDifferential(answers, analysis, value.narrative, consultation) : null;
+  const report = ReportSchema.parse(buildReport(answers, catalog, { narrative: value.narrative, consultation, source: differential ? "ai" : "rules", formulaReferencesEnabled: value.formulaReferencesEnabled, followUpQuestionIds: differential?.followUpQuestionIds, acceptedPatternIds: differential?.patternIds }));
+  const receipt = createAnalysisReceipt(answers, report, value.narrative, consultation);
   return receipt ? { report, receipt } : { report };
 }
 
@@ -34,11 +36,12 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   // A crafted AnswerMap must not slip past the public question boundary.
   const answers = validateAnswers(input && typeof input === "object" ? (input as Record<string, unknown>).answers : undefined);
   const value = InterviewRequestSchema.parse(input);
-  const safety = getSafetyAssessment(answers, value.narrative);
+  const consultation = normalizeConsultationDetails(value.consultation, answers);
+  const safety = getSafetyAssessment(answers, value.narrative, consultation);
   const analysis = analyzePatterns(answers);
   const catalog = await publicFormulaCatalog();
-  const finalRound = interviewReachedLimit(value.round);
-  const ruleReport = ReportSchema.parse(buildReport(answers, catalog, { narrative: value.narrative, formulaReferencesEnabled: value.formulaReferencesEnabled }));
+  const finalRound = value.finalize;
+  const ruleReport = ReportSchema.parse(buildReport(answers, catalog, { narrative: value.narrative, consultation, formulaReferencesEnabled: value.formulaReferencesEnabled }));
   const result = (questionIds: InterviewResponse["questionIds"], complete: boolean, reason: InterviewResponse["reason"], report = ruleReport): InterviewResponse => {
     const nextQuestions = complete ? [] : questionIds;
     const finalReport = complete ? finalizeInterviewReport(report, answers) : report;
@@ -51,14 +54,20 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
     return result(unansweredSafety, finalRound || unansweredSafety.length === 0 || safety.level !== "incomplete", "safety");
   }
   const enough = interviewHasEnoughAnswers(answers);
-  if (finalRound && !enough) return result([], true, "limit");
+  if (finalRound && !enough) return result([], true, "enough");
   const config = getAnamnesConfigStatus();
   const permitted = value.aiConsent && value.aiConsentVersion === config.ai.consentVersion && config.ai.available && await getAnamnesAnalysisMode() === "ai";
-  if (!permitted) return result(finalRound ? [] : getInterviewFallbackQuestions(answers, analysis), finalRound, "fallback");
-  const differential = await requestAiInterview(answers, analysis, value.narrative);
-  if (!differential) return result(finalRound ? [] : getInterviewFallbackQuestions(answers, analysis), finalRound, "fallback");
-  // Ten question batches may be followed by one final analysis of the last
-  // confirmed answers. The final call may never produce another batch.
+  if (!permitted) {
+    const next = finalRound ? [] : getInterviewFallbackQuestions(answers, analysis);
+    return result(next, finalRound || next.length === 0, "fallback");
+  }
+  const differential = await requestAiInterview(answers, analysis, value.narrative, consultation);
+  if (!differential) {
+    const next = finalRound ? [] : getInterviewFallbackQuestions(answers, analysis);
+    return result(next, finalRound || next.length === 0, "fallback");
+  }
+  // Only an explicit visitor stop can close an unfinished interview. A model
+  // confidence signal cannot skip relevant unanswered reviewed questions.
   const remaining = getInterviewCompletionQuestionIds(answers,analysis);
   const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis, { allowNarrativeQuestions: !!value.narrative });
   const comparisonIds = value.formulaReferencesEnabled ? getFormulaComparisonQuestionIds(answers,analysis,catalog) : [];
@@ -67,7 +76,7 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   // independent rules still have meaningful discriminators to ask about.
   const exhausted = remaining.length === 0 && curatedIds.length === 0 && comparisonIds.length === 0;
   const focusCompleted = interviewHasCompletedFocusQuestions(answers);
-  const complete = finalRound || exhausted || differential.sufficient && enough && hasQualifiedPattern && focusCompleted && curatedIds.length === 0 && comparisonIds.length === 0;
+  const complete = finalRound || exhausted;
   // Even a valid model answer cannot close the interview without a minimum
   // confirmed history. Empty/answered/professional choices fall back to known
   // unanswered public questions and are never turned into invented answers.
@@ -78,10 +87,10 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   const clarifyReference = differential.sufficient && enough && hasQualifiedPattern && focusCompleted && comparisonIds.length > 0;
   const nextIds = clarifyReference ? comparisonIds : curatedIds.length ? curatedIds : [...getInterviewFallbackQuestions(answers, analysis),...comparisonIds];
   const questionIds = complete ? [] : [...new Set(nextIds)].slice(0,3);
-  const currentReport = ReportSchema.parse({ ...buildReport(answers, catalog, { narrative: value.narrative, source: "ai", formulaReferencesEnabled: value.formulaReferencesEnabled, acceptedPatternIds: differential.patternIds, followUpQuestionIds: questionIds }), followUpQuestionIds: questionIds });
+  const currentReport = ReportSchema.parse({ ...buildReport(answers, catalog, { narrative: value.narrative, consultation, source: "ai", formulaReferencesEnabled: value.formulaReferencesEnabled, acceptedPatternIds: differential.patternIds, followUpQuestionIds: questionIds }), followUpQuestionIds: questionIds });
   const report = complete ? finalizeInterviewReport(currentReport, answers) : currentReport;
   // Only a completed interview may authenticate a report for clinic storage.
   // Intermediate hypotheses are working state, not a signed final original.
-  const receipt = complete ? createAnalysisReceipt(answers, report, value.narrative) : null;
-  return InterviewResponseSchema.parse({ report, questionIds, complete, reason: finalRound || exhausted && !hasQualifiedPattern ? "limit" : complete ? "enough" : "continue", ...(receipt ? { receipt } : {}) });
+  const receipt = complete ? createAnalysisReceipt(answers, report, value.narrative, consultation) : null;
+  return InterviewResponseSchema.parse({ report, questionIds, complete, reason: exhausted && !hasQualifiedPattern ? "exhausted" : complete ? "enough" : "continue", ...(receipt ? { receipt } : {}) });
 }

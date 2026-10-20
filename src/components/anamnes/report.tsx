@@ -50,14 +50,15 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
         <h3 id="anamnes-direction-title">{explanation.direction.heading}</h3>
         {explanation.direction.status !== "preliminary" && <p>{explanation.direction.body}</p>}
         {explanation.direction.references.length > 0 ? <h4>{explanation.direction.references.length === 1 ? "Örtformel att utvärdera" : "Örtformler att utvärdera"}</h4> : <p>{explanation.direction.formulaMessage}</p>}
-        {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}</li>)}</ul>}
+        {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => { const match = visibleMatches.find(item => item.name === reference.name); const classicalName = match?.classicalName || match?.pinyin; return <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{classicalName && classicalName !== reference.name && <span>Klassisk formel: {classicalName}</span>}{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}</li>; })}</ul>}
         {visibleMatches.length > 0 && <div className={styles.reportDetailsSafety}>
-          {visibleMatches.some(match => !match.productAvailable) && <p>Klassiska formelreferenser. En verifierad leverantörsprodukt är ännu inte kopplad till alla referenser.</p>}
+          {visibleMatches.some(match => !match.productAvailable || match.requiresVerification) && <p>Klassiska formelreferenser. En verifierad leverantörsprodukt är ännu inte kopplad till alla referenser.</p>}
           {!explanation.direction.references.length && visibleMatches.some(match => match.partial) && <p>Formeljämförelserna är delvisa och täcker inte hela symtombilden.</p>}
           {specificFormulaNotes.length > 0 && <ul className={styles.evidenceList}>{specificFormulaNotes.map(({ formula, note }, index) => <li key={`${formula}-${index}`}><strong>{formula}:</strong> {note}</li>)}</ul>}
         </div>}
         <p className={styles.therapistNotice}>{explanation.direction.evaluationNotice}</p>
       </section>}
+      {!blocked && report.formulaReferencesEnabled && (report.formulaExclusions?.length ?? 0) > 0 && <details className={`${styles.reportDetails} ${styles.reportDetailsPanel}`}><summary>Formelreferenser som inte kunde tas med</summary><p>De här referenserna har uteslutits av säkerhetskontrollen eller behöver ytterligare uppgifter. De är inte förslag att använda eller köpa.</p><ul className={styles.evidenceList}>{report.formulaExclusions.map(exclusion => <li key={exclusion.formulaId}><strong>{exclusion.name}</strong><ul>{exclusion.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul></li>)}</ul><p className={styles.smallNote}>Ta upp säkerhetsuppgifterna vid personlig rådgivning. Ett högt matchningsvärde kan inte upphäva en spärr.</p></details>}
       <details className={`${styles.reportDetails} ${styles.reportDetailsPanel}`}>
         <summary>Så har svaren bedömts</summary>
         <div className={styles.reportDetailsContent}>
@@ -73,6 +74,7 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
           {explanation.comparison.supporting.length > 0 && <><h5>Svar som gav stöd i någon jämförelse</h5><ul className={styles.evidenceList}>{explanation.comparison.supporting.map(line => <li key={line}>{line}</li>)}</ul></>}
           {explanation.comparison.opposing.length > 0 && <><h5>Svar som talade emot någon jämförelse</h5><ul className={styles.evidenceList}>{explanation.comparison.opposing.map(line => <li key={line}>{line}</li>)}</ul></>}
           {explanation.comparison.unmetCriteria.length > 0 && <><h5>Villkor som inte kunde bekräftas</h5><ul className={styles.evidenceList}>{explanation.comparison.unmetCriteria.map(item => <li key={item.questionId}>{item.prompt} <strong>{item.answer}.</strong> {item.status === "different_answer" ? "Det angivna svaret uppfyller inte ett obligatoriskt villkor i en av jämförelserna." : item.status === "not_asked" ? "Den här uppgiften har inte efterfrågats eller besvarats ännu." : "Uppgiften är osäker eller utelämnad och räknas inte som ett bekräftat fynd."}</li>)}</ul></>}
+          {explanation.comparison.unmetComponents.length > 0 && <><h5>Delkomponenter som saknar stöd</h5><ul className={styles.evidenceList}>{explanation.comparison.unmetComponents.map((component, index) => <li key={index}>Minst ett av alternativen behöver bekräftas:<ul>{component.alternatives.map(item => <li key={item.questionId}>{item.prompt} <strong>{item.answer}.</strong><br /><span>I jämförelsen räknas: {item.expectedAnswers.join(" eller ")}.</span></li>)}</ul></li>)}</ul></>}
         </details>}
       </section>
       <section className={styles.reportSection} aria-labelledby="anamnes-pattern-title">
@@ -103,14 +105,15 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
         {noMatch && <p className={styles.notice}><strong>Ingen av de aktiva formlerna i sortimentet passar tillräckligt väl.</strong> Resultatet ska därför bedömas vidare i en konsultation i stället för att anpassas till en tillgänglig produkt.</p>}
         {!blocked && report.formulaReferencesEnabled && <div className={styles.patternStack}>{report.formulaMatches.slice(0, 3).map((match, index) => <article className={styles.patternCard} key={match.formulaId}>
           <p className={styles.matchLabel}>Referens {index + 1} · {match.partial ? "Delvis överensstämmelse" : "Mönsteröverensstämmelse inom modellen"}</p>
-          <h4>{match.name}</h4><p className={styles.patternLanguage}><span lang="zh">{match.hanzi}</span>{match.swedishName && ` · ${match.swedishName}`}</p><p>{match.explanation}</p>
+          <h4>{match.name}</h4><p className={styles.patternLanguage}>{(match.classicalName || match.pinyin) && <span>Klassisk formel: {match.classicalName || match.pinyin}</span>}{match.hanzi && <> · <span lang="zh">{match.hanzi}</span></>}{match.swedishName && ` · ${match.swedishName}`}</p><p>{match.explanation}</p>
           <div className={styles.evidenceGrid}><div><h5>Fynd som talar för</h5><EvidenceList evidence={match.supporting} empty="Inga tillräckligt specifika stödjande fynd." /></div><div><h5>Fynd som talar emot</h5><EvidenceList evidence={match.opposing} empty="Inga motstridiga fynd har fångats av frågorna. Det är ingen bekräftelse på att formeln är lämplig." /></div></div>
           {match.partial && <p className={styles.warning}><strong>Formeln täcker inte hela symtombilden.</strong> {match.limitation}</p>}
           {!match.partial && match.limitation && <p className={styles.smallNote}>{match.limitation}</p>}
           {match.missingQuestionIds.length > 0 && <details className={styles.reportDetails}><summary>Viktiga uppgifter som behöver kompletteras</summary><MissingQuestions ids={match.missingQuestionIds} /></details>}
           <div className={styles.safetyBox}><h5>Säkerhet att bedöma vid konsultation</h5><ul className={styles.evidenceList}>{match.safetyNotes.map((note, i) => <li key={i}>{note}</li>)}</ul></div>
-          <p className={styles.productStatus}>{match.productAvailable ? "Produktuppgifter har verifierats i verksamhetens katalog. Användning behöver fortfarande bedömas individuellt." : "Klassisk referens · En tillgänglig, verifierad leverantörsprodukt är ännu inte kopplad till referensen."}</p>
-          {match.productAvailable && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
+          {match.requiresVerification && <div className={styles.warning}><strong>Produktuppgifter behöver verifieras.</strong><p>Referensen visas inför personlig rådgivning. Den innebär inte att produkten är tillgänglig eller lämplig för dig.</p>{match.verificationNotes.length > 0 && <ul className={styles.evidenceList}>{match.verificationNotes.map((note, index) => <li key={index}>{note}</li>)}</ul>}</div>}
+          <p className={styles.productStatus}>{match.productAvailable && !match.requiresVerification ? "Produktuppgifter har verifierats i verksamhetens katalog. Användning behöver fortfarande bedömas individuellt." : "Klassisk referens · En tillgänglig, verifierad leverantörsprodukt är ännu inte kopplad till referensen."}</p>
+          {match.productAvailable && !match.requiresVerification && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
         </article>)}</div>}
       </section>
         </div>

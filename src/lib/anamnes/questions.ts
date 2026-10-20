@@ -22,6 +22,7 @@ export const questionBank: readonly Question[] = [
   // Retain the label for historical records; never ask it in a new intake.
   {...q('priorAssessment','Bakgrund','Har de aktuella besvären bedömts av legitimerad vårdpersonal?',[['yes','Ja'],['no','Nej'],['scheduled','Undersökning är planerad']]), retired: true},
   q('temperature','Temperatur och vätskor','Hur brukar du uppleva din kroppstemperatur?',[['cold','Ofta frusen'],['hot','Ofta varm'],['mixed','Växlar mellan varmt och kallt'],['neutral','Ingen tydlig avvikelse']]),
+  q('heatTiming','Temperatur och vätskor','Om du upplever värme, när och hur märks den?',[['persistent_strong','Tydlig och ihållande värmekänsla större delen av dagen'],['evening_night','Främst på kvällen eller natten, ibland i handflator eller fotsulor'],['none','Ingen tydlig värmekänsla']], 'Beskriv din vanliga upplevelse, inte uppmätt feber. Ihållande feber eller försämrat allmäntillstånd tas upp i trygghetsfrågorna.'),
   q('thirst','Temperatur och vätskor','Hur upplever du törst?',[['strong_cold','Mycket törstig, föredrar kall dryck'],['small_sips','Torr eller törstig men dricker lite i taget'],['low','Sällan törstig'],['normal','Ingen tydlig avvikelse']]),
   q('sweating','Temperatur och vätskor','När märker du framför allt svettning?',[['spontaneous','Lätt utan ansträngning'],['night','Under natten'],['exertion','Främst vid ansträngning eller värme'],['little','Svettas sällan'],['normal','Ingen tydlig avvikelse']]),
   q('energy','Energi','Hur upplever du din energi?',[['low','Låg större delen av dagen'],['after_food','Trött framför allt efter mat'],['restless','Rastlös trots trötthet'],['normal','Tillräcklig energi']]),
@@ -43,6 +44,7 @@ export const questionBank: readonly Question[] = [
   q('weakVoice','Energi','Blir rösten svag eller trött lätt?'),
   q('exertion','Energi','Hur påverkas du av vanlig vardagsansträngning?',[['tired','Blir lätt kraftlös och behöver vila'],['better','Känner mig ofta bättre av mild rörelse'],['normal','Ingen tydlig avvikelse']]),
   q('frequentInfections','Luftvägar','Har du återkommande luftvägsinfektioner med full återhämtning mellan episoderna?'),
+  q('currentInfection','Luftvägar','Har du just nu en förkylning, influensa eller annan pågående infektion?',[], 'Skilj på återkommande besvär mellan vilka du återhämtar dig och en infektion som pågår nu. Svår sjukdom, ihållande feber eller försämrat allmäntillstånd hör till trygghetsfrågorna.'),
   q('windSensitivity','Luftvägar','Är du särskilt känslig för drag eller vind?'),
   q('cough','Luftvägar','Har du hosta?',[['dry','Torrhosta'],['productive','Hosta med slem'],['none','Ingen hosta']]),
   q('phlegm','Luftvägar','Om du har slem, hur brukar det vara?',[['clear','Ljust eller genomskinligt'],['yellow','Gult och segt'],['none','Inget slem']]),
@@ -72,7 +74,7 @@ export const questionBank: readonly Question[] = [
   q('urination','Blod och vätskor','Har du besvär när du urinerar?',[['burning','Sveda eller täta trängningar'],['frequent_clear','Ofta stora mängder ljus urin'],['scant_dark','Små mängder mörk urin'],['normal','Ingen tydlig avvikelse']]),
   q('edema','Blod och vätskor','Har du återkommande svullnad i ben eller andra kroppsdelar?'),
   q('heaviness','Blod och vätskor','Upplever du tunghet eller tröghet i kroppen?'),
-  q('painLocation','Smärta och rörelse','Var sitter värken framför allt?',[['joints','Leder'],['back_knees','Ländrygg och knän'],['muscles','Muskler'],['head','Huvud'],['abdomen','Mage'],['none','Ingen värk']]),
+  q('painLocation','Smärta och rörelse','Var sitter värken framför allt?',[['joints','Leder'],['back_knees','Ländrygg och knän'],['lower_limbs','Underben, fotleder eller fötter'],['muscles','Muskler'],['head','Huvud'],['abdomen','Mage'],['none','Ingen värk']]),
   q('painCharacter','Smärta och rörelse','Hur skulle du beskriva värken?',[['dull','Dov eller molande'],['distending','Spänd eller vandrande'],['stabbing','Stickande och fixerad på samma plats'],['burning','Brännande'],['none','Ingen värk']]),
   q('painWarmth','Smärta och rörelse','Hur påverkas värken av värme?',[['better','Lindras av värme'],['worse','Förvärras av värme'],['neutral','Ingen tydlig skillnad'],['not_applicable','Inte aktuellt']]),
   q('painMovement','Smärta och rörelse','Hur påverkas värken av mjuk rörelse?',[['better','Lindras'],['worse','Förvärras, vila hjälper'],['neutral','Ingen tydlig skillnad'],['not_applicable','Inte aktuellt']]),
@@ -81,7 +83,7 @@ export const questionBank: readonly Question[] = [
   q('stiffness','Smärta och rörelse','Har du återkommande stelhet som begränsar rörelsen?'),
   q('tongueColor','Frivilliga tungobservationer','Vilken färg tycker du att tungan har?',[['pale','Blek'],['red','Tydligt röd'],['purple','Lila eller mörkröd'],['normal','Ingen tydlig avvikelse']], 'Frivillig observation i naturligt ljus, utan att tolka ett foto som diagnos.'),
   q('tongueShape','Frivilliga tungobservationer','Hur ser tungans form ut?',[['swollen','Bred eller svullen'],['thin','Smal eller tunn'],['normal','Ingen tydlig avvikelse']]),
-  q('tongueCoating','Frivilliga tungobservationer','Hur ser tungans beläggning ut?',[['white_greasy','Vit och tjock eller kladdig'],['yellow_greasy','Gul och tjock eller kladdig'],['scant','Mycket tunn eller saknas'],['normal','Tunn utan tydlig avvikelse']]),
+  q('tongueCoating','Frivilliga tungobservationer','Hur ser tungans beläggning ut?',[['white_greasy','Vit och tjock eller kladdig'],['yellow_greasy','Gul och tjock eller kladdig'],['yellow_dry','Gul och tydligt torr'],['scant','Mycket tunn eller saknas'],['normal','Tunn utan tydlig avvikelse']]),
   q('tongueCracks','Frivilliga tungobservationer','Har du lagt märke till tydliga sprickor i tungan?'),
   q('tongueTeeth','Frivilliga tungobservationer','Har du lagt märke till tandavtryck längs tungans kanter?'),
   q('tongueMoisture','Frivilliga tungobservationer','Hur upplever du tungans fuktighet?',[['dry','Torr'],['wet','Påtagligt våt'],['normal','Ingen tydlig avvikelse']]),
@@ -89,7 +91,7 @@ export const questionBank: readonly Question[] = [
 ];
 export const questionById = new Map<QuestionId, Question>(questionBank.map(question => [question.id, question]));
 export const isPublicQuestion = (question: Question) => !question.professionalOnly && !question.retired;
-export const baseQuestionIds: readonly QuestionId[] = questionBank.slice(0,23).filter(isPublicQuestion).map(question => question.id);
+export const baseQuestionIds: readonly QuestionId[] = ['adult','pregnancy','medication','chronicDisease','liverKidney','allergy','emergency','clinicalRedFlags','focus','duration','onset','trend','temperature','thirst','sweating','energy','appetite','stool','sleep','emotion','pain','stressDigestion'];
 const focusedQuestionIds: Record<string, QuestionId[]> = {
   digestion: ['afterMealBloat','nausea','foodTrigger','ribTension','heaviness','tongueCoating'],
   energy: ['weakVoice','exertion','pallor','dizziness','sinking','tongueColor'],
@@ -97,7 +99,7 @@ const focusedQuestionIds: Record<string, QuestionId[]> = {
   stress: ['ribTension','irritability','stressRelief','afterMealBloat','pallor','tongueColor'],
   pain: ['painLocation','painCharacter','painWarmth','weatherPain','jointWarmth','backWeakness'],
   temperature: ['hotPalms','nightSweats','dryMouth','backWeakness','urination','tongueColor'],
-  immunity: ['frequentInfections','weakVoice','windSensitivity','cough','phlegm','tongueCoating'],
+  immunity: ['frequentInfections','currentInfection','weakVoice','windSensitivity','cough','phlegm','tongueCoating'],
   other: ['afterMealBloat','pallor','nightSweats','painCharacter','heaviness','tongueColor'],
 };
 export function answerLabel(questionId: QuestionId, answer: string | undefined): string {
@@ -135,7 +137,7 @@ export function getFollowupQuestions(answers: AnswerMap, analysis: PatternAnalys
   }).slice(0,5).map(id => questionById.get(id)!);
 }
 export function validateFormulaRules(formula: FormulaRecord): boolean {
-  return [...formula.supportingRules,...formula.opposingRules].every(rule => {
+  return [...formula.supportingRules,...formula.opposingRules,...formula.contraindicationRules,...formula.requiredSafetyRules].every(rule => {
     const question = questionById.get(rule.questionId);
     return question && !question.professionalOnly && rule.values.every(value => !['unknown','prefer_not'].includes(value) && question.options.some(option => option.value === value));
   }) && formula.requiredQuestionIds.every(id => questionById.has(id) && !questionById.get(id)!.professionalOnly);

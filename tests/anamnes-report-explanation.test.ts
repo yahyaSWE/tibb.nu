@@ -45,7 +45,7 @@ test('unknown, withheld, unanswered and differently answered criteria stay disti
 });
 
 test('an uncertain AI differential cannot be replaced with rule-qualified candidates', () => {
-  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale'};
+  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale',currentInfection:'no'};
   const report = buildReport(input,[],{source:'ai',acceptedPatternIds:[]});
   assert.ok(report.analysis.patterns.some(pattern => pattern.qualified));
   const explained = explainAnamnesReport(report,input);
@@ -77,7 +77,7 @@ test('empty input is not a diagnosis and limits output without introducing unsup
 });
 
 test('a clear qualified main pattern can give direction with only existing checked formula references', () => {
-  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale'};
+  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale',currentInfection:'no'};
   const report = buildReport(input,formulaSeed);
   assert.equal(report.analysis.status,'preliminary');
   assert.ok(report.analysis.primary?.qualified);
@@ -117,7 +117,7 @@ test('direction never fills an absent formula match or bypasses disabled referen
 });
 
 test('all safety blocks suppress the direction and even stale formula references', () => {
-  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale'};
+  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale',currentInfection:'no'};
   const clearReport = buildReport(input,formulaSeed);
   assert.ok(clearReport.formulaMatches.length);
   for (const level of ['emergency','medical_review','consultation','incomplete','clear'] as const) {
@@ -131,7 +131,7 @@ test('all safety blocks suppress the direction and even stale formula references
 });
 
 test('close qualified alternatives retain their lower report comparisons without forcing a main direction', () => {
-  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale',dryEyes:'yes',hairNails:'yes'};
+  const input: AnswerMap = {...safety,focus:'energy',duration:'months',trend:'stable',priorAssessment:'yes',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale',currentInfection:'no',dryEyes:'yes',hairNails:'yes'};
   const report = buildReport(input,formulaSeed);
   assert.equal(report.analysis.status,'preliminary');
   assert.equal(report.analysis.primary,null);

@@ -62,6 +62,10 @@ export async function reviewAnamnesAction(_state: AnamnesAdminState, form: FormD
       pulseNotes: String(form.get("pulseNotes") || ""),
       corrections: String(form.get("corrections") || ""),
       finalAssessment: String(form.get("finalAssessment") || ""),
+      selectedPrimaryPatternId: form.get("selectedPrimaryPatternId") || null,
+      selectedSecondaryPatternIds: form.getAll("selectedSecondaryPatternIds"),
+      selectedFormulaId: form.get("selectedFormulaId") || null,
+      formulaNotes: String(form.get("formulaNotes") || ""),
     });
     revalidatePath("/admin/anamnes/arenden", "layout");
     return { success: "Din bedömning har sparats separat från ursprungsrapporten.", revision: expectedRevision + 1 };

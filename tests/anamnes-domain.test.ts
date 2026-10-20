@@ -8,7 +8,7 @@ import { AiDifferentialSchema, FormulaRecordSchema, IntakeRequestSchema, ReportS
 
 const standardAnswers: AnswerMap = {
   adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no',
-  focus:'digestion',duration:'months',onset:'gradual',trend:'stable',priorAssessment:'yes',temperature:'neutral',thirst:'normal',sweating:'normal',energy:'normal',appetite:'normal',stool:'normal',sleep:'normal',emotion:'calm',pain:'no',stressDigestion:'no',
+  currentInfection:'no',focus:'digestion',duration:'months',onset:'gradual',trend:'stable',priorAssessment:'yes',temperature:'neutral',thirst:'normal',sweating:'normal',energy:'normal',appetite:'normal',stool:'normal',sleep:'normal',emotion:'calm',pain:'no',stressDigestion:'no',
 };
 const answers = (overrides: AnswerMap = {}): AnswerMap => ({...standardAnswers,...overrides});
 const qiBlood = answers({focus:'energy',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',tongueColor:'pale',exertion:'tired'});
@@ -49,13 +49,15 @@ test('the pattern catalog is independent and includes differentials beyond the t
   assert.ok(patternCatalog.every(pattern => !Object.hasOwn(pattern,'formula')));
 });
 
-test('the seed preserves exactly the user assortment, with no invented supplier contents or verification', () => {
-  assert.deepEqual(formulaSeed.map(formula => formula.name),['Xiao Yao San','Xiang Sha Liu Jun Zi Tang','Bu Zhong Yi Qi Tang','Suan Zao Ren Tang','Yu Ping Feng San','Gui Pi Tang','Ba Zhen Tang','Du Huo Ji Sheng Tang','Si Miao San','Liu Wei Di Huang Wan']);
+test('the seed preserves the final ten supplier identities, sourced contents and no invented physical-product verification', () => {
+  assert.deepEqual(formulaSeed.map(formula => formula.name),['Athletic Herbs','Coptis & Scute Herbs','Tonic Herbs','Stomach Herbs','Four Marvel Herbs','Relax & Resolve Herbs','Six Herbs',"Women's Herbs",'SLBZ Herbs','Auranthii Herbs']);
   for (const formula of formulaSeed) {
     assert.equal(FormulaRecordSchema.safeParse(formula).success,true);
     assert.equal(validateFormulaRules(formula),true);
-    assert.deepEqual(formula.ingredients,[]);
-    assert.equal(formula.classicalSource,'');
+    assert.ok(formula.ingredients.length > 0);
+    assert.match(formula.classicalSource,/rangejohan\.pdf/);
+    assert.equal(formula.supplierProfile?.productName,formula.name);
+    assert.match(formula.supplierProfile?.documentSha256 ?? '',/^[a-f0-9]{64}$/);
     assert.equal(formula.productId,null);
     assert.equal(formula.identityEvidence,'');
     assert.equal(formula.ingredientEvidence,'');
@@ -129,13 +131,13 @@ test('insufficient and contradictory answers do not force a primary pattern or f
   assert.deepEqual(conflict.formulaMatches,[]);
 });
 
-test('stress-related digestion alone cannot manufacture a Xiao Yao San composite match', () => {
+test('stress-related digestion alone cannot manufacture a Relax and Resolve composite match', () => {
   const input = answers({energy:'low',appetite:'low',stool:'loose',stressDigestion:'yes',ribTension:'yes',afterMealBloat:'yes'});
   const result = buildReport(input,formulaSeed);
   assert.ok(result.analysis.patterns.some(pattern => pattern.id === 'liverInvadesSpleen' && pattern.qualified));
   assert.ok(!result.analysis.patterns.find(pattern => pattern.id === 'liverSpleenBloodDeficiency')?.qualified);
   assert.equal(result.formulaStatus,'no_match');
-  assert.ok(result.formulaMatches.every(formula => formula.name !== 'Xiao Yao San'));
+  assert.ok(result.formulaMatches.every(formula => formula.formulaId !== 'supplier-relax-resolve'));
 });
 
 test('dominant out-of-assortment food stagnation and blood stasis return an explicit no-match', () => {
@@ -182,7 +184,7 @@ test('curated formula matches are default-enabled, ranked, limited to three, par
   const report = buildReport(qiBlood,formulaSeed);
   assert.equal(report.formulaReferencesEnabled,true);
   assert.equal(report.formulaStatus,'matched');
-  assert.equal(report.formulaMatches[0].name,'Ba Zhen Tang');
+  assert.equal(report.formulaMatches[0].name,"Women's Herbs");
   const partialAnswers = {...qiBlood};
   delete partialAnswers.dizziness;
   const partial = buildReport(partialAnswers,formulaSeed).formulaMatches[0];
@@ -191,7 +193,7 @@ test('curated formula matches are default-enabled, ranked, limited to three, par
   assert.equal(report.formulaMatches[0].productAvailable,false);
   assert.equal(report.formulaMatches[0].productUrl,null);
   assert.equal(ReportSchema.safeParse(report).success,true);
-  const base = formulaSeed.find(formula => formula.id === 'ba-zhen-tang')!;
+  const base = formulaSeed.find(formula => formula.id === 'supplier-womens')!;
   const expanded = [1,2,3,4,5].map(index => ({...base,id:`added-${index}`,name:`Ny referens ${index}`}));
   const result = matchFormulas(report.analysis,qiBlood,expanded);
   assert.equal(result.length,3);
@@ -205,16 +207,21 @@ test('admin-managed additions, deactivation and pattern mapping require no AI-co
   const liverFire = answers({temperature:'hot',thirst:'strong_cold',irritability:'yes',emotion:'irritable',tongueColor:'red',constipation:'yes'});
   const report = buildReport(liverFire,formulaSeed);
   assert.equal(report.formulaStatus,'no_match');
-  const addition: FormulaRecord = {...formulaSeed[0],id:'new-reviewed-reference',name:'Administrerad referens',primaryPatternIds:['liverFire'],requiredPatternIds:['liverFire'],secondaryPatternIds:[],supportingRules:[],opposingRules:[],requiredQuestionIds:[]};
+  const addition: FormulaRecord = {...formulaSeed[0],id:'new-reviewed-reference',name:'Administrerad referens',primaryPatternIds:['liverFire'],requiredPatternIds:['liverFire'],secondaryPatternIds:[],supportingRules:[],opposingRules:[],contraindicationRules:[],requiredSafetyRules:[],requiredQuestionIds:[],supplierProfile:null,requiresVerification:false};
   assert.equal(buildReport(liverFire,[addition]).formulaStatus,'matched');
   assert.equal(buildReport(liverFire,[{...addition,active:false}]).formulaStatus,'no_match');
   assert.equal(validateFormulaRules({...addition,supportingRules:[{questionId:'energy',values:['arbitrary'],weight:2}]}),false);
+  for (const key of ['contraindicationRules','requiredSafetyRules'] as const) {
+    for (const invalid of [{questionId:'currentInfection' as const,values:['unknown'],weight:2},{questionId:'temperature' as const,values:['invented'],weight:2},{questionId:'pulse' as const,values:['weak'],weight:2}]) {
+      assert.equal(validateFormulaRules({...addition,[key]:[invalid]}),false,`${key} must use reviewed public findings`);
+    }
+  }
 });
 
 test('legacy formula criteria ignore retired background questions but retain missing symptoms and safety gates', () => {
   const input = { ...qiBlood };
   delete input.priorAssessment;
-  const base = formulaSeed.find(formula => formula.id === 'ba-zhen-tang')!;
+  const base = formulaSeed.find(formula => formula.id === 'supplier-womens')!;
   const legacy: FormulaRecord = { ...base, requiredQuestionIds: [...base.requiredQuestionIds, 'priorAssessment', 'tongueMoisture'] };
   const report = buildReport(input, [legacy]);
   assert.equal(report.formulaStatus, 'matched');
@@ -234,8 +241,8 @@ test('legacy formula criteria ignore retired background questions but retain mis
 });
 
 test('a real product is exposed only with all verified evidence, ingredients and a server-enriched internal product URL', () => {
-  const base = formulaSeed.find(formula => formula.id === 'ba-zhen-tang')!;
-  const verified: FormulaRecord = {...base,productId:1,productUrl:'/butik/verifierad-produkt',ingredients:['Verifierad dokumenterad råvara'],productIdentityVerified:true,ingredientsVerified:true,safetyVerified:true,regulatoryVerified:true,identityEvidence:'Underlag granskat',ingredientEvidence:'Underlag granskat',safetyEvidence:'Underlag granskat',regulatoryEvidence:'Underlag granskat'};
+  const base = formulaSeed.find(formula => formula.id === 'supplier-womens')!;
+  const verified: FormulaRecord = {...base,productId:1,productUrl:'/butik/verifierad-produkt',ingredients:['Verifierad dokumenterad råvara'],productIdentityVerified:true,ingredientsVerified:true,safetyVerified:true,regulatoryVerified:true,identityEvidence:'Dokumenterat och självständigt granskat produktunderlag',ingredientEvidence:'Dokumenterat och självständigt granskat produktunderlag',safetyEvidence:'Dokumenterat och självständigt granskat produktunderlag',regulatoryEvidence:'Dokumenterat och självständigt granskat produktunderlag'};
   assert.equal(buildReport(qiBlood,[verified]).formulaMatches[0].productAvailable,true);
   for (const key of ['productIdentityVerified','ingredientsVerified','safetyVerified','regulatoryVerified'] as const) assert.equal(buildReport(qiBlood,[{...verified,[key]:false}]).formulaMatches[0].productAvailable,false);
   for (const key of ['identityEvidence','ingredientEvidence','safetyEvidence','regulatoryEvidence'] as const) assert.equal(buildReport(qiBlood,[{...verified,[key]:''}]).formulaMatches[0].productAvailable,false);
@@ -278,7 +285,7 @@ test('explicit AI uncertainty suppresses a primary, alternatives and formulas wh
 });
 
 test('formula-specific evidence weights determine ranking without double-counting shared pattern findings', () => {
-  const base = formulaSeed.find(formula => formula.id === 'ba-zhen-tang')!;
+  const base = formulaSeed.find(formula => formula.id === 'supplier-womens')!;
   const profile = (id: string,weight: number): FormulaRecord => ({
     ...base,id,name:id,supportingRules:[
       {questionId:'energy',values:['low'],weight},

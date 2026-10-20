@@ -5,10 +5,10 @@ import { getDb, transaction } from "../database";
 import type { User } from "../types";
 import { anamnesAiConfig, anamnesEncryptionKey, anamnesRetentionDays, anamnesSubmissionsAvailable, anamnesSubmissionConsentVersion } from "./config";
 import { AnamnesError } from "./http";
-import { AnswerMapSchema, ConsultationDetailsSchema, MedicationNamesSchema, NarrativeSchema, ReportSchema, emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type Report } from "./types";
+import { AnswerMapSchema, ConsultationDetailsSchema, MedicationNamesSchema, NarrativeSchema, PatternIdSchema, ReportSchema, emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type Report } from "./types";
 import { validateAnswers } from "./questions";
 import { buildReport } from "./engine";
-import { publicFormulaCatalog } from "./catalog";
+import { getFormulaCatalogEntry, publicFormulaCatalog } from "./catalog";
 import { AnalysisReceiptSchema, verifyAnalysisReceipt } from "./ai";
 import { finalizeInterviewReport } from "./interview";
 import { normalizeConsultationDetails } from "./consultation";
@@ -16,7 +16,11 @@ import { normalizeConsultationDetails } from "./consultation";
 const IdSchema = z.string().uuid();
 const ContactSchema = z.object({ name: z.string().trim().min(1).max(120), email: z.email().max(254), phone: z.string().trim().max(50).default("") }).strict();
 export const SubmitAnamnesSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), consultation: ConsultationDetailsSchema.default(emptyConsultationDetails), medicationNames: MedicationNamesSchema.default(""), formulaReferencesEnabled: z.boolean().default(true), sendConsent: z.literal(true), submissionConsentVersion: z.string().regex(/^[a-f0-9]{64}$/), contact: ContactSchema, report: ReportSchema.optional(), receipt: AnalysisReceiptSchema.optional() }).strict().refine((value) => !!value.report === !!value.receipt, { message: "Rapportens underlag saknas." }).refine((value) => value.answers.medication !== "yes" || !!value.medicationNames, { path: ["medicationNames"], message: "Ange namnen på dina läkemedel eller kosttillskott." }).transform(value => ({ ...value, medicationNames: value.answers.medication === "yes" ? value.medicationNames : "", consultation: normalizeConsultationDetails(value.consultation, value.answers) }));
-export const AnamnesReviewInputSchema = z.object({ expectedRevision: z.number().int().min(0), notes: z.string().max(10000), tongueNotes: z.string().max(5000), pulseNotes: z.string().max(5000), corrections: z.string().max(10000), finalAssessment: z.string().max(10000) }).strict();
+const ReviewFieldsSchema = z.object({ notes: z.string().max(10000), tongueNotes: z.string().max(5000), pulseNotes: z.string().max(5000), corrections: z.string().max(10000), finalAssessment: z.string().max(10000), selectedPrimaryPatternId: PatternIdSchema.nullable().default(null), selectedSecondaryPatternIds: z.array(PatternIdSchema).max(2).default([]), selectedFormulaId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/).nullable().default(null), formulaNotes: z.string().max(5000).default("") }).strict();
+export const AnamnesReviewInputSchema = ReviewFieldsSchema.extend({ expectedRevision: z.number().int().min(0) }).superRefine((value, context) => {
+  if (new Set(value.selectedSecondaryPatternIds).size !== value.selectedSecondaryPatternIds.length || value.selectedPrimaryPatternId && value.selectedSecondaryPatternIds.includes(value.selectedPrimaryPatternId))
+    context.addIssue({ code: 'custom', path: ['selectedSecondaryPatternIds'], message: 'Välj olika huvud- och sekundärmönster.' });
+});
 export type AnamnesReviewInput = z.infer<typeof AnamnesReviewInputSchema>;
 export type AnamnesReview = Omit<AnamnesReviewInput, "expectedRevision"> & { revision: number; authorId: number; authorName: string; reviewedAt: string };
 const StoredConsentSchema = z.object({ submissionVersion: z.string(), submissionNotice: z.string(), recordedAt: z.string(), retentionDays: z.number().int(), aiNotice: z.string().nullable(), aiConsentVersion: z.string().nullable() }).strict();
@@ -51,7 +55,7 @@ function decrypt(value: string, associatedData: string): unknown {
   } catch { throw new AnamnesError("Anamnesen kunde inte öppnas.", 503); }
 }
 const CasePayloadSchema = z.object({ intake: z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), medicationNames: MedicationNamesSchema.default(""), consultation: ConsultationDetailsSchema.default(emptyConsultationDetails) }).strict(), report: ReportSchema, contact: ContactSchema, sendConsentAt: z.string(), consent: StoredConsentSchema.optional(), provenance: StoredProvenanceSchema.optional() }).strict();
-const ReviewPayloadSchema = AnamnesReviewInputSchema.omit({ expectedRevision: true }).extend({ revision: z.number().int().positive(), authorId: z.number().int().positive(), authorName: z.string(), reviewedAt: z.string() }).strict();
+const ReviewPayloadSchema = ReviewFieldsSchema.extend({ revision: z.number().int().positive(), authorId: z.number().int().positive(), authorName: z.string(), reviewedAt: z.string() }).strict();
 export async function pruneExpiredAnamnesCases(now = new Date()) {
   return (await getDb().prepare("DELETE FROM anamnes_cases WHERE expires_at<=?").run(now.toISOString())).changes;
 }
@@ -102,6 +106,8 @@ export async function reviewAnamnesCase(actor: User, id: string, input: unknown)
   assertTherapist(actor);
   IdSchema.parse(id);
   const value = AnamnesReviewInputSchema.parse(input);
+  if (value.selectedFormulaId && !(await getFormulaCatalogEntry(value.selectedFormulaId))?.active)
+    throw new AnamnesError("Välj en aktuell aktiv formel eller lämna formelvalet tomt.");
   const revision = value.expectedRevision + 1;
   const reviewedAt = new Date().toISOString();
   const { expectedRevision: _expected, ...notes } = value;

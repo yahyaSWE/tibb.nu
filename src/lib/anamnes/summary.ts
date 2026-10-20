@@ -33,6 +33,10 @@ export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrati
       lines.push("", "UPPGIFTER SOM BEGRÄNSAR REGELJÄMFÖRELSEN", "Villkor från flera ofullständiga jämförelser, inte en fastställd mönsterhypotes.",
         ...explanation.comparison.unmetCriteria.map(item => `${item.prompt} ${item.answer}. ${item.status === "different_answer" ? "Svaret uppfyller inte ett obligatoriskt villkor i en jämförelse." : "Uppgiften kunde inte bekräftas."}`));
     }
+    if (explanation.comparison?.unmetComponents.length) {
+      lines.push('', 'DELKOMPONENTER SOM SAKNAR STÖD', 'Villkor från ofullständiga jämförelser, inte fastställda mönster. Minst ett alternativ i varje redovisad grupp behöver ha stöd.',
+        ...explanation.comparison.unmetComponents.map((component, index) => `Grupp ${index + 1}: ${component.alternatives.map(item => `${item.prompt} Svar: ${item.answer}. I jämförelsen räknas: ${item.expectedAnswers.join(' eller ')}`).join(' ALTERNATIVT: ')}`));
+    }
     lines.push("", "PRELIMINÄRA TCM-MÖNSTER", report.analysis.primary ? `Primär hypotes: ${report.analysis.primary.name}` : "Ingen tydlig huvudförklaring kan väljas.");
     const patterns = report.analysis.status === "insufficient" ? [] : report.analysis.primary ? [report.analysis.primary, ...report.analysis.secondary] : report.analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
     for (const pattern of patterns) {
@@ -45,8 +49,9 @@ export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrati
     else if (!report.formulaReferencesEnabled) lines.push("Formelreferenser är avstängda.");
     else if (!report.formulaMatches.length) lines.push(report.formulaStatus === "no_match" ? "Ingen av de aktiva formlerna i sortimentet passar tillräckligt väl." : "Underlaget är otillräckligt för en formeljämförelse.");
     else for (const [index, formula] of report.formulaMatches.slice(0, 3).entries()) {
-      lines.push(`${index + 1}. ${formula.name}${formula.partial ? " – delvis överensstämmelse" : ""}`, `För: ${formula.supporting.map(item => item.label).join("; ") || "Underlag saknas"}`, `Emot: ${formula.opposing.map(item => item.label).join("; ") || "Inga motstridiga fynd har fångats"}`, formula.limitation, ...formula.safetyNotes);
+      lines.push(`${index + 1}. ${formula.name}${formula.classicalName ? ` — ${formula.classicalName}` : ""}${formula.partial ? " – delvis överensstämmelse" : ""}`, `För: ${formula.supporting.map(item => item.label).join("; ") || "Underlag saknas"}`, `Emot: ${formula.opposing.map(item => item.label).join("; ") || "Inga motstridiga fynd har fångats"}`, `Uppgifter som saknas: ${formula.missingQuestionIds.map(id => questionById.get(id)?.prompt).filter(Boolean).join("; ") || "Inga ytterligare obligatoriska uppgifter i regeljämförelsen"}`, formula.limitation, ...formula.verificationNotes, ...formula.safetyNotes);
     }
+    if (!report.safety.blocksFormulas && report.formulaReferencesEnabled) for (const excluded of report.formulaExclusions ?? []) lines.push(`UTESLUTEN REFERENS: ${excluded.name}`, ...excluded.reasons);
   }
   lines.push("", "Detta är ett preliminärt samtalsunderlag från en modell som inte är kliniskt validerad. Det är ingen diagnos, ordination eller individuell dosering. Boka konsultation för en självständig bedömning.");
   return lines.join("\n");

@@ -1,10 +1,10 @@
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { createCipheriv, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { createFirstAdmin, getDb, getUser } from "../src/lib/db";
 import type { User } from "../src/lib/types";
 import { ConsultationDetailsSchema, FormulaRecordSchema, emptyConsultationDetails, patternIds, type AnswerMap } from "../src/lib/anamnes/types";
-import { getInitialQuestions, questionBank } from "../src/lib/anamnes/questions";
+import { getInitialQuestions, isPublicQuestion, questionBank } from "../src/lib/anamnes/questions";
 import { getSafetyAssessment, analyzePatterns } from "../src/lib/anamnes/engine";
 import { getFormulaCatalog, saveFormulaCatalogEntry, deleteFormulaCatalogEntry, publicFormulaCatalog } from "../src/lib/anamnes/catalog";
 import { analyzeAnamnes, interviewAnamnes, getPublicAnamnesCatalog } from "../src/lib/anamnes/service";
@@ -162,9 +162,31 @@ test("catalog mutations require admin, reviewed option values and documented ver
   assert.equal((await getFormulaCatalog()).some((entry) => entry.id === saved.id), false);
 });
 
+test("administrator-added mandatory safety questions remain reachable in local and provider-fallback interviews", async () => {
+  await configure();
+  const original = (await getFormulaCatalog()).find(item => item.id === 'supplier-womens')!;
+  const custom = await saveFormulaCatalogEntry(admin,{...original,id:'synthetic-extra-safety',updatedAt:undefined,requiredSafetyRules:[...original.requiredSafetyRules,{questionId:'cough',values:['none'],weight:1}]});
+  assert.ok(!custom.requiredQuestionIds.includes('cough'),'the new safety rule must not need manual duplication');
+  const answers: AnswerMap = {...Object.fromEntries(questionBank.filter(isPublicQuestion).map(question => [question.id,'unknown'])),adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no',focus:'energy',duration:'months',onset:'gradual',trend:'stable',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',tongueColor:'pale',temperature:'neutral',currentInfection:'no'};
+  delete answers.cough;
+  const local = await interviewAnamnes({answers,aiConsent:false,round:12});
+  assert.equal(local.complete,false);
+  assert.deepEqual(local.questionIds,['cough']);
+  assert.ok(local.report.formulaExclusions.some(item => item.formulaId === custom.id));
+  assert.equal(requests,0);
+  globalThis.fetch = async () => { requests++; throw new Error('Synthetic provider unavailable'); };
+  const fallback = await interviewAnamnes({answers,aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion,round:13});
+  assert.equal(fallback.reason,'fallback');
+  assert.deepEqual(fallback.questionIds,['cough']);
+  assert.equal(requests,1);
+  const checked = await interviewAnamnes({answers:{...answers,cough:'none'},aiConsent:false,round:14,finalize:true});
+  assert.ok(checked.report.formulaMatches.some(item => item.formulaId === custom.id));
+  await deleteFormulaCatalogEntry(admin,custom.id,custom.updatedAt);
+});
+
 test("availability requires all verified documents, ingredients and a published product in an open shop", async () => {
   const now = new Date().toISOString();
-  const created = await getDb().prepare("INSERT INTO shop_products(name,slug,price_ore,published,created_at,updated_at) VALUES('Synthetic product','synthetic-product',100,0,?,?)").run(now, now);
+  const created = await getDb().prepare("INSERT INTO shop_products(name,slug,price_ore,stock,published,created_at,updated_at) VALUES('Synthetic product','synthetic-product',100,5,0,?,?)").run(now, now);
   const original = (await getFormulaCatalog())[0];
   const evidence = "Owned synthetic fixture documentation only. Not a verified supplier document.";
   const saved = await saveFormulaCatalogEntry(admin, { ...original, id: "synthetic-availability", updatedAt: undefined, productId: Number(created.lastInsertRowid), productUrl: "https://attacker.invalid/buy", ingredients: ["synthetic fixture"], productIdentityVerified: true, ingredientsVerified: true, safetyVerified: true, regulatoryVerified: true, identityEvidence: evidence, ingredientEvidence: evidence, safetyEvidence: evidence, regulatoryEvidence: evidence });
@@ -214,6 +236,21 @@ test("AI never receives risk, unknown safety, incomplete, invalid or professiona
   const injected = JSON.parse(JSON.stringify({ ...completeAnswers() }).replace(/^\{/, '{"__proto__":"yes",'));
   await assert.rejects(analyzeAnamnes({ answers: injected, aiConsent: true, aiConsentVersion: consent }));
   assert.equal(requests, 0);
+});
+
+test("the supplier differential revision rejects pre-upgrade choices and receipts without resending data", async () => {
+  await configure();
+  const config = anamnesAiConfig();
+  const oldConsent = createHash('sha256').update(JSON.stringify(['ai-v3-consultation-context',config.provider,config.endpoint,config.model,config.privacyNotice])).digest('hex');
+  assert.notEqual(config.consentVersion,oldConsent);
+  const answers = completeAnswers();
+  assert.equal((await analyzeAnamnes({answers,aiConsent:true,aiConsentVersion:oldConsent})).report.source,'rules');
+  assert.equal(requests,0);
+  const current = await analyzeAnamnes({answers,aiConsent:true,aiConsentVersion:config.consentVersion});
+  assert.ok(current.receipt);
+  assert.equal(verifyAnalysisReceipt(answers,current.report,{...current.receipt,aiConsentVersion:oldConsent}),false);
+  assert.equal(verifyAnalysisReceipt(answers,current.report,current.receipt),true);
+  assert.equal(requests,1);
 });
 
 test("AI sees independent vocabulary and coded answers with strict JSON, no catalog/contact/history/tools", async () => {
@@ -385,16 +422,16 @@ test("formula checks clarify counterevidence after independent analysis and pres
   const input = {narrative:"Syntetiskt fall: påhittad trötthet och torrhet.",aiConsent:true,aiConsentVersion};
   const clarify = await interviewAnamnes({...input,answers,round:3});
   assert.equal(clarify.complete,false);
-  assert.deepEqual(clarify.questionIds,["tongueCoating","temperature"]);
+  assert.deepEqual(clarify.questionIds,["currentInfection","temperature","thirst"]);
   assert.equal(clarify.report.analysis.primary?.id,"qiBloodDeficiency");
-  const checked = {...answers,tongueCoating:"normal",temperature:"neutral"};
+  const checked = {...answers,currentInfection:"no",tongueCoating:"normal",temperature:"neutral",thirst:"normal",heaviness:"no",stool:"normal",heatTiming:"none"};
   const followup = await interviewAnamnes({...input,answers:checked,round:4});
   assert.equal(followup.complete,false,'sufficient=true must not erase an explicit valid question');
   assert.deepEqual(followup.questionIds,["dryEyes"]);
   const completed = await interviewAnamnes({...input,answers:{...checked,dryEyes:"unknown"},round:5,finalize:true});
   assert.equal(completed.complete,true);
   assert.equal(completed.report.analysis.primary?.id,"qiBloodDeficiency");
-  assert.ok(completed.report.formulaMatches.some(formula => formula.name==="Ba Zhen Tang"));
+  assert.ok(completed.report.formulaMatches.some(formula => formula.name==="Women's Herbs" && formula.classicalName==="Ba Zhen Tang"));
   assert.ok(completed.report.formulaMatches.every(formula => !formula.productAvailable && formula.productUrl===null));
   assert.equal(JSON.stringify(lastProviderBody).includes("Ba Zhen Tang"),false);
 });
@@ -476,7 +513,8 @@ test("unknown background does not erase a qualified history but AI confidence ca
   providerReply = response({patternIds:[],questionIds:["heaviness","backWeakness"],sufficient:true});
   const pending = await interviewAnamnes({answers:pain,aiConsent:true,aiConsentVersion,round:5});
   assert.equal(pending.complete,false,'the former five-round cap no longer ends this interview');
-  assert.deepEqual(pending.questionIds,["jointWarmth"],'ask the remaining relevant pain safety discriminator');
+  assert.equal(pending.questionIds[0],"jointWarmth",'prioritize the remaining pain safety discriminator');
+  assert.ok(pending.questionIds.length <= 3);
   assert.equal(pending.report.analysis.status,"insufficient");
   assert.equal(pending.receipt,undefined);
   const exhausted = await interviewAnamnes({answers:{...pain,jointWarmth:"no"},aiConsent:true,aiConsentVersion,round:6});

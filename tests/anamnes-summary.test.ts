@@ -8,7 +8,7 @@ import type { AnswerMap } from '../src/lib/anamnes/types';
 const answers: AnswerMap = {
   adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no',
   focus:'energy',duration:'months',onset:'gradual',trend:'stable',priorAssessment:'yes',temperature:'neutral',thirst:'normal',sweating:'normal',
-  energy:'low',appetite:'normal',stool:'normal',sleep:'normal',emotion:'calm',pain:'no',stressDigestion:'no',pallor:'yes',dizziness:'yes',weakVoice:'yes',tongueColor:'pale',exertion:'tired',
+  energy:'low',appetite:'normal',stool:'normal',sleep:'normal',emotion:'calm',pain:'no',stressDigestion:'no',pallor:'yes',dizziness:'yes',weakVoice:'yes',tongueColor:'pale',exertion:'tired',currentInfection:'no',
 };
 
 test('a copied AI summary preserves uncertainty instead of presenting rejected rule candidates', () => {
@@ -72,4 +72,16 @@ test('medication names are exported as visitor-supplied text only for an affirma
   const unanswered = { ...input };
   delete unanswered.medication;
   assert.doesNotMatch(formatAnamnesSummary(report, unanswered, '', names), /Syntetiskt läkemedel A|Syntetiskt tillskott B/);
+});
+
+test('a copied incomplete composite retains alternative missing findings without inventing a main pattern', () => {
+  const input: AnswerMap = {...answers,temperature:'cold',pallor:'no',tongueColor:'unknown',menstrualFlow:'prefer_not',dizziness:'no',dryEyes:'no',hairNails:'no'};
+  const report = buildReport(input,[]);
+  const text = formatAnamnesSummary(report,input);
+  assert.equal(report.analysis.status,'insufficient');
+  assert.match(text,/DELKOMPONENTER SOM SAKNAR STÖD/);
+  assert.match(text,/ALTERNATIVT:/);
+  assert.match(text,/Vet inte/);
+  assert.match(text,/Vill inte svara/);
+  assert.doesNotMatch(text,/Primär hypotes:/);
 });

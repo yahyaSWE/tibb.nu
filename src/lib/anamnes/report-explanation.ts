@@ -32,6 +32,7 @@ export interface AnamnesReportExplanation {
     supporting: string[];
     opposing: string[];
     unmetCriteria: ReportCriterion[];
+    unmetComponents: { alternatives: (ReportCriterion & { expectedAnswers: string[] })[] }[];
   } | null;
   coverage: { answered: number; known: number; unknown: number; withheld: number };
 }
@@ -161,23 +162,33 @@ export function explainAnamnesReport(report: Report, input: AnswerMap): AnamnesR
     ? report.analysis.patterns.filter(pattern => pattern.supporting.length >= 2).slice(0,3)
     : [];
   const criteria = new Map<QuestionId,ReportCriterion>();
+  const components = new Map<string,{ alternatives: (ReportCriterion & { expectedAnswers: string[] })[] }>();
+  const criterion = (id: QuestionId): ReportCriterion => ({
+    ...observation(answers,id),
+    status:!Object.hasOwn(answers,id) ? 'not_asked' : answers[id] === 'unknown' ? 'unknown' : answers[id] === 'prefer_not' ? 'withheld' : 'different_answer',
+  });
   for (const candidate of candidates) {
     const definition = patternById.get(candidate.id);
     if (!definition) continue;
+    const unmetGroups = definition.requiredEvidenceGroups.filter(group => !group.some(rule => known(answers,rule.questionId) && rule.values.includes(answers[rule.questionId]!)));
+    for (const group of unmetGroups) {
+      const publicRules = group.filter(rule => !questionById.get(rule.questionId)?.professionalOnly);
+      if (!publicRules.length) continue;
+      const key = publicRules.map(rule => `${rule.questionId}:${[...rule.values].sort().join(',')}`).sort().join('|');
+      components.set(key,{alternatives:publicRules.map(rule => ({...criterion(rule.questionId),expectedAnswers:rule.values.map(value => answerLabel(rule.questionId,value))}))});
+    }
     const unmetCore = definition.coreRules.filter(rule => !known(answers,rule.questionId) || !rule.values.includes(answers[rule.questionId]!));
-    for (const id of [...unmetCore.map(rule => rule.questionId),...candidate.missingQuestionIds]) {
+    const groupIds = new Set(definition.requiredEvidenceGroups.flat().map(rule => rule.questionId));
+    for (const id of [...unmetCore.map(rule => rule.questionId),...candidate.missingQuestionIds.filter(id => !groupIds.has(id))]) {
       if (criteria.has(id) || questionById.get(id)?.professionalOnly) continue;
-      const answer = answers[id];
-      criteria.set(id,{
-        ...observation(answers,id),
-        status:!Object.hasOwn(answers,id) ? 'not_asked' : answer === 'unknown' ? 'unknown' : answer === 'prefer_not' ? 'withheld' : 'different_answer',
-      });
+      criteria.set(id,criterion(id));
     }
   }
   const comparison = candidates.length ? {
     supporting:evidenceLabels(candidates.flatMap(pattern => pattern.supporting),6),
     opposing:evidenceLabels(candidates.flatMap(pattern => pattern.opposing),4),
     unmetCriteria:[...criteria.values()].slice(0,5),
+    unmetComponents:[...components.values()].slice(0,3),
   } : null;
 
   if (report.safety.level !== 'clear') {

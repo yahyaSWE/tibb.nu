@@ -11,7 +11,7 @@ export const questionIds = [
   'pallor','dizziness','dryEyes','hairNails','menstruation','menstrualFlow','menstrualPain',
   'nightSweats','hotPalms','dryMouth','tinnitus','backWeakness','urination','edema','heaviness',
   'painLocation','painCharacter','painWarmth','painMovement','weatherPain','jointWarmth','stiffness',
-  'tongueColor','tongueShape','tongueCoating','tongueCracks','tongueTeeth','tongueMoisture','pulse',
+  'tongueColor','tongueShape','tongueCoating','tongueCracks','tongueTeeth','tongueMoisture','pulse','heatTiming','currentInfection',
 ] as const;
 export const QuestionIdSchema = z.enum(questionIds);
 export type QuestionId = z.infer<typeof QuestionIdSchema>;
@@ -21,6 +21,7 @@ export const patternIds = [
   'heartBloodDeficiency','qiBloodDeficiency','lungWeiQiDeficiency','kidneyYinDeficiency',
   'yangDeficiency','windColdDampBi','dampHeatLower','dryness','exteriorWindHeat',
   'stomachYinDeficiency','heartSpleenDeficiency','liverSpleenBloodDeficiency','chronicBiDeficiency','liverBloodShenDisturbance',
+  'kidneyYangColdDampBi','excessFireToxin','qiBloodYangDeficiency','spleenQiColdDampStagnation','liverQiStasisHeat',
 ] as const;
 export const PatternIdSchema = z.enum(patternIds);
 export type PatternId = z.infer<typeof PatternIdSchema>;
@@ -58,23 +59,39 @@ export const SafetyAssessmentSchema = z.object({
 }).strict();
 export type SafetyAssessment = z.infer<typeof SafetyAssessmentSchema>;
 
+const SourcePagesSchema = z.array(z.number().int().positive().max(10000)).min(1).max(128);
+export const SupplierFactSchema = z.object({ text: z.string().min(1).max(8000), pages: SourcePagesSchema, kind: z.enum(['supplier','interpretation','unverified']) }).strict();
+export const SupplierProfileSchema = z.object({
+  id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/),
+  supplier: z.string().min(1).max(160), document: z.string().min(1).max(200), documentSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  productName: z.string().min(1).max(160), pdfProductName: z.string().min(1).max(160), formulaName: z.string().min(1).max(160), chineseName: z.string().max(100).nullable(), pages: SourcePagesSchema,
+  ingredients: z.array(z.object({ pinyin: z.string().min(1).max(200), botanicalName: z.string().min(1).max(300), pages: SourcePagesSchema }).strict()).min(1).max(80),
+  actions: z.array(SupplierFactSchema).max(100), traditionalPatterns: z.array(SupplierFactSchema).max(100), indications: z.array(SupplierFactSchema).max(100), explanation: z.array(SupplierFactSchema).max(100), temperature: z.array(SupplierFactSchema).max(100), cautions: z.array(SupplierFactSchema).max(100),
+  verificationIssues: z.array(z.object({ code: z.string().min(1).max(100), message: z.string().min(1).max(2000), pages: SourcePagesSchema }).strict()).max(30), unverifiedFields: z.array(z.string().min(1).max(1000)).max(50),
+}).strict();
+export type SupplierProfile = z.infer<typeof SupplierProfileSchema>;
 export const FormulaRecordSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/), name: z.string().min(1).max(160), pinyin: z.string().max(160), hanzi: z.string().max(100), swedishName: z.string().max(200), active: z.boolean(),
-  primaryPatternIds: z.array(PatternIdSchema).min(1).max(25), secondaryPatternIds: z.array(PatternIdSchema).max(25), requiredPatternIds: z.array(PatternIdSchema).max(25),
-  supportingRules: z.array(EvidenceRuleSchema).max(40), opposingRules: z.array(EvidenceRuleSchema).max(40), requiredQuestionIds: z.array(QuestionIdSchema).max(78),
+  primaryPatternIds: z.array(PatternIdSchema).min(1).max(patternIds.length), secondaryPatternIds: z.array(PatternIdSchema).max(patternIds.length), requiredPatternIds: z.array(PatternIdSchema).max(patternIds.length),
+  supportingRules: z.array(EvidenceRuleSchema).max(40), opposingRules: z.array(EvidenceRuleSchema).max(40), requiredQuestionIds: z.array(QuestionIdSchema).max(questionIds.length),
+  contraindicationRules: z.array(EvidenceRuleSchema).max(40).default([]),
+  requiredSafetyRules: z.array(EvidenceRuleSchema).max(40).default([]),
   theoryExplanation: z.string().max(2000), scopeLimitation: z.string().max(2000), safetyNotes: z.array(z.string().max(1000)).max(20), contraindications: z.array(z.string().max(1000)).max(20), interactions: z.array(z.string().max(1000)).max(20),
   ingredients: z.array(z.string().max(200)).max(80), tongueIndicators: z.array(z.string().max(500)).max(20).default([]), pulseIndicators: z.array(z.string().max(500)).max(20).default([]), classicalSource: z.string().max(2000), identityEvidence: z.string().max(4000), ingredientEvidence: z.string().max(4000), safetyEvidence: z.string().max(4000), regulatoryEvidence: z.string().max(4000),
   productId: z.number().int().positive().nullable(), productUrl: z.string().max(300).nullable().optional(), productIdentityVerified: z.boolean(), ingredientsVerified: z.boolean(), safetyVerified: z.boolean(), regulatoryVerified: z.boolean(), updatedAt: z.string().max(40).optional(),
+  supplierProfile: SupplierProfileSchema.nullable().default(null), requiresVerification: z.boolean().default(false), verificationResolution: z.string().trim().max(4000).default(''),
 }).strict();
 export type FormulaRecord = z.infer<typeof FormulaRecordSchema>;
 export const FormulaMatchSchema = z.object({
   formulaId: z.string(), name: z.string(), pinyin: z.string(), hanzi: z.string(), swedishName: z.string(), score: z.number(),
   explanation: z.string(), supporting: z.array(EvidenceSchema), opposing: z.array(EvidenceSchema), missingQuestionIds: z.array(QuestionIdSchema),
   partial: z.boolean(), limitation: z.string(), safetyNotes: z.array(z.string()), productAvailable: z.boolean(), productId: z.number().nullable(), productUrl: z.string().nullable(),
+  classicalName: z.string().max(160).default(''), requiresVerification: z.boolean().default(false), verificationNotes: z.array(z.string().max(1000)).max(10).default([]),
 }).strict();
 export type FormulaMatch = z.infer<typeof FormulaMatchSchema>;
 export const ReportSchema = z.object({
   version: z.literal(2), analysis: PatternAnalysisSchema, safety: SafetyAssessmentSchema, formulaMatches: z.array(FormulaMatchSchema).max(3),
+  formulaExclusions: z.array(z.object({ formulaId: z.string().max(80), name: z.string().max(160), reasons: z.array(z.string().max(1000)).min(1).max(40) }).strict()).max(200).default([]),
   formulaStatus: z.enum(['matched','no_match','safety_blocked','insufficient','disabled']), formulaReferencesEnabled: z.boolean(), source: z.enum(['rules','ai']), followUpQuestionIds: z.array(QuestionIdSchema).max(5),
 }).strict();
 export type Report = z.infer<typeof ReportSchema>;

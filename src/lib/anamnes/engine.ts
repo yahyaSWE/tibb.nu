@@ -2,6 +2,7 @@ import { answerLabel, getFollowupQuestions, questionById, validateAnswers, valid
 import { patternById, patternCatalog, rule } from './patterns';
 import { FormulaRecordSchema, NarrativeSchema, type AnswerMap, type ConsultationDetails, type Evidence, type EvidenceRule, type FormulaMatch, type FormulaRecord, type PatternAnalysis, type PatternFinding, type PatternId, type QuestionId, type Report, type SafetyAssessment } from './types';
 import { consultationSafetyTexts, normalizeConsultationDetails } from './consultation';
+import { supplierVerificationPending } from './formula-verification';
 
 const unknown = new Set(['unknown','prefer_not']);
 const answered = (answers: AnswerMap, id: QuestionId) => Boolean(answers[id] && !unknown.has(answers[id]!));
@@ -112,9 +113,9 @@ function summarizeYinYang(coldHeat: PatternAnalysis['baGang']['coldHeat'], defic
 export function analyzePatterns(input: AnswerMap): PatternAnalysis {
   const answers = validateAnswers(input);
   const coldRules = [rule('temperature','cold',4),rule('painWarmth','better',2),rule('thirst','low',1)];
-  const heatRules = [rule('temperature','hot',4),rule('thirst','strong_cold',3),rule('hotPalms','yes',2),rule('tongueColor','red',1)];
+  const heatRules = [rule('temperature','hot',4),rule('thirst','strong_cold',3),rule('hotPalms','yes',2),rule('tongueColor','red',1),rule('heatTiming','persistent_strong',3),rule('tongueCoating','yellow_dry',2)];
   const deficiencyRules = [rule('energy','low',3),rule('weakVoice','yes',3),rule('pallor','yes',2),rule('exertion','tired',2)];
-  const excessRules = [rule('painCharacter',['distending','stabbing'],3),rule('foodTrigger','yes',3),rule('tongueCoating',['white_greasy','yellow_greasy'],2)];
+  const excessRules = [rule('painCharacter',['distending','stabbing'],3),rule('foodTrigger','yes',3),rule('tongueCoating',['white_greasy','yellow_greasy','yellow_dry'],2),rule('heatTiming','persistent_strong',3)];
   const interiorRules = [rule('duration',['months','years'],3),rule('stressDigestion','yes',2),rule('stool',['loose','dry','sticky','alternating'],1)];
   const exteriorRules = [rule('duration','days',3),rule('onset',['sudden','after_illness'],2),rule('cough',['dry','productive'],1)];
   const baGang: PatternAnalysis['baGang'] = {
@@ -138,8 +139,8 @@ export function analyzePatterns(input: AnswerMap): PatternAnalysis {
     const score = Math.max(0,sum(supporting) - sum(opposing));
     return {
       id:pattern.id,name:pattern.name,pinyin:pattern.pinyin,hanzi:pattern.hanzi,explanation:pattern.explanation,score,supporting,opposing,
-      missingQuestionIds: pattern.requiredQuestionIds.filter(id => !answered(answers,id)),
-      qualified: significantAnswerCount >= 6 && supporting.length >= 3 && score >= 7 && sum(opposing) < 5 && pattern.coreRules.every(item => matches(answers,item)),
+      missingQuestionIds: dedupe([...pattern.requiredQuestionIds, ...(pattern.requiredEvidenceGroups ?? []).filter(group => !group.some(item => matches(answers,item))).flatMap(group => group.map(item => item.questionId))]).filter(id => !answered(answers,id)),
+      qualified: significantAnswerCount >= 6 && supporting.length >= 3 && score >= 7 && sum(opposing) < 5 && pattern.coreRules.every(item => matches(answers,item)) && (pattern.requiredEvidenceGroups ?? []).every(group => group.some(item => matches(answers,item))),
     };
   }).filter(pattern => pattern.supporting.length > 0).sort((a,b) => b.score-a.score || b.supporting.length-a.supporting.length || a.id.localeCompare(b.id));
   const qualified = patterns.filter(pattern => pattern.qualified);
@@ -157,20 +158,35 @@ export function analyzePatterns(input: AnswerMap): PatternAnalysis {
 export const analyzeAnswers = analyzePatterns;
 
 export function productVerificationComplete(formula: FormulaRecord): boolean {
-  return formula.productId !== null && formula.productIdentityVerified && formula.ingredientsVerified && formula.safetyVerified && formula.regulatoryVerified && formula.ingredients.length > 0 && [formula.identityEvidence,formula.ingredientEvidence,formula.safetyEvidence,formula.regulatoryEvidence].every(value => value.trim().length > 0);
+  return !supplierVerificationPending(formula) && formula.productId !== null && formula.productIdentityVerified && formula.ingredientsVerified && formula.safetyVerified && formula.regulatoryVerified && formula.ingredients.length > 0 && formula.ingredients.every(value => value.trim().length > 0) && [formula.identityEvidence,formula.ingredientEvidence,formula.safetyEvidence,formula.regulatoryEvidence].every(value => value.trim().length >= 20);
 }
+
+/** Only independently supported candidates are checked against the assortment. */
+function independentFormulaCandidates(analysis: PatternAnalysis, catalog: readonly FormulaRecord[]) {
+  if (analysis.status !== 'preliminary') return [];
+  const qualifiedIds = new Set(analysis.patterns.filter(pattern => pattern.qualified).map(pattern => pattern.id));
+  const active = catalog.map(formula => FormulaRecordSchema.parse(formula)).filter(formula => formula.active && validateFormulaRules(formula));
+  const dominant = analysis.primary ?? analysis.patterns.find(pattern => pattern.qualified);
+  if (dominant && !active.some(formula => formula.primaryPatternIds.includes(dominant.id))) return [];
+  return active.filter(formula => formula.primaryPatternIds.some(id => qualifiedIds.has(id)) && formula.requiredPatternIds.every(id => qualifiedIds.has(id)));
+}
+
+function formulaSafetyReasons(formula: FormulaRecord, answers: AnswerMap): string[] {
+  return dedupe([
+    ...formula.contraindicationRules.filter(item => matches(answers,item)).map(item => `Referensen utesluts av följande svar: ${questionById.get(item.questionId)!.prompt} — ${answerLabel(item.questionId,answers[item.questionId])}`),
+    ...formula.requiredSafetyRules.filter(item => !matches(answers,item)).map(item => answered(answers,item.questionId)
+      ? `Ett obligatoriskt säkerhetsvillkor är inte uppfyllt: ${questionById.get(item.questionId)!.prompt} — ${answerLabel(item.questionId,answers[item.questionId])}`
+      : `Ett obligatoriskt säkerhetssvar saknas eller är osäkert: ${questionById.get(item.questionId)!.prompt}`),
+  ]).slice(0,40);
+}
+
 export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catalog: readonly FormulaRecord[], narrative = '', consultation?: ConsultationDetails): FormulaMatch[] {
   const answers = validateAnswers(input);
   if (getSafetyAssessment(answers,narrative,consultation).blocksFormulas || analysis.status !== 'preliminary') return [];
-  const qualifiedIds = new Set(analysis.patterns.filter(pattern => pattern.qualified).map(pattern => pattern.id));
-  const activeCatalog = catalog.map(formula => FormulaRecordSchema.parse(formula)).filter(formula => formula.active && validateFormulaRules(formula));
-  // A dominant differential outside the assortment must not be replaced by a
-  // weaker assortment match merely because an item can be offered.
-  const dominant = analysis.primary ?? analysis.patterns.find(pattern => pattern.qualified);
-  if (dominant && !activeCatalog.some(formula => formula.primaryPatternIds.includes(dominant.id))) return [];
-  return activeCatalog.flatMap((formula): FormulaMatch[] => {
-    const mainPatterns = formula.primaryPatternIds.filter(id => qualifiedIds.has(id));
-    if (!mainPatterns.length || !formula.requiredPatternIds.every(id => qualifiedIds.has(id))) return [];
+  return independentFormulaCandidates(analysis,catalog).flatMap((formula): FormulaMatch[] => {
+    // Negative or absent mandatory safety evidence always overrides scoring.
+    if (formulaSafetyReasons(formula,answers).length) return [];
+    const mainPatterns = formula.primaryPatternIds.filter(id => analysis.patterns.some(pattern => pattern.id === id && pattern.qualified));
     const supporting = uniqueEvidence([...observations(answers,formula.supportingRules), ...analysis.patterns.filter(pattern => mainPatterns.includes(pattern.id)).flatMap(pattern => pattern.supporting)]);
     const opposing = uniqueEvidence([...observations(answers,formula.opposingRules), ...analysis.patterns.filter(pattern => mainPatterns.includes(pattern.id)).flatMap(pattern => pattern.opposing)]);
     const ruleSupport = observations(answers,formula.supportingRules);
@@ -183,7 +199,8 @@ export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catal
     const productUrl = productVerificationComplete(formula) && formula.productUrl && /^\/butik\/[a-z0-9-]+$/.test(formula.productUrl) ? formula.productUrl : null;
     const productAvailable = productVerificationComplete(formula) && productUrl !== null;
     return [{
-      formulaId:formula.id,name:formula.name,pinyin:formula.pinyin,hanzi:formula.hanzi,swedishName:formula.swedishName,
+      formulaId:formula.id,name:formula.name,pinyin:formula.pinyin,hanzi:formula.hanzi,swedishName:formula.swedishName,classicalName:formula.supplierProfile?.formulaName ?? formula.pinyin,
+      requiresVerification:supplierVerificationPending(formula),verificationNotes:supplierVerificationPending(formula) ? ['Produktens ingrediensuppgifter behöver verifieras. Referensen kan endast diskuteras vid en individuell bedömning.'] : [],
       score: sum(supporting)-sum(opposing),explanation:formula.theoryExplanation,supporting,opposing,missingQuestionIds,partial,
       limitation: partial ? `Formeln förklarar inte säkert hela symtombilden. ${formula.scopeLimitation}`.trim() : `En teoretisk referens för konsultation. ${formula.scopeLimitation}`.trim(),
       safetyNotes:dedupe([...formula.safetyNotes,...formula.contraindications,...formula.interactions,'Det faktiska innehållet, medicinska risker och lämpligheten måste bedömas individuellt före eventuell användning.']),
@@ -223,9 +240,10 @@ export function buildReport(input: AnswerMap, catalog: readonly FormulaRecord[],
   }
   const formulaReferencesEnabled = options.formulaReferencesEnabled ?? true;
   const formulaMatches = formulaReferencesEnabled && !safety.blocksFormulas ? matchFormulas(analysis,answers,catalog,options.narrative,options.consultation) : [];
+  const formulaExclusions = formulaReferencesEnabled && !safety.blocksFormulas ? independentFormulaCandidates(analysis,catalog).map(formula => ({ formulaId:formula.id,name:formula.name,reasons:formulaSafetyReasons(formula,answers) })).filter(item => item.reasons.length).slice(0,200) : [];
   const formulaStatus: Report['formulaStatus'] = !formulaReferencesEnabled ? 'disabled' : safety.blocksFormulas ? 'safety_blocked' : analysis.status !== 'preliminary' ? 'insufficient' : formulaMatches.length ? 'matched' : 'no_match';
   return {
-    version:2,analysis,safety,formulaMatches,formulaStatus,formulaReferencesEnabled,source:options.source ?? 'rules',
+    version:2,analysis,safety,formulaMatches,formulaExclusions,formulaStatus,formulaReferencesEnabled,source:options.source ?? 'rules',
     followUpQuestionIds:safety.level === 'emergency' ? [] : getFollowupQuestions(answers,analysis,options.followUpQuestionIds).map(question => question.id),
   };
 }
@@ -242,7 +260,8 @@ export function makeReportSummary(answers: AnswerMap, report: Report, narrative 
     ...report.analysis.secondary.map(pattern => `Alternativ/samtidig hypotes: ${pattern.name}`),
     ...report.analysis.conflicts,
     report.formulaStatus === 'no_match' ? 'Ingen av de aktiva sortimentsformlerna passar tillräckligt väl. Ingen formelreferens visas.' : '',
-    ...report.formulaMatches.map(formula => `Klassisk referens för konsultation: ${formula.name}. ${formula.limitation}`),
+    ...report.formulaMatches.map(formula => `Referens för konsultation: ${formula.name}${formula.classicalName ? ` — ${formula.classicalName}` : ''}. ${formula.limitation} ${formula.verificationNotes.join(' ')}`),
+    ...(report.formulaExclusions ?? []).flatMap(formula => [`Utesluten referens: ${formula.name}`,...formula.reasons]),
     'Boka personlig rådgivning för individuell bedömning före eventuell användning.',
   ].filter(Boolean).join('\n');
 }

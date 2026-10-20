@@ -98,14 +98,14 @@ test('narrative-driven selection can clarify another reviewed TCM area without i
 test('formula clarification follows an independent primary and includes current catalog counterevidence', () => {
   const analysis = analyzePatterns(enough);
   assert.equal(analysis.primary?.id,'qiBloodDeficiency');
-  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed),['tongueCoating','temperature']);
-  assert.deepEqual(getFormulaComparisonQuestionIds({...enough,tongueCoating:'unknown',temperature:'prefer_not'},analysis,formulaSeed),[]);
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed),['currentInfection','temperature','thirst','tongueCoating','heaviness']);
+  assert.deepEqual(getFormulaComparisonQuestionIds({...enough,currentInfection:'prefer_not',tongueCoating:'unknown',temperature:'prefer_not',thirst:'unknown',heaviness:'prefer_not'},analysis,formulaSeed),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds(clearSafety,analyzePatterns(clearSafety),formulaSeed),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds({...enough,medication:'yes'},analysis,formulaSeed),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[]),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed.map(formula => ({...formula,active:false}))),[]);
-  const reference = formulaSeed.find(formula => formula.id==='ba-zhen-tang')!;
-  const changed = {...reference,requiredQuestionIds:['cough' as const],opposingRules:[rule('phlegm','yellow')],supportingRules:[rule('windSensitivity','yes')]};
+  const reference = formulaSeed.find(formula => formula.id==='supplier-womens')!;
+  const changed = {...reference,requiredQuestionIds:['cough' as const],opposingRules:[rule('phlegm','yellow')],supportingRules:[rule('windSensitivity','yes')],contraindicationRules:[],requiredSafetyRules:[]};
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[changed]),['cough','phlegm','windSensitivity']);
   assert.deepEqual(analyzePatterns(enough),analysis,'catalog criteria cannot alter independent evidence');
   const outside: AnswerMap = {...clearSafety,focus:'digestion',duration:'months',trend:'stable',foodTrigger:'yes',reflux:'sour',afterMealBloat:'yes',stoolOdor:'yes',onset:'after_food',abdominalPain:'distending',nausea:'yes'};
@@ -297,7 +297,7 @@ test('copied summaries retain own words with explicit provenance and never conve
 test('finishing an incomplete interview suppresses hypotheses and formulas while preserving original evidence and safety', () => {
   const incomplete: AnswerMap = {...enough,focus:'unknown',duration:'prefer_not'};
   delete incomplete.onset;
-  const original = buildReport(incomplete,formulaSeed);
+  const original = buildReport({...incomplete,currentInfection:'no'},formulaSeed);
   assert.equal(original.analysis.status,'preliminary');
   assert.ok(original.formulaMatches.length > 0);
   const originalSnapshot = structuredClone(original);
@@ -307,6 +307,7 @@ test('finishing an incomplete interview suppresses hypotheses and formulas while
   assert.deepEqual(final.analysis.secondary,[]);
   assert.deepEqual(final.analysis.zangFu,[]);
   assert.deepEqual(final.formulaMatches,[]);
+  assert.deepEqual(final.formulaExclusions,[]);
   assert.equal(final.formulaStatus,'insufficient');
   assert.deepEqual(final.followUpQuestionIds,[]);
   assert.ok(final.analysis.missingQuestionIds.includes('onset'));
@@ -318,6 +319,10 @@ test('finishing an incomplete interview suppresses hypotheses and formulas while
   assert.deepEqual(final.safety,original.safety);
   assert.equal(final.source,original.source);
   assert.deepEqual(original,originalSnapshot);
+  const unclearSafety = {...incomplete,currentInfection:'unknown'};
+  const excluded = buildReport(unclearSafety,formulaSeed);
+  assert.ok(excluded.formulaExclusions.length > 0,'a supported but excluded reference exists before incomplete finalization');
+  assert.deepEqual(finalizeInterviewReport(excluded,unclearSafety).formulaExclusions,[],'an unfinished interview must not leak candidate names through exclusion reasons');
 });
 
 test('finalization respects unknown safety, emergency gates, disabled references and a completed interview', () => {

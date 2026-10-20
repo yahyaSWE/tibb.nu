@@ -29,7 +29,10 @@ export function anamnesAiConfig() {
   const endpoint = provider === "openai" ? "https://api.openai.com/v1/responses" : provider === "responses-compatible" ? configuredCompatibleEndpoint() : null;
   const providerLabel = provider === "openai" ? "OpenAI" : endpoint ? new URL(endpoint).hostname : "AI";
   const available = enabled("ANAMNES_AI_ENABLED") && activationReviewed() && !!endpoint && !!model && !!apiKey && privacyNotice.length >= 30;
-  return { available, provider, providerLabel, model, apiKey, privacyNotice, endpoint, consentVersion: consentVersion("ai-v3-consultation-context", provider, endpoint, model, privacyNotice) };
+  // Updated vocabulary, composite criteria and report fields require a fresh
+  // session choice. Pre-upgrade in-flight receipts fail closed; stored original
+  // reports are still read from their encrypted snapshots, never recomputed.
+  return { available, provider, providerLabel, model, apiKey, privacyNotice, endpoint, consentVersion: consentVersion("ai-v4-supplier-differential", provider, endpoint, model, privacyNotice) };
 }
 function configuredCompatibleEndpoint(): string | null {
   try {

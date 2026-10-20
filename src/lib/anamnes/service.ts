@@ -57,20 +57,24 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   if (finalRound && !enough) return result([], true, "enough");
   const config = getAnamnesConfigStatus();
   const permitted = value.aiConsent && value.aiConsentVersion === config.ai.consentVersion && config.ai.available && await getAnamnesAnalysisMode() === "ai";
+  const referenceQuestions = () => value.formulaReferencesEnabled ? getFormulaComparisonQuestionIds(answers,analysis,catalog) : [];
+  // Administrator-added safety rules must be clarified in local mode too;
+  // their absence cannot be treated as permission to match a product.
+  const fallbackQuestions = () => [...new Set([...getInterviewFallbackQuestions(answers,analysis),...referenceQuestions()])].slice(0,3);
   if (!permitted) {
-    const next = finalRound ? [] : getInterviewFallbackQuestions(answers, analysis);
+    const next = finalRound ? [] : fallbackQuestions();
     return result(next, finalRound || next.length === 0, "fallback");
   }
   const differential = await requestAiInterview(answers, analysis, value.narrative, consultation);
   if (!differential) {
-    const next = finalRound ? [] : getInterviewFallbackQuestions(answers, analysis);
+    const next = finalRound ? [] : fallbackQuestions();
     return result(next, finalRound || next.length === 0, "fallback");
   }
   // Only an explicit visitor stop can close an unfinished interview. A model
   // confidence signal cannot skip relevant unanswered reviewed questions.
   const remaining = getInterviewCompletionQuestionIds(answers,analysis);
   const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis, { allowNarrativeQuestions: !!value.narrative });
-  const comparisonIds = value.formulaReferencesEnabled ? getFormulaComparisonQuestionIds(answers,analysis,catalog) : [];
+  const comparisonIds = referenceQuestions();
   const hasQualifiedPattern = differential.patternIds.length > 0 && analysis.patterns.some(pattern => pattern.qualified);
   // A provider's generic confidence must not close an empty report while the
   // independent rules still have meaningful discriminators to ask about.

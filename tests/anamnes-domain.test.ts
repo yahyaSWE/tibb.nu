@@ -101,7 +101,7 @@ test('an explicitly uncertain joint safety response in a pain history blocks for
 });
 
 test('deterministic emergency and higher-risk gates cannot be overridden by AI IDs or catalog changes', () => {
-  const risks: AnswerMap[] = [{adult:'no'},{pregnancy:'yes'},{medication:'yes'},{chronicDisease:'yes'},{liverKidney:'yes'},{allergy:'yes'},{clinicalRedFlags:'yes'},{jointWarmth:'yes'},{urination:'burning'},{chestTightness:'yes'},{breathing:'yes'},{palpitations:'yes',priorAssessment:'no'},{trend:'worsening',priorAssessment:'no'}];
+  const risks: AnswerMap[] = [{adult:'no'},{pregnancy:'yes'},{chronicDisease:'yes'},{liverKidney:'yes'},{allergy:'yes'},{clinicalRedFlags:'yes'},{jointWarmth:'yes'},{urination:'burning'},{chestTightness:'yes'},{breathing:'yes'},{palpitations:'yes',priorAssessment:'no'},{trend:'worsening',priorAssessment:'no'}];
   for (const risk of risks) {
     const result = buildReport({...qiBlood,...risk},formulaSeed,{source:'ai',acceptedPatternIds:['qiBloodDeficiency']});
     assert.equal(result.safety.blocksFormulas,true);
@@ -233,7 +233,7 @@ test('legacy formula criteria ignore retired background questions but retain mis
   const completed = buildReport({ ...input, tongueMoisture: 'normal' }, [legacy]);
   assert.equal(completed.formulaMatches[0].missingQuestionIds.includes('tongueMoisture'), false);
   assert.equal(completed.formulaMatches[0].missingQuestionIds.includes('priorAssessment'), false);
-  for (const risk of [{ medication: 'yes' }, { emergency: 'yes' }] satisfies AnswerMap[]) {
+  for (const risk of [{ pregnancy: 'yes' }, { emergency: 'yes' }] satisfies AnswerMap[]) {
     const blocked = buildReport({ ...input, ...risk }, [legacy]);
     assert.equal(blocked.safety.blocksFormulas, true);
     assert.deepEqual(blocked.formulaMatches, []);

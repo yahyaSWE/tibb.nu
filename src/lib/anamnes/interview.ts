@@ -1,4 +1,4 @@
-import { getSafetyAssessment, safetyQuestionIds } from './engine';
+import { canAnalyzePatterns, getSafetyAssessment, safetyQuestionIds } from './engine';
 import { patternById } from './patterns';
 import { baseQuestionIds, getInitialQuestions, isPublicQuestion, questionById, validateAnswers } from './questions';
 import { type AnswerMap, type FormulaRecord, type PatternAnalysis, type QuestionId, type Report } from './types';
@@ -79,8 +79,7 @@ export function sanitizeInterviewQuestionIds(ids: readonly unknown[], input: Ans
 /** Unknown/withheld background is a response, but never evidence of a clinical finding. */
 export function interviewHasEnoughAnswers(input: AnswerMap): boolean {
   const answers = validateAnswers(input);
-  const safetyClear = getSafetyAssessment(answers).level === 'clear';
-  if (!safetyClear || getPendingInterviewBackgroundQuestions(answers).length) return false;
+  if (!canAnalyzePatterns(getSafetyAssessment(answers)) || getPendingInterviewBackgroundQuestions(answers).length) return false;
   const symptomIds = Object.keys(answers).filter(id => !safetyQuestionIds.includes(id as QuestionId) && !backgroundIds.includes(id as QuestionId));
   return symptomIds.filter(id => isKnown(answers,id as QuestionId)).length >= 6;
 }
@@ -157,7 +156,7 @@ export function getInterviewCompletionQuestionIds(input: AnswerMap, analysis: Pa
 /** Clarify a reference only after the independent differential supports it. */
 export function getFormulaComparisonQuestionIds(input: AnswerMap, analysis: PatternAnalysis, catalog: readonly FormulaRecord[]): QuestionId[] {
   const answers = validateAnswers(input);
-  if (getSafetyAssessment(answers).level !== 'clear' || analysis.status !== 'preliminary') return [];
+  if (getSafetyAssessment(answers).blocksFormulas || analysis.status !== 'preliminary') return [];
   const qualified = new Set(analysis.patterns.filter(pattern => pattern.qualified).map(pattern => pattern.id));
   const dominant=analysis.primary ?? analysis.patterns.find(pattern => pattern.qualified);
   if (!dominant) return [];

@@ -110,7 +110,7 @@ test('a supported special-order reference never becomes a purchasable product or
   for (const currentInfection of ['yes','unknown','prefer_not']) {
     assert.ok(!buildReport({...food,currentInfection},[original]).formulaMatches.length);
   }
-  assert.ok(!buildReport({...food,medication:'yes'},[original]).formulaMatches.length);
+  assert.ok(buildReport({...food,medication:'yes'},[original]).formulaMatches.some(match => match.formulaId===original.id));
   assert.ok(!buildReport({...food,clinicalRedFlags:'yes'},[original]).formulaMatches.length);
   assert.ok(!buildReport({},catalog).formulaMatches.length);
   assert.ok(!buildReport(food,catalog,{source:'ai',acceptedPatternIds:[]}).formulaMatches.length,'model uncertainty cannot force a closest product');

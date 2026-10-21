@@ -226,7 +226,7 @@ test("AI is disabled without every review gate, explicit consent and current pro
 test("AI never receives risk, unknown safety, incomplete, invalid or professional answers", async () => {
   await configure();
   const consent = getAnamnesConfigStatus().ai.consentVersion;
-  for (const partial of [{ emergency: "yes" }, { medication: "yes" }, { pregnancy: "unknown" }, { adult: "no" }, { allergy: "prefer_not" }]) {
+  for (const partial of [{ emergency: "yes" }, { pregnancy: "unknown" }, { adult: "no" }, { allergy: "prefer_not" }]) {
     const result = await analyzeAnamnes({ answers: { ...completeAnswers(), ...partial }, aiConsent: true, aiConsentVersion: consent });
     assert.equal(result.report.source, "rules");
     assert.equal(result.report.formulaMatches.length, 0);
@@ -309,7 +309,7 @@ test("narrative interview requires current separate consent, AI mode and every c
   await saveAnamnesAnalysisMode(admin, "rules");
   assert.equal((await interviewAnamnes(input)).reason, "fallback");
   await saveAnamnesAnalysisMode(admin, "ai");
-  for (const patch of [{ adult: "no" }, { pregnancy: "unknown" }, { medication: "yes" }, { allergy: "prefer_not" }, { emergency: "yes" }]) {
+  for (const patch of [{ adult: "no" }, { pregnancy: "unknown" }, { allergy: "prefer_not" }, { emergency: "yes" }]) {
     const result = await interviewAnamnes({ ...input, answers: { ...input.answers, ...patch } });
     assert.equal(result.reason, "safety");
     assert.equal(result.report.formulaMatches.length, 0);
@@ -317,7 +317,7 @@ test("narrative interview requires current separate consent, AI mode and every c
   const incomplete = await interviewAnamnes({ ...input, answers: {} });
   assert.equal(incomplete.complete, false);
   assert.deepEqual(incomplete.questionIds, ["emergency", "clinicalRedFlags", "adult"]);
-  for (const narrative of ["Jag har bröstsmärta nu.", "Syntetiskt fall: jag är gravid.", "Syntetiskt fall: jag tar läkemedel."]) {
+  for (const narrative of ["Jag har bröstsmärta nu.", "Syntetiskt fall: jag är gravid."]) {
     const result = await interviewAnamnes({ ...input, narrative });
     assert.equal(result.reason, "safety");
     assert.equal(result.report.formulaMatches.length, 0);
@@ -327,7 +327,7 @@ test("narrative interview requires current separate consent, AI mode and every c
   await assert.rejects(interviewAnamnes({ ...input, narrative: "Hidden\u202econtrol" }));
   const prototypeInjection = JSON.parse(JSON.stringify(input.answers).replace(/^\{/, '{"__proto__":"yes",'));
   await assert.rejects(interviewAnamnes({ ...input, answers: prototypeInjection }));
-  const standard = await analyzeAnamnes({ answers: input.answers, narrative: "Syntetiskt fall: jag tar läkemedel.", aiConsent: true, aiConsentVersion: consent });
+  const standard = await analyzeAnamnes({ answers: input.answers, narrative: "Syntetiskt fall: jag är gravid.", aiConsent: true, aiConsentVersion: consent });
   assert.equal(standard.report.source, "rules");
   assert.equal(standard.report.formulaMatches.length, 0);
   assert.equal(requests, 0);
@@ -489,14 +489,14 @@ test("final incomplete interview remains insufficient despite enough symptom poi
   assert.equal(result.report.formulaStatus, "insufficient");
   assert.ok(result.report.analysis.missingQuestionIds.includes("focus"));
   assert.ok(result.report.analysis.patterns.length > 0, "independent findings remain available for a therapist audit");
-  for (const answers of [{}, { ...base, allergy: "unknown" }, { ...base, medication: "yes" }]) {
+  for (const answers of [{}, { ...base, allergy: "unknown" }, { ...base, medication: "yes" }] as AnswerMap[]) {
     const partial = await interviewAnamnes({ answers, aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion, round: 3, finalize: true });
     assert.equal(partial.complete, true);
     assert.deepEqual(partial.questionIds, []);
     assert.deepEqual(partial.report.followUpQuestionIds, []);
     assert.equal(partial.report.analysis.status, "insufficient");
     assert.deepEqual(partial.report.formulaMatches, []);
-    assert.equal(partial.report.formulaStatus, "safety_blocked");
+    assert.equal(partial.report.formulaStatus, answers.medication === "yes" ? "insufficient" : "safety_blocked");
   }
   assert.equal(requests, 0);
 });
@@ -844,8 +844,9 @@ test("medication names require an affirmative answer, remain encrypted and never
   const stored = await submitAnamnes({ ...input, medicationNames: `  ${medicationNames}  ` });
   const details = await getAnamnesCase(admin, stored.reference);
   assert.equal(details!.intake.medicationNames, medicationNames);
-  assert.equal(details!.report.safety.blocksFormulas, true);
-  assert.deepEqual(details!.report.formulaMatches, []);
+  assert.equal(details!.report.safety.level, "medication_review");
+  assert.equal(details!.report.safety.blocksFormulas, false);
+  assert.notEqual(details!.report.formulaStatus, "safety_blocked");
   assert.equal(details!.report.source, "rules");
   const row = await getDb().prepare("SELECT * FROM anamnes_cases WHERE id=?").get(stored.reference);
   assert.equal(JSON.stringify(row).includes("Syntetiskt läkemedel A"), false);
@@ -1033,7 +1034,7 @@ test("consultation context reaches AI only as separately untrusted complaint dat
   assert.equal(JSON.stringify(lastProviderBody).includes(privateCanary), false);
   assert.deepEqual(result.report.analysis, analyzePatterns(input.answers));
   const before = requests;
-  for (const patch of [{ medication: 'yes' }, { chronicDisease: 'yes' }, { allergy: 'yes' }]) {
+  for (const patch of [{ chronicDisease: 'yes' }, { allergy: 'yes' }]) {
     const blocked = await analyzeAnamnes({ ...input, answers: { ...input.answers, ...patch } });
     assert.equal(blocked.report.safety.blocksFormulas, true);
     assert.equal(blocked.report.source, 'rules');
@@ -1069,6 +1070,55 @@ test("each interview request combines all seven complaint fields, own story and 
     assert.ok(!encoded.includes('notificatie boek') && !encoded.includes('ingredientStatement') && !encoded.includes('special-book-'));
   }
   assert.deepEqual(answers,snapshot);
+});
+
+test("current medication allows consented AI analysis and followups while clinic-only details and product gates stay separate", async () => {
+  await configure();
+  const privateDetail='SYNTHETIC_MEDICATION_NAME_AND_DOSE_FOR_CLINIC_ONLY';
+  const answers={...completeAnswers(),medication:'yes',focus:'energy',appetite:'normal',stool:'normal',afterMealBloat:'no',heaviness:'no',stressDigestion:'no',temperature:'neutral',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',exertion:'tired',sinking:'no',tongueColor:'pale',currentInfection:'no'};
+  const input={answers,narrative:'Syntetiskt fall: tidigare provat medicin utan effekt.',consultation:ConsultationDetailsSchema.parse({medicationDetails:privateDetail}),aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion};
+  providerReply=response({patternIds:['qiBloodDeficiency'],followUpQuestionIds:[]});
+  const analyzed=await analyzeAnamnes(input);
+  assert.equal(analyzed.report.source,'ai');
+  assert.equal(analyzed.report.safety.level,'medication_review');
+  assert.deepEqual(analyzed.report.analysis,analyzePatterns(answers));
+  assert.equal(analyzed.report.safety.blocksFormulas,false);
+  assert.equal(analyzed.report.formulaStatus,'matched');
+  assert.ok(analyzed.report.formulaMatches.every(item => item.safetyNotes.some(note => /terapeut måste granska/.test(note))));
+  assert.equal(JSON.stringify(lastProviderBody).includes(privateDetail),false);
+  const payload=JSON.parse((lastProviderBody.input as {content:{text:string}[]}[])[0].content[0].text);
+  assert.equal(payload.confirmedAnswers.medication,'yes');
+  providerReply=response({patternIds:['qiBloodDeficiency'],questionIds:['constipation'],sufficient:false});
+  const next=await interviewAnamnes({...input,round:0});
+  assert.equal(next.complete,false);
+  assert.equal(next.report.source,'ai');
+  assert.equal(next.reason,'continue');
+  assert.ok(next.questionIds.length);
+  assert.equal(JSON.stringify(lastProviderBody).includes(privateDetail),false);
+  providerReply=response({patternIds:['qiBloodDeficiency'],questionIds:[],sufficient:true});
+  const final=await interviewAnamnes({...input,round:1,finalize:true});
+  assert.equal(final.complete,true);
+  assert.equal(final.report.source,'ai');
+  assert.deepEqual(final.report.analysis,analyzePatterns(answers));
+  assert.equal(final.report.safety.blocksFormulas,false);
+  assert.equal(final.report.formulaStatus,'matched');
+  assert.ok(final.receipt);
+  const before=requests;
+  const noConsent=await analyzeAnamnes({...input,aiConsent:false});
+  assert.equal(noConsent.report.source,'rules');
+  assert.equal(requests,before,'medication review does not bypass provider consent');
+});
+
+test("past medication in the story and previous-care field does not turn off consented AI", async () => {
+  await configure();
+  const input={answers:completeAnswers(),narrative:'Syntetiskt fall: medicin jag provade tidigare hjälpte inte.',consultation:ConsultationDetailsSchema.parse({previousCare:'Tidigare avslutad medicinering utan effekt.'}),aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion};
+  const result=await analyzeAnamnes(input);
+  assert.equal(result.report.source,'ai');
+  assert.equal(result.report.safety.level,'clear');
+  providerReply=response({patternIds:['spleenQiDeficiency'],questionIds:['weakVoice'],sufficient:false});
+  const interview=await interviewAnamnes({...input,round:0});
+  assert.equal(interview.report.source,'ai');
+  assert.notEqual(interview.reason,'safety');
 });
 
 test("complaint fields can guide relevant AI questions even when the opening story is empty", async () => {

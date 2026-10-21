@@ -92,6 +92,26 @@ test("special-order comparison is visible near the result and links to consultat
   assert.doesNotMatch(blocked,/Fråga om specialbeställning/);
 });
 
+test("medication review shows references with required therapist review and no product link", async () => {
+  const { AnamnesReport }=await import('../src/components/anamnes/report');
+  const medicationReport: Report={...report,safety:{level:'medication_review',blocksFormulas:false,flags:['Terapeuten måste kontrollera läkemedel, interaktioner och kontraindikationer före användning.'],missingQuestionIds:[]},formulaMatches:[{...report.formulaMatches[0],requiresVerification:false,productAvailable:true,productId:1,productUrl:'/butik/fictional'}],formulaStatus:'matched'};
+  const html=renderToStaticMarkup(createElement(AnamnesReport,{report:medicationReport,answers:{medication:'yes'},medicationNames:'SYNTHETIC_MEDICATION'}));
+  assert.match(html,/Läkemedel inför konsultationen/);
+  assert.match(html,/Svaren lutar inom TCM-modellen åt Syntetiskt huvudmönster/);
+  assert.match(html,/Terapeuten måste kontrollera läkemedel, interaktioner och kontraindikationer/);
+  const top=html.slice(0,html.indexOf('<summary>Så har svaren bedömts'));
+  assert.match(top,/Örtformel att utvärdera/);
+  assert.match(top,/Syntetisk produkt/);
+  assert.doesNotMatch(html,/href="\/butik|Läs verifierad produktinformation/);
+  assert.match(html,/SYNTHETIC_MEDICATION/);
+  assert.doesNotMatch(html,/Individuell säkerhetsbedömning behövs|Ingen formulamatchning visas för de här svaren/);
+  const therapist=renderToStaticMarkup(createElement(AnamnesTherapistOverview,{report:medicationReport,answers:{medication:'yes'},medicationNames:'SYNTHETIC_MEDICATION'}));
+  assert.match(therapist,/Formelreferenser att utvärdera/);
+  assert.match(therapist,/Syntetisk produkt/);
+  assert.match(therapist,/SYNTHETIC_MEDICATION/);
+  assert.match(therapist,/kontroll av interaktioner och kontraindikationer/);
+});
+
 test("public result shows product plus classical name, evidence and verification without supplier-only documentation", async () => {
   const { AnamnesReport } = await import("../src/components/anamnes/report");
   // A stale availability flag must not override a current verification hold.

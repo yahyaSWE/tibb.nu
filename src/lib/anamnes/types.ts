@@ -55,7 +55,7 @@ export const PatternAnalysisSchema = z.object({
 }).strict();
 export type PatternAnalysis = z.infer<typeof PatternAnalysisSchema>;
 export const SafetyAssessmentSchema = z.object({
-  level: z.enum(['emergency','medical_review','consultation','clear','incomplete']), blocksFormulas: z.boolean(), flags: z.array(z.string()), missingQuestionIds: z.array(QuestionIdSchema),
+  level: z.enum(['emergency','medical_review','consultation','medication_review','clear','incomplete']), blocksFormulas: z.boolean(), flags: z.array(z.string()), missingQuestionIds: z.array(QuestionIdSchema),
 }).strict();
 export type SafetyAssessment = z.infer<typeof SafetyAssessmentSchema>;
 

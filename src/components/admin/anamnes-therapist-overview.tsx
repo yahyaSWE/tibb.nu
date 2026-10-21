@@ -76,6 +76,7 @@ export function AnamnesTherapistOverview({ report, answers, narrative = "", medi
     emergency: "Akuta varningsuppgifter – följ hänvisningen",
     medical_review: "Medicinsk bedömning behöver prioriteras",
     consultation: "Individuell säkerhetsbedömning krävs",
+    medication_review: "Pågående läkemedel – formelreferenser kräver din kontroll av interaktioner och kontraindikationer före användning",
     incomplete: "Säkerhetsuppgifter behöver kompletteras",
     clear: "Inga automatiska säkerhetsspärrar har utlösts",
   };

@@ -8,7 +8,7 @@ import { isPublicQuestion, questionBank } from "./questions";
 import { patternCatalog } from "./patterns";
 import { getAnamnesAnalysisMode } from "./settings";
 import { consultationForAi, hasConsultationDetails, normalizeConsultationDetails } from "./consultation";
-import { getSafetyAssessment } from "./engine";
+import { canAnalyzePatterns, getSafetyAssessment } from "./engine";
 
 export const AnalysisReceiptSchema = z.object({ expiresAt: z.iso.datetime(), signature: z.string().regex(/^[a-f0-9]{64}$/), aiConsentVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type AnalysisReceipt = z.infer<typeof AnalysisReceiptSchema>;
@@ -137,7 +137,7 @@ async function requestProviderOutput<T>(schema: z.ZodType<T>, schemaName: string
   let phase: "budget" | "request" | "envelope" | "output" = "budget";
   try {
     const details = normalizeConsultationDetails(consultation, answers);
-    if (getSafetyAssessment(answers, narrative, details).level !== "clear") return unavailable("safety");
+    if (!canAnalyzePatterns(getSafetyAssessment(answers, narrative, details))) return unavailable("safety");
     const complaint = consultationForAi(details);
     // A durable deployment-wide fixed 24-hour window, starting with its first
     // attempt, applies in addition to per-client limits. Failed provider

@@ -10,7 +10,7 @@ function q(id: QuestionId, section: string, prompt: string, options: [string,str
 export const questionBank: readonly Question[] = [
   q('adult','Trygghet','Är du 18 år eller äldre?'),
   q('pregnancy','Trygghet','Är du gravid, ammar du eller försöker du bli gravid?'),
-  q('medication','Trygghet','Använder du läkemedel eller kosttillskott regelbundet?',[],'Även receptfria preparat och örter kan påverka säkerhetsbedömningen.'),
+  q('medication','Trygghet','Använder du läkemedel eller kosttillskott just nu?',[],'Ta även med receptfria preparat, örter och sådant du tar vid behov. Avslutade behandlingar kan du beskriva under det du redan har provat.'),
   q('chronicDisease','Trygghet','Har du en pågående eller långvarig sjukdom som behandlas eller följs upp?'),
   q('liverKidney','Trygghet','Har du känd lever- eller njursjukdom eller tidigare avvikande lever-/njurprover?'),
   q('allergy','Trygghet','Har du känd allergi, tidigare kraftig reaktion på läkemedel, örter eller kosttillskott?'),

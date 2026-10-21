@@ -2,6 +2,7 @@ import { questionById } from "@/lib/anamnes/questions";
 import type { AnswerMap, ConsultationDetails, Evidence, PatternFinding, QuestionId, Report } from "@/lib/anamnes/types";
 import { consultationDetailRows, hasAiConsultationDetails } from "@/lib/anamnes/consultation";
 import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
+import { canAnalyzePatterns, medicationReviewNotice } from "@/lib/anamnes/engine";
 import styles from "./tcm-anamnes.module.css";
 
 function EvidenceList({ evidence, empty }: { evidence: Evidence[]; empty: string }) {
@@ -28,32 +29,34 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
   const { analysis, safety } = report;
   const candidates = analysis.status === "insufficient" ? [] : analysis.primary ? [analysis.primary, ...analysis.secondary] : analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const blocked = safety.blocksFormulas;
+  const medicationReview=safety.level === "medication_review";
   const noMatch = report.formulaStatus === "no_match";
   const explanation = explainAnamnesReport(report, answers);
   const visibleMatches = !blocked && report.formulaReferencesEnabled ? report.formulaMatches.slice(0, 3) : [];
   const generalFormulaNotes = new Set([
+    medicationReviewNotice,
     "Produktens exakta innehåll och säkerhetsuppgifter är ännu inte verifierade. Namnet är en klassisk referens, inte en tillgänglig eller godkänd produkt.",
     "Det faktiska innehållet, medicinska risker och lämpligheten måste bedömas individuellt före eventuell användning.",
   ]);
   const specificFormulaNotes = visibleMatches.flatMap(match => match.safetyNotes.filter(note => !generalFormulaNotes.has(note)).map(note => ({ formula: match.name, note })));
   return <div className={styles.report}>
-    {safety.level !== "clear" && <div className={safety.level === "emergency" || safety.level === "medical_review" ? styles.alert : styles.warning}>
-      <strong>{safety.level === "emergency" ? "Avbryt och sök akut hjälp" : safety.level === "medical_review" ? "Medicinsk bedömning behöver prioriteras" : safety.level === "incomplete" ? "Säkerhetsunderlaget är ofullständigt" : "Individuell säkerhetsbedömning behövs"}</strong>
+    {safety.level !== "clear" && <div className={safety.level === 'medication_review' ? styles.notice : safety.level === "emergency" || safety.level === "medical_review" ? styles.alert : styles.warning}>
+      <strong>{safety.level === "emergency" ? "Avbryt och sök akut hjälp" : safety.level === "medical_review" ? "Medicinsk bedömning behöver prioriteras" : safety.level === "incomplete" ? "Säkerhetsunderlaget är ofullständigt" : safety.level === 'medication_review' ? 'Läkemedel inför konsultationen' : "Individuell säkerhetsbedömning behövs"}</strong>
       {safety.flags.length > 0 && <ul className={styles.evidenceList}>{safety.flags.map(flag => <li key={flag}>{flag}</li>)}</ul>}
       {safety.missingQuestionIds.length > 0 && <p>Obesvarade eller osäkra säkerhetsuppgifter kan inte räknas som nekande svar.</p>}
-      {blocked && <p>Ingen formulamatchning visas för de här svaren. Ta med uppgifterna till en individuell bedömning.</p>}
+      {blocked && safety.level !== 'medication_review' && <p>Ingen formulamatchning visas för de här svaren. Ta med uppgifterna till en individuell bedömning.</p>}
       {safety.level === "emergency" && <p>Ring 112 vid ett akut nödläge.</p>}
     </div>}
 
     {safety.level !== "emergency" && <>
-      {safety.level === "clear" && <section className={styles.directionCard} aria-labelledby="anamnes-direction-title">
+      {canAnalyzePatterns(safety) && <section className={styles.directionCard} aria-labelledby="anamnes-direction-title">
         <h3 id="anamnes-direction-title">{explanation.direction.heading}</h3>
         {explanation.direction.status !== "preliminary" && <p>{explanation.direction.body}</p>}
         {explanation.direction.references.length > 0 ? <h4>{explanation.direction.references.length === 1 ? "Örtformel att utvärdera" : "Örtformler att utvärdera"}</h4> : <p>{explanation.direction.formulaMessage}</p>}
         {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => { const match = visibleMatches.find(item => item.name === reference.name); const classicalName = match?.classicalName || match?.pinyin; return <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{classicalName && classicalName !== reference.name && <span>Klassisk formel: {classicalName}</span>}{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}{match?.referenceKind === 'special_order' && <><span>Specialbeställningsreferens · produkt och lämplighet behöver kontrolleras</span><a className={styles.productInfo} href="/boka">Fråga om specialbeställning · boka rådgivning</a></>}</li>; })}</ul>}
         {explanation.direction.references.length > 0 && explanation.direction.status === 'uncertain' && <p>{explanation.direction.formulaMessage}</p>}
         {visibleMatches.length > 0 && <div className={styles.reportDetailsSafety}>
-          {visibleMatches.some(match => !match.productAvailable || match.requiresVerification) && <p>Klassiska formelreferenser. En verifierad leverantörsprodukt är ännu inte kopplad till alla referenser.</p>}
+          {!medicationReview && visibleMatches.some(match => !match.productAvailable || match.requiresVerification) && <p>Klassiska formelreferenser. En verifierad leverantörsprodukt är ännu inte kopplad till alla referenser.</p>}
           {!explanation.direction.references.length && visibleMatches.some(match => match.partial) && <p>Formeljämförelserna är delvisa och täcker inte hela symtombilden.</p>}
           {specificFormulaNotes.length > 0 && <ul className={styles.evidenceList}>{specificFormulaNotes.map(({ formula, note }, index) => <li key={`${formula}-${index}`}><strong>{formula}:</strong> {note}</li>)}</ul>}
         </div>}
@@ -101,7 +104,7 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
 
       <section className={styles.reportSection} aria-labelledby="anamnes-formulas-title"><h3 id="anamnes-formulas-title">Formelreferenser inför konsultation</h3>
         <p>Mönsteranalysen görs först. Därefter jämförs fynden med verksamhetens aktiva formelkatalog. En klassisk referens innebär inte att en leverantörsprodukt har samma innehåll eller passar dig.</p>
-        {report.formulaStatus === "safety_blocked" && <p className={styles.warning}>Säker formulamatchning kan inte göras utifrån uppgifterna. Inga formelreferenser visas.</p>}
+        {report.formulaStatus === "safety_blocked" && <p className={styles.warning}>{safety.level === 'medication_review' ? 'Ett eventuellt örtval bedöms vid konsultationen efter kontroll av dina läkemedel och kosttillskott.' : 'Säker formulamatchning kan inte göras utifrån uppgifterna. Inga formelreferenser visas.'}</p>}
         {report.formulaStatus === "insufficient" && <p className={styles.notice}>Underlaget är för begränsat eller motsägelsefullt för att jämföra formler på ett meningsfullt sätt.</p>}
         {report.formulaStatus === "disabled" && <p className={styles.notice}>Formelreferenser visas inte i den här rapporten.</p>}
         {noMatch && <p className={styles.notice}><strong>Ingen av de aktiva formlerna i sortimentet passar tillräckligt väl.</strong> Resultatet ska därför bedömas vidare i en konsultation i stället för att anpassas till en tillgänglig produkt.</p>}
@@ -114,9 +117,9 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
           {match.missingQuestionIds.length > 0 && <details className={styles.reportDetails}><summary>Viktiga uppgifter som behöver kompletteras</summary><MissingQuestions ids={match.missingQuestionIds} /></details>}
           <div className={styles.safetyBox}><h5>Säkerhet att bedöma vid konsultation</h5><ul className={styles.evidenceList}>{match.safetyNotes.map((note, i) => <li key={i}>{note}</li>)}</ul></div>
           {match.requiresVerification && <div className={styles.warning}><strong>Produktuppgifter behöver verifieras.</strong><p>Referensen visas inför personlig rådgivning. Den innebär inte att produkten är tillgänglig eller lämplig för dig.</p>{match.verificationNotes.length > 0 && <ul className={styles.evidenceList}>{match.verificationNotes.map((note, index) => <li key={index}>{note}</li>)}</ul>}</div>}
-          <p className={styles.productStatus}>{match.referenceKind === 'special_order' ? 'Dokumentreferens för eventuell specialbeställning. Faktisk produkt, tillgång och säkerhet behöver bekräftas individuellt.' : match.productAvailable && !match.requiresVerification ? "Produktuppgifter har verifierats i verksamhetens katalog. Användning behöver fortfarande bedömas individuellt." : "Klassisk referens · En tillgänglig, verifierad leverantörsprodukt är ännu inte kopplad till referensen."}</p>
+          <p className={styles.productStatus}>{medicationReview ? 'Formelreferens för terapeutens bedömning. Kombinationen med dina läkemedel är inte utvärderad; interaktioner och kontraindikationer måste kontrolleras före användning.' : match.referenceKind === 'special_order' ? 'Dokumentreferens för eventuell specialbeställning. Faktisk produkt, tillgång och säkerhet behöver bekräftas individuellt.' : match.productAvailable && !match.requiresVerification ? "Produktuppgifter har verifierats i verksamhetens katalog. Användning behöver fortfarande bedömas individuellt." : "Klassisk referens · En tillgänglig, verifierad leverantörsprodukt är ännu inte kopplad till referensen."}</p>
           {match.referenceKind === 'special_order' && <a className={styles.productInfo} href="/boka">Fråga om specialbeställning · boka rådgivning</a>}
-          {match.referenceKind !== 'special_order' && match.productAvailable && !match.requiresVerification && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
+          {!medicationReview && match.referenceKind !== 'special_order' && match.productAvailable && !match.requiresVerification && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
         </article>)}</div>}
       </section>
         </div>

@@ -101,7 +101,7 @@ test('formula clarification follows an independent primary and includes current 
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed),['currentInfection','temperature','thirst','tongueCoating']);
   assert.deepEqual(getFormulaComparisonQuestionIds({...enough,currentInfection:'prefer_not',tongueCoating:'unknown',temperature:'prefer_not',thirst:'unknown',heaviness:'prefer_not'},analysis,formulaSeed),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds(clearSafety,analyzePatterns(clearSafety),formulaSeed),[]);
-  assert.deepEqual(getFormulaComparisonQuestionIds({...enough,medication:'yes'},analysis,formulaSeed),[]);
+  assert.deepEqual(getFormulaComparisonQuestionIds({...enough,medication:'yes'},analysis,formulaSeed),getFormulaComparisonQuestionIds(enough,analysis,formulaSeed));
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[]),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed.map(formula => ({...formula,active:false}))),[]);
   const reference = formulaSeed.find(formula => formula.id==='supplier-womens')!;
@@ -165,7 +165,8 @@ test('minimum sufficiency requires clear safety, answered background and at leas
     delete answers[missing];
     assert.equal(interviewHasEnoughAnswers(answers),false,missing);
   }
-  for (const id of ['pregnancy','medication','chronicDisease','liverKidney','allergy','emergency','clinicalRedFlags'] as const) assert.equal(interviewHasEnoughAnswers({...enough,[id]:'yes'}),false,id);
+  for (const id of ['pregnancy','chronicDisease','liverKidney','allergy','emergency','clinicalRedFlags'] as const) assert.equal(interviewHasEnoughAnswers({...enough,[id]:'yes'}),false,id);
+  assert.equal(interviewHasEnoughAnswers({...enough,medication:'yes'}),true,'medication review does not erase symptom coverage');
   for (const value of ['unknown','prefer_not']) assert.equal(interviewHasEnoughAnswers({...enough,exertion:value}),false);
   for (const id of ['focus','duration','onset','trend'] as const) {
     for (const value of ['unknown','prefer_not']) assert.equal(interviewHasEnoughAnswers({...enough,[id]:value}),true,`${id}:${value}`);
@@ -271,7 +272,7 @@ test('medical and interaction-risk mentions add a conservative gate that cannot 
     assert.deepEqual(report.formulaMatches,[]);
     assert.match(report.safety.flags.join(' '),/inte en bekräftad/);
   }
-  for (const narrative of ['Jag är gravid.','Jag är inte gravid.','Jag ammar.','Jag är ammande.','Jag söker om amning.','Jag tar Eliquis.','Mina läkemedel fungerar bra.','Jag har njursjukdom.']) {
+  for (const narrative of ['Jag är gravid.','Jag är inte gravid.','Jag ammar.','Jag är ammande.','Jag söker om amning.','Jag har njursjukdom.']) {
     const report = buildReport(enough,formulaSeed,{narrative});
     assert.equal(report.safety.level,'consultation',narrative);
     assert.equal(report.formulaStatus,'safety_blocked');
@@ -326,7 +327,7 @@ test('finishing an incomplete interview suppresses hypotheses and formulas while
 });
 
 test('finalization respects unknown safety, emergency gates, disabled references and a completed interview', () => {
-  for (const risk of [{pregnancy:'unknown'},{adult:'prefer_not'},{emergency:'yes'},{medication:'yes'}] satisfies AnswerMap[]) {
+  for (const risk of [{pregnancy:'unknown'},{adult:'prefer_not'},{emergency:'yes'}] satisfies AnswerMap[]) {
     const answers = {...enough,...risk};
     const original = buildReport(answers,formulaSeed);
     const final = finalizeInterviewReport(original,answers);

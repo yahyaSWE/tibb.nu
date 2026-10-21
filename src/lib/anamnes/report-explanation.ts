@@ -2,6 +2,7 @@ import { patternById } from './patterns';
 import { answerLabel, questionById, validateAnswers } from './questions';
 import type { AnswerMap, Evidence, QuestionId, Report } from './types';
 import { effectiveAnswer } from './answer-context';
+import { canAnalyzePatterns } from './engine';
 
 export interface ReportObservation {
   questionId: QuestionId;
@@ -67,7 +68,7 @@ function evidenceLabels(items: Evidence[], maximum: number): string[] {
 
 function reportDirection(report: Report): ReportDirection {
   const evaluationNotice = 'Preliminärt TCM-underlag. En terapeut behöver bekräfta bedömningen och kontrollera säkerheten före eventuell användning av örter.';
-  if (report.safety.blocksFormulas || report.safety.level !== 'clear') {
+  if (!canAnalyzePatterns(report.safety)) {
     return {
       status:'safety_blocked',
       heading:report.safety.level === 'emergency' ? 'Följ vårdhänvisningen' : 'Individuell bedömning behövs först',
@@ -86,7 +87,7 @@ function reportDirection(report: Report): ReportDirection {
         : report.analysis.status === 'preliminary' && !primary
           ? 'Flera preliminära mönster ligger nära varandra. En behandlare behöver särskilja dem innan ett huvudmönster kan väljas.'
           : 'Underlaget ger ingen tillräckligt tydlig riktning. Systemet väljer därför varken en huvudförklaring eller en passande örtformel.',
-      hypothesis:null,references:report.analysis.status === 'preliminary' && report.formulaReferencesEnabled && report.formulaStatus === 'matched' ? report.formulaMatches.slice(0,3).map(formula => ({name:formula.name,partial:true})) : [],
+      hypothesis:null,references:report.analysis.status === 'preliminary' && !report.safety.blocksFormulas && report.formulaReferencesEnabled && report.formulaStatus === 'matched' ? report.formulaMatches.slice(0,3).map(formula => ({name:formula.name,partial:true})) : [],
       formulaMessage:report.analysis.status === 'preliminary' && !primary && report.formulaReferencesEnabled && report.formulaStatus === 'matched' && report.formulaMatches.length
         ? 'Ingen formelreferens kan prioriteras som huvudalternativ. Jämförelserna längre ned behöver särskiljas tillsammans med en behandlare.'
         : 'Ingen formelreferens kan väljas utifrån den samlade bedömningen.',
@@ -95,13 +96,13 @@ function reportDirection(report: Report): ReportDirection {
   }
   // These are existing, independently checked report references. The helper
   // never derives a formula from a pattern name or fills an empty assortment.
-  const references = report.formulaReferencesEnabled && report.formulaStatus === 'matched'
+  const references = !report.safety.blocksFormulas && report.formulaReferencesEnabled && report.formulaStatus === 'matched'
     ? report.formulaMatches.slice(0,3).map(formula => ({name:formula.name,partial:formula.partial}))
     : [];
   const formulaMessage = !report.formulaReferencesEnabled || report.formulaStatus === 'disabled'
     ? 'Formelreferenser är avstängda i detta underlag.'
     : references.length
-      ? `Formelreferenserna är teoretiska jämförelser att diskutera med en behandlare.${references.some(formula => formula.partial) ? ' Delvis överensstämmelse innebär att formeln inte täcker hela symtombilden.' : ''}`
+      ? `Formelreferenserna är teoretiska jämförelser att diskutera med en behandlare.${references.some(formula => formula.partial) ? ' Delvis överensstämmelse innebär att formeln inte täcker hela symtombilden.' : ''}${report.safety.level === 'medication_review' ? ' Terapeuten måste bedöma dina läkemedel, interaktioner och kontraindikationer före användning.' : ''}`
       : report.formulaStatus === 'no_match'
         ? 'Ingen av de aktiva formlerna i sortimentet passar tillräckligt väl till den samlade bedömningen.'
         : 'Underlaget räcker ännu inte till en formeljämförelse.';
@@ -193,7 +194,7 @@ export function explainAnamnesReport(report: Report, input: AnswerMap): AnamnesR
     unmetComponents:[...components.values()].slice(0,3),
   } : null;
 
-  if (report.safety.level !== 'clear') {
+  if (!canAnalyzePatterns(report.safety)) {
     nextSteps.push('Följ vård- och säkerhetshänvisningarna i rapporten innan eventuell TCM-bedömning.');
   } else {
     nextSteps.push('Boka en konsultation för att gå igenom besvär, svar och eventuella skillnader i underlaget tillsammans med en behandlare.');

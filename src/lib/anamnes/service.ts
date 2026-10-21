@@ -1,7 +1,7 @@
 import "server-only";
 import { IntakeRequestSchema, InterviewRequestSchema, InterviewResponseSchema, ReportSchema, type InterviewResponse } from "./types";
 import { validateAnswers, getInitialQuestions } from "./questions";
-import { analyzePatterns, buildReport, getSafetyAssessment } from "./engine";
+import { analyzePatterns, buildReport, canAnalyzePatterns, getSafetyAssessment } from "./engine";
 import { publicFormulaCatalog } from "./catalog";
 import { requestAiDifferential, requestAiInterview, createAnalysisReceipt } from "./ai";
 import { getAnamnesConfigStatus } from "./config";
@@ -21,11 +21,11 @@ export async function analyzeAnamnes(input: unknown) {
   const safety = getSafetyAssessment(answers, value.narrative, consultation);
   const analysis = analyzePatterns(answers);
   const catalog = await publicFormulaCatalog();
-  // No network calls for incomplete safety screens or any safety flag. A
+  // No network calls for incomplete screens or other blocking safety flags. A
   // user's affirmative provider consent is separate from send-to-clinic consent.
   const ready = getInitialQuestions(answers).filter((question) => !question.professionalOnly).every((question) => !!answers[question.id]);
   const consentCurrent = value.aiConsentVersion === getAnamnesConfigStatus().ai.consentVersion;
-  const differential = value.aiConsent && consentCurrent && safety.level === "clear" && ready ? await requestAiDifferential(answers, analysis, value.narrative, consultation) : null;
+  const differential = value.aiConsent && consentCurrent && canAnalyzePatterns(safety) && ready ? await requestAiDifferential(answers, analysis, value.narrative, consultation) : null;
   const report = ReportSchema.parse(buildReport(answers, catalog, { narrative: value.narrative, consultation, source: differential ? "ai" : "rules", formulaReferencesEnabled: value.formulaReferencesEnabled, followUpQuestionIds: differential?.followUpQuestionIds, acceptedPatternIds: differential?.patternIds }));
   const receipt = createAnalysisReceipt(answers, report, value.narrative, consultation);
   return receipt ? { report, receipt } : { report };
@@ -49,7 +49,7 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   };
   // Both structured answers and free text are screened before any external
   // request. Missing/uncertain safety answers do not authorize sending data.
-  if (safety.level !== "clear") {
+  if (!canAnalyzePatterns(safety)) {
     const unansweredSafety = mandatoryInterviewQuestions.filter((id) => !answers[id]).slice(0, 3);
     return result(unansweredSafety, finalRound || unansweredSafety.length === 0 || safety.level !== "incomplete", "safety");
   }

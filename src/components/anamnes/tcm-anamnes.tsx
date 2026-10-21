@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { ArrowLeft, ArrowRight, Check, Clipboard, Leaf, LockKeyhole, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
-import { buildReport, getSafetyAssessment, safetyQuestionIds } from "@/lib/anamnes/engine";
+import { buildReport, canAnalyzePatterns, getSafetyAssessment, safetyQuestionIds } from "@/lib/anamnes/engine";
 import { getInitialQuestions, getFollowupQuestions, isPublicQuestion, questionBank, questionById } from "@/lib/anamnes/questions";
 import { FormulaRecordSchema, ReportSchema, InterviewResponseSchema, NarrativeSchema, MedicationNamesSchema, ConsultationDetailsSchema, emptyConsultationDetails, type ConsultationDetails, type AnswerMap, type FormulaRecord, type Question, type QuestionId, type Report } from "@/lib/anamnes/types";
 import { finalizeInterviewReport, getInterviewCompletionQuestionIds } from "@/lib/anamnes/interview";
@@ -146,7 +146,7 @@ export default function TcmAnamnes() {
       setSessionNotice("Du granskar och kan ändra dina tidigare svar. När du är klar skapas ett uppdaterat lokalt underlag.");
       return;
     }
-    if (interviewActive && !safety.blocksFormulas) {
+    if (interviewActive && canAnalyzePatterns(safety)) {
       if (interviewHistory.length) setStage("interview");
       else void advanceInterview();
     } else {
@@ -191,7 +191,7 @@ export default function TcmAnamnes() {
       setConfig(latest); setCatalogState("ready");
       const local = buildReport(answers, latest.formulas, { narrative: narrative.trim(), consultation });
       if (localInterview) { continueLocally(local, finish); return; }
-      if (local.safety.blocksFormulas) {
+      if (!canAnalyzePatterns(local.safety)) {
         if (answers.focus === "pain" && ["unknown", "prefer_not"].includes(answers.jointWarmth ?? "")) { setReport(finalizeInterviewReport(local, answers)); setStage("report"); setNotice("Uppgiften om en röd, varm eller svullen led är osäker. Underlaget sammanfattas för individuell bedömning; inga formelreferenser visas."); }
         else if (!finish && local.safety.level !== "emergency") { setLocalInterview(true); setAiConsentVersion(null); setSessionNotice("Med dessa säkerhetsuppgifter används lokala frågor. Din beskrivning finns kvar för behandlaren och skickas inte till AI."); continueLocally(local, false); }
         else { setReport(finalizeInterviewReport(local, answers)); setStage("report"); }
@@ -240,7 +240,7 @@ export default function TcmAnamnes() {
       }
       let result = buildReport(answers, activeCatalog, { narrative: narrative.trim(), consultation });
       let nextReceipt: AnalysisReceipt | null = null;
-      const mayUseAi = catalogVerified && activeConfig.analysisMode === "ai" && !!aiConsentVersion && activeConfig.ai.available && aiConsentVersion === activeConfig.ai.consentVersion && !result.safety.blocksFormulas;
+      const mayUseAi = catalogVerified && activeConfig.analysisMode === "ai" && !!aiConsentVersion && activeConfig.ai.available && aiConsentVersion === activeConfig.ai.consentVersion && canAnalyzePatterns(result.safety);
       if (mayUseAi) {
         try {
           const response = await fetch("/api/anamnes/analyze", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]), body: JSON.stringify({ answers, narrative: narrative.trim(), consultation, aiConsent: true, aiConsentVersion, formulaReferencesEnabled: true }) });

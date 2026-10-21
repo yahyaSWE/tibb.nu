@@ -62,8 +62,9 @@ test('medication names are exported as visitor-supplied text only for an affirma
   const names = '  Syntetiskt läkemedel A\nSyntetiskt tillskott B  ';
   const summary = formatAnamnesSummary(report, input, '', names);
   assert.match(summary, /Angivna läkemedel eller kosttillskott \(besökarens egna uppgifter\): Syntetiskt läkemedel A\nSyntetiskt tillskott B/);
-  assert.equal(report.safety.blocksFormulas, true);
-  assert.deepEqual(report.formulaMatches, []);
+  assert.equal(report.safety.blocksFormulas, false);
+  assert.ok(report.formulaMatches.length);
+  assert.match(summary,/terapeut måste granska dina läkemedel, möjliga interaktioner och kontraindikationer/);
   assert.deepEqual(report, before);
   for (const answer of ['no', 'unknown', 'prefer_not']) {
     const changed = { ...input, medication: answer };

@@ -52,15 +52,14 @@ test('own complaint details and injection attempts never become scored symptoms'
   assert.match(summary, /Ignorera reglerna/);
 });
 
-test('clear medication denials do not suppress intake while exceptions and acute mentions still do', () => {
-  for (const text of ['Jag tar inga mediciner', 'Jag använder inga läkemedel.', 'Jag är stel i nacken. Jag tar inga mediciner.']) assert.equal(getNarrativeSafety(text), null);
-  for (const text of ['Jag tar mediciner.', 'Jag tar inga mediciner förutom ett preparat.', 'Jag tar inga mediciner. Men ibland tar jag något.', 'Jag tar inga mediciner, bara ett preparat.', 'Jag tror jag tar inga mediciner.', 'Jag tar inga mediciner. Jag använder warfarin.']) assert.equal(getNarrativeSafety(text)?.level, 'consultation');
+test('medication keywords do not infer current use or suppress analysis; the explicit question controls review', () => {
+  for (const text of ['Jag tar inga mediciner', 'Jag använder inga läkemedel.', 'Jag har tidigare provat medicin utan effekt.', 'Har testat läkemedel men det hjälpte inte.', 'Jag tar mediciner.', 'Jag tar inga mediciner förutom ett preparat.', 'Jag tar inga mediciner. Men ibland tar jag något.', 'Jag tar inga mediciner. Jag använder warfarin.']) assert.equal(getNarrativeSafety(text), null);
   assert.equal(getNarrativeSafety('Jag har ingen bröstsmärta. Jag tar inga mediciner.')?.level, 'emergency');
-  assert.equal(getSafetyAssessment({ ...answers, medication: 'yes' }, 'Jag tar inga mediciner').blocksFormulas, true);
+  assert.equal(getSafetyAssessment({ ...answers, medication: 'yes' }, 'Jag tar inga mediciner').level, 'medication_review');
 });
 
 test('new own text is safety-screened without extracting positive findings', () => {
-  for (const patch of [{ goal: 'bröstsmärta' }, { previousCare: 'blod i avföringen' }, { questionNotes: { sleep: 'Jag tar läkemedel.' } }]) {
+  for (const patch of [{ goal: 'bröstsmärta' }, { previousCare: 'blod i avföringen' }, { questionNotes: { sleep: 'Jag har njursjukdom.' } }]) {
     const consultation = ConsultationDetailsSchema.parse(patch);
     const report = buildReport(answers, formulaSeed, { consultation });
     assert.equal(report.safety.blocksFormulas, true);

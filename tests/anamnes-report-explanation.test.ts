@@ -141,7 +141,7 @@ test('close qualified alternatives retain their lower report comparisons without
   const {direction} = explainAnamnesReport(report,input);
   assert.equal(direction.status,'uncertain');
   assert.equal(direction.hypothesis,null);
-  assert.deepEqual(direction.references,[]);
+  assert.deepEqual(direction.references,report.formulaMatches.slice(0,3).map(match => ({name:match.name,partial:true})));
   assert.match(direction.formulaMessage,/Ingen formelreferens kan prioriteras som huvudalternativ/);
   assert.match(direction.formulaMessage,/Jämförelserna längre ned.*behandlare/);
   assert.doesNotMatch(direction.formulaMessage,/Ingen formelreferens kan väljas/);

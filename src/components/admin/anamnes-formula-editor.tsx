@@ -8,7 +8,7 @@ import { saveAnamnesFormulaAction, deleteAnamnesFormulaAction, type AnamnesAdmin
 import type { FormulaRecord, EvidenceRule, PatternId, QuestionId } from "@/lib/anamnes/types";
 import { patternCatalog } from "@/lib/anamnes/patterns";
 import { isPublicQuestion, questionBank } from "@/lib/anamnes/questions";
-import { AnamnesSupplierProfile } from "./anamnes-therapist-overview";
+import { AnamnesSupplierProfile, AnamnesReferenceSource } from "./anamnes-therapist-overview";
 
 type ProductChoice = { id: number; name: string; published: boolean };
 const emptyFormula: FormulaRecord = {
@@ -18,6 +18,7 @@ const emptyFormula: FormulaRecord = {
   identityEvidence: "", ingredientEvidence: "", safetyEvidence: "", regulatoryEvidence: "", productId: null,
   productIdentityVerified: false, ingredientsVerified: false, safetyVerified: false, regulatoryVerified: false,
   supplierProfile: null, requiresVerification: false, verificationResolution: "",
+  referenceKind:'assortment',referenceSource:null,
 };
 
 function Message({ state }: { state: AnamnesAdminState }) {
@@ -48,8 +49,8 @@ function RulesEditor({ title, rules, onChange, blocking = false, requiresExplici
   </fieldset>;
 }
 
-export function AnamnesFormulaEditor({ formula, products }: { formula?: FormulaRecord; products: ProductChoice[] }) {
-  const [values, setValues] = useState<FormulaRecord>(formula ?? emptyFormula);
+export function AnamnesFormulaEditor({ formula, draft, products }: { formula?: FormulaRecord; draft?:FormulaRecord; products: ProductChoice[] }) {
+  const [values, setValues] = useState<FormulaRecord>(formula ?? draft ?? emptyFormula);
   const [state, action, pending] = useActionState(saveAnamnesFormulaAction, {});
   const router = useRouter();
   useEffect(() => { if (state.success) router.refresh(); }, [state, router]);
@@ -72,8 +73,10 @@ export function AnamnesFormulaEditor({ formula, products }: { formula?: FormulaR
     <input type="hidden" name="formula" value={JSON.stringify({ ...values, ...(state.updatedAt ? { updatedAt: state.updatedAt } : {}), ingredients: values.ingredients.map(value => value.trim()).filter(Boolean), tongueIndicators: values.tongueIndicators.map(value => value.trim()).filter(Boolean), pulseIndicators: values.pulseIndicators.map(value => value.trim()).filter(Boolean), safetyNotes: values.safetyNotes.map(value => value.trim()).filter(Boolean), contraindications: values.contraindications.map(value => value.trim()).filter(Boolean), interactions: values.interactions.map(value => value.trim()).filter(Boolean) })} />
     <Message state={state} />
     {values.supplierProfile && <details className="anamnes-supplier-documentation" open={values.requiresVerification}><summary>Leverantörsdokumentation och kontrollpunkter</summary><AnamnesSupplierProfile formula={values} /></details>}
+    {values.referenceSource && <details className="anamnes-supplier-documentation"><summary>Dokumentkälla för specialbeställning</summary><AnamnesReferenceSource source={values.referenceSource} /></details>}
     <fieldset><legend>Formelns identitet</legend><div className="anamnes-admin-grid">
       {text("id", "Internt ID", 80, true)}{text("name", "Formelnamn", 160, true)}{text("pinyin", "Pinyin", 160)}{text("hanzi", "Kinesiska tecken", 100)}{text("swedishName", "Svenskt beskrivande namn", 200)}
+      <Field label="Typ av referens" name={`${prefix}-referenceKind`} help="Specialbeställning visas som en fråga inför rådgivning och får ingen köp- eller produktlänk."><select id={`${prefix}-referenceKind`} value={values.referenceKind} onChange={event => set('referenceKind',event.target.value as FormulaRecord['referenceKind'])}><option value="assortment">Ordinarie sortiment</option><option value="special_order">Specialbeställning via rådgivning</option></select></Field>
     </div><p className="muted">ID är permanent efter att formeln har skapats. Endast små bokstäver, siffror, bindestreck och understreck.</p><label className="form-check"><input type="checkbox" checked={values.active} onChange={event => set("active", event.target.checked)} /><span>Aktiv referens i anamnesen</span></label></fieldset>
     <p className="notice">TCM-funktion, begränsningar, säkerhetsfrågor, kontraindikationer och interaktioner nedan visas för besökare. Leverantörsprofilen, verifieringsunderlagen och behandlarens separata ärendeanteckningar är privata. Skriv inte känsliga uppgifter eller interna leverantörsanteckningar i de publika sammanfattningarna.</p>
     <div className="anamnes-admin-grid">{area("theoryExplanation", "TCM-funktion och teoretisk relevans")}{area("scopeLimitation", "Begränsningar – vad formeln inte täcker")}{area("classicalSource", "Klassisk källa", "Ange endast källor som faktiskt har kontrollerats.")}{lines("tongueIndicators", "Karakteristiska tungobservationer", "Granskade teoretiska observationer, en per rad. Börjar tomt. Bedömning görs av behandlare.")}{lines("pulseIndicators", "Karakteristiska pulsobservationer", "Granskade teoretiska observationer, en per rad. Puls används inte för besökarens automatiska matchning.")}</div>

@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AnamnesCatalogStockList, AnamnesSupplierProfile, AnamnesTherapistOverview } from "../src/components/admin/anamnes-therapist-overview";
-import { FormulaRecordSchema, ReportSchema, SupplierProfileSchema, type FormulaMatch, type Report } from "../src/lib/anamnes/types";
+import { ConsultationDetailsSchema, FormulaRecordSchema, ReportSchema, SupplierProfileSchema, type FormulaMatch, type Report } from "../src/lib/anamnes/types";
 
 const profile = SupplierProfileSchema.parse({
   id: "synthetic-source", supplier: "China Nature", document: "rangejohan.pdf", documentSha256: "a".repeat(64),
@@ -61,6 +61,36 @@ test("therapist overview retains match evidence and inventory while clinical cle
 });
 
 registerHooks({ load(url, context, nextLoad) { if (url.endsWith(".css")) return { format: "module", source: "export default new Proxy({}, {get: (_, key) => String(key)});", shortCircuit: true }; return nextLoad(url, context); } });
+
+test("intro complaint questions are visible as standard fields, optional, escaped and disabled during work", async () => {
+  const { ConsultationDetailsFields } = await import("../src/components/anamnes/consultation-details-fields");
+  const value=ConsultationDetailsSchema.parse({locations:'Synthetic <script>not code</script>',intensity:0,frequency:'weekly'});
+  const html=renderToStaticMarkup(createElement(ConsultationDetailsFields,{value,onChange:()=>{}}));
+  assert.match(html, /<section[^>]*aria-labelledby="anamnes-complaint-details-title"[^>]*>/);
+  assert.doesNotMatch(html, /<details|<summary| required[=> ]/);
+  for (const id of ['locations','intensity','frequency','daily-impact','goal','previous-care','lifestyle']) {
+    assert.ok(html.includes(`id="anamnes-${id}"`),id);
+    assert.ok(html.includes(`for="anamnes-${id}"`),id);
+  }
+  assert.match(html,/berättelse och svaren här används tillsammans/);
+  assert.match(html,/&lt;script&gt;not code&lt;\/script&gt;/);
+  assert.match(html,/type="number"[^>]*value="0"/);
+  const disabled=renderToStaticMarkup(createElement(ConsultationDetailsFields,{value,disabled:true,onChange:()=>{}}));
+  assert.equal((disabled.match(/disabled=""/g)??[]).length,7);
+});
+
+test("special-order comparison is visible near the result and links to consultation, never a product checkout", async () => {
+  const { AnamnesReport } = await import("../src/components/anamnes/report");
+  const reference: FormulaMatch = {...report.formulaMatches[0],referenceKind:'special_order',productAvailable:true,productUrl:'/butik/fictional',requiresVerification:false};
+  const html=renderToStaticMarkup(createElement(AnamnesReport,{report:{...report,source:'ai',formulaMatches:[reference]},answers:{},consultation:ConsultationDetailsSchema.parse({locations:'Syntetiskt område'})}));
+  const top=html.slice(0,html.indexOf('<summary>Så har svaren bedömts'));
+  assert.match(top,/Specialbeställningsreferens/);
+  assert.match(top,/href="\/boka">Fråga om specialbeställning · boka rådgivning/);
+  assert.match(html,/kompletteringar har ingått i AI-underlaget/);
+  assert.doesNotMatch(html,/href="\/butik|Läs verifierad produktinformation|Beställ nu/);
+  const blocked=renderToStaticMarkup(createElement(AnamnesReport,{report:{...report,formulaMatches:[reference],safety:{level:'consultation',blocksFormulas:true,flags:[],missingQuestionIds:[]}},answers:{}}));
+  assert.doesNotMatch(blocked,/Fråga om specialbeställning/);
+});
 
 test("public result shows product plus classical name, evidence and verification without supplier-only documentation", async () => {
   const { AnamnesReport } = await import("../src/components/anamnes/report");

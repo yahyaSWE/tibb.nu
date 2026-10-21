@@ -1,0 +1,8 @@
+import Link from 'next/link';
+import { specialOrderSourceLibrary } from '@/lib/anamnes/special-order-catalog';
+
+export function AnamnesReferenceLibrary({search='',existingIds}:{search?:string;existingIds:string[]}) {
+  const query=search.trim().slice(0,120).toLocaleLowerCase('sv-SE');
+  const results=specialOrderSourceLibrary.filter(entry => !query || entry.productName.toLocaleLowerCase('sv-SE').includes(query));
+  return <section className="panel" style={{marginTop:24}}><h2>Dokumentbibliotek för specialbeställning</h2><p>{specialOrderSourceLibrary.length} dokumentposter med sidreferenser. Endast poster med uttryckliga mönsterregler används i anamnesen. Övriga poster kan förberedas här och kräver egna regler och underlag innan de aktiveras. Regelkopplingarna behöver utvärderas av en behandlare.</p><form method="get" action="/admin/anamnes/formler"><label htmlFor="anamnes-book-search">Sök produkt eller formel<input id="anamnes-book-search" name="bookSearch" type="search" maxLength={120} defaultValue={search} /></label><button className="button button-secondary" type="submit">Sök i dokumentet</button></form><p className="muted">{results.length} träffar{results.length>12 ? '; visar de första 12. Sök för att hitta fler.' : '.'}</p><ul>{results.slice(0,12).map(entry => {const existing=existingIds.includes(entry.id);return <li key={entry.id}><Link prefetch={false} href={`/admin/anamnes/formler?reference=${entry.id}#${existing ? `formula-${entry.id}` : 'new-reference'}`}>{entry.productName}</Link> · s. {entry.pages.join(', ')} · {existing ? 'Finns i formelkatalogen' : 'Förbered en inaktiv referens'}</li>;})}</ul></section>;
+}

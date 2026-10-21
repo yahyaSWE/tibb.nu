@@ -305,7 +305,7 @@ test('formula-specific evidence weights determine ranking without double-countin
 });
 
 test('direct contradictory pain answers keep the differential open rather than selecting a formula', () => {
-  for (const contradiction of [{pain:'no',painCharacter:'stabbing'},{pain:'no',abdominalPain:'sharp'},{pain:'yes',painLocation:'none',painCharacter:'stabbing'}] satisfies AnswerMap[]) {
+  for (const contradiction of [{pain:'no',painCharacter:'stabbing'},{pain:'yes',painLocation:'none',painCharacter:'stabbing'}] satisfies AnswerMap[]) {
     const report = buildReport({...qiBlood,...contradiction},formulaSeed);
     assert.equal(report.analysis.status,'conflicting');
     assert.equal(report.analysis.primary,null);
@@ -313,6 +313,7 @@ test('direct contradictory pain answers keep the differential open rather than s
     assert.deepEqual(report.formulaMatches,[]);
   }
   assert.equal(analyzePatterns(answers({pain:'no',painCharacter:'none',abdominalPain:'none'})).conflicts.length,0);
+  assert.equal(analyzePatterns(answers({pain:'no',abdominalPain:'sharp'})).conflicts.length,0,'denied musculoskeletal pain does not contradict abdominal pain');
   assert.equal(analyzePatterns(answers({pain:'yes',painCharacter:'none',stiffness:'yes'})).conflicts.length,0);
   assert.equal(analyzePatterns(answers({pain:'unknown',painCharacter:'stabbing'})).conflicts.length,0);
   assert.equal(analyzePatterns(answers({pain:'no',painCharacter:'unknown',abdominalPain:'prefer_not'})).conflicts.length,0);

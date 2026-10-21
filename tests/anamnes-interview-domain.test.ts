@@ -98,7 +98,7 @@ test('narrative-driven selection can clarify another reviewed TCM area without i
 test('formula clarification follows an independent primary and includes current catalog counterevidence', () => {
   const analysis = analyzePatterns(enough);
   assert.equal(analysis.primary?.id,'qiBloodDeficiency');
-  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed),['currentInfection','temperature','thirst','tongueCoating','heaviness']);
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed),['currentInfection','temperature','thirst','tongueCoating']);
   assert.deepEqual(getFormulaComparisonQuestionIds({...enough,currentInfection:'prefer_not',tongueCoating:'unknown',temperature:'prefer_not',thirst:'unknown',heaviness:'prefer_not'},analysis,formulaSeed),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds(clearSafety,analyzePatterns(clearSafety),formulaSeed),[]);
   assert.deepEqual(getFormulaComparisonQuestionIds({...enough,medication:'yes'},analysis,formulaSeed),[]);
@@ -106,7 +106,7 @@ test('formula clarification follows an independent primary and includes current 
   assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,formulaSeed.map(formula => ({...formula,active:false}))),[]);
   const reference = formulaSeed.find(formula => formula.id==='supplier-womens')!;
   const changed = {...reference,requiredQuestionIds:['cough' as const],opposingRules:[rule('phlegm','yellow')],supportingRules:[rule('windSensitivity','yes')],contraindicationRules:[],requiredSafetyRules:[]};
-  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[changed]),['cough','phlegm','windSensitivity']);
+  assert.deepEqual(getFormulaComparisonQuestionIds(enough,analysis,[changed]),['cough'],'optional point gathering does not prolong a complete independent comparison');
   assert.deepEqual(analyzePatterns(enough),analysis,'catalog criteria cannot alter independent evidence');
   const outside: AnswerMap = {...clearSafety,focus:'digestion',duration:'months',trend:'stable',foodTrigger:'yes',reflux:'sour',afterMealBloat:'yes',stoolOdor:'yes',onset:'after_food',abdominalPain:'distending',nausea:'yes'};
   const outsideAnalysis = analyzePatterns(outside);

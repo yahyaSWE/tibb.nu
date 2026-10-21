@@ -6,7 +6,7 @@ import { publicFormulaCatalog } from "./catalog";
 import { requestAiDifferential, requestAiInterview, createAnalysisReceipt } from "./ai";
 import { getAnamnesConfigStatus } from "./config";
 import { getAnamnesAnalysisMode } from "./settings";
-import { normalizeConsultationDetails } from "./consultation";
+import { hasAiConsultationDetails, normalizeConsultationDetails } from "./consultation";
 import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
 
 export async function getPublicAnamnesCatalog() {
@@ -73,7 +73,7 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   // Only an explicit visitor stop can close an unfinished interview. A model
   // confidence signal cannot skip relevant unanswered reviewed questions.
   const remaining = getInterviewCompletionQuestionIds(answers,analysis);
-  const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis, { allowNarrativeQuestions: !!value.narrative });
+  const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis, { allowNarrativeQuestions: !!value.narrative || hasAiConsultationDetails(consultation) });
   const comparisonIds = referenceQuestions();
   const hasQualifiedPattern = differential.patternIds.length > 0 && analysis.patterns.some(pattern => pattern.qualified);
   // A provider's generic confidence must not close an empty report while the

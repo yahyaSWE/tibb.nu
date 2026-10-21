@@ -6,6 +6,7 @@ import { formulaSeed, legacyFormulaIds } from "./catalog-seed";
 import { AnamnesError } from "./http";
 import { validateFormulaRules } from "./questions";
 import { supplierVerificationPending } from "./formula-verification";
+import { specialOrderSeed } from "./special-order-catalog";
 
 function admin(actor: User) {
   if (actor.role !== "admin") throw new AnamnesError("Du har inte behörighet till detta.", 403);
@@ -13,8 +14,10 @@ function admin(actor: User) {
 async function initializeCatalog() {
   const migrationKey = 'anamnes_supplier_rangejohan_2026_10_v1';
   const cleanupKey = 'anamnes_legacy_formula_cleanup_2026_10_v1';
+  const specialOrderKey = 'anamnes_special_order_book_2026_10_v1';
   if (await getDb().prepare("SELECT value FROM app_meta WHERE key=?").get(migrationKey)
-    && await getDb().prepare("SELECT value FROM app_meta WHERE key=?").get(cleanupKey)) return;
+    && await getDb().prepare("SELECT value FROM app_meta WHERE key=?").get(cleanupKey)
+    && await getDb().prepare("SELECT value FROM app_meta WHERE key=?").get(specialOrderKey)) return;
   await transaction(async () => {
     if (!await getDb().prepare("SELECT value FROM app_meta WHERE key=?").get(migrationKey)) {
       const selectedIds = new Set(formulaSeed.map(entry => entry.id));
@@ -41,6 +44,10 @@ async function initializeCatalog() {
       // reviews retain their snapshots; later administrator additions are kept.
       for (const id of legacyFormulaIds) await getDb().prepare("DELETE FROM anamnes_formulas WHERE id=?").run(id);
       await getDb().prepare("INSERT INTO app_meta(key,value) VALUES(?, '1')").run(cleanupKey);
+    }
+    if (!await getDb().prepare("SELECT value FROM app_meta WHERE key=?").get(specialOrderKey)) {
+      for (const seed of specialOrderSeed) await getDb().prepare("INSERT OR IGNORE INTO anamnes_formulas(id,data_json,updated_at) VALUES(?,?,?)").run(seed.id,JSON.stringify(seed),new Date().toISOString());
+      await getDb().prepare("INSERT INTO app_meta(key,value) VALUES(?, '1')").run(specialOrderKey);
     }
   });
 }
@@ -77,6 +84,8 @@ export async function saveFormulaCatalogEntry(actor: User, input: unknown): Prom
       const previous = FormulaRecordSchema.parse(JSON.parse(String(current.data_json)));
       if (previous.supplierProfile && JSON.stringify(previous.supplierProfile) !== JSON.stringify(value.supplierProfile))
         throw new AnamnesError("Den sparade leverantörskällan är ett oförändrat original. Dokumentera nya besked i fältet för verifieringslösning.");
+      if (previous.referenceSource && JSON.stringify(previous.referenceSource) !== JSON.stringify(value.referenceSource))
+        throw new AnamnesError("Dokumentkällan bevaras som original. Spara din egen granskning i de separata verifieringsunderlagen.");
       if (previous.productId !== value.productId && checks.some(([verified]) => verified))
         throw new AnamnesError("Avmarkera alla fyra verifieringar innan du byter kopplad produkt. Spara kopplingen och verifiera sedan den nya produktens underlag.");
       const ingredientsChanged = JSON.stringify(previous.ingredients.map((item) => item.trim())) !== JSON.stringify(value.ingredients.map((item) => item.trim()));
@@ -106,12 +115,12 @@ export async function publicFormulaCatalog(): Promise<FormulaRecord[]> {
   const products = await getDb().prepare("SELECT id,slug FROM shop_products WHERE published=1 AND stock>0").all();
   const publishedIds = new Set(products.map((entry) => Number(entry.id)));
   return catalog.map((entry) => {
-    const available = !supplierVerificationPending(entry) && !!settings?.enabled && !!entry.productId && publishedIds.has(entry.productId) && entry.productIdentityVerified && entry.ingredientsVerified && entry.safetyVerified && entry.regulatoryVerified && entry.ingredients.length > 0 && entry.ingredients.every((item) => !!item.trim()) && [entry.identityEvidence, entry.ingredientEvidence, entry.safetyEvidence, entry.regulatoryEvidence].every((item) => item.trim().length >= 20);
+    const available = entry.referenceKind !== 'special_order' && !supplierVerificationPending(entry) && !!settings?.enabled && !!entry.productId && publishedIds.has(entry.productId) && entry.productIdentityVerified && entry.ingredientsVerified && entry.safetyVerified && entry.regulatoryVerified && entry.ingredients.length > 0 && entry.ingredients.every((item) => !!item.trim()) && [entry.identityEvidence, entry.ingredientEvidence, entry.safetyEvidence, entry.regulatoryEvidence].every((item) => item.trim().length >= 20);
     // Internal supplier documents/notes never leave the server. A null product
     // reference fails closed even if a client sees verified classical fields.
     const evidence = available ? "Verifieringsunderlag granskat och dokumenterat av verksamheten." : "";
     const product = available ? products.find((item) => Number(item.id) === entry.productId) : null;
-    return { ...entry, supplierProfile: null, verificationResolution: "", ingredients: available ? entry.ingredients : [], classicalSource: "", requiresVerification: supplierVerificationPending(entry), productId: available ? entry.productId : null, productUrl: product ? `/butik/${encodeURIComponent(String(product.slug))}` : null, identityEvidence: evidence, ingredientEvidence: evidence, safetyEvidence: evidence, regulatoryEvidence: evidence };
+    return { ...entry, supplierProfile: null, referenceSource:null, verificationResolution: "", ingredients: available ? entry.ingredients : [], classicalSource: "", requiresVerification: supplierVerificationPending(entry), productId: available ? entry.productId : null, productUrl: product ? `/butik/${encodeURIComponent(String(product.slug))}` : null, identityEvidence: evidence, ingredientEvidence: evidence, safetyEvidence: evidence, regulatoryEvidence: evidence };
   });
 }
 

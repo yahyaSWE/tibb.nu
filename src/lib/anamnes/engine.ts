@@ -3,15 +3,16 @@ import { patternById, patternCatalog, rule } from './patterns';
 import { FormulaRecordSchema, NarrativeSchema, type AnswerMap, type ConsultationDetails, type Evidence, type EvidenceRule, type FormulaMatch, type FormulaRecord, type PatternAnalysis, type PatternFinding, type PatternId, type QuestionId, type Report, type SafetyAssessment } from './types';
 import { consultationSafetyTexts, normalizeConsultationDetails } from './consultation';
 import { supplierVerificationPending } from './formula-verification';
+import { effectiveAnswer } from './answer-context';
 
 const unknown = new Set(['unknown','prefer_not']);
-const answered = (answers: AnswerMap, id: QuestionId) => Boolean(answers[id] && !unknown.has(answers[id]!));
-const matches = (answers: AnswerMap, item: EvidenceRule) => answered(answers,item.questionId) && item.values.includes(answers[item.questionId]!);
+const answered = (answers: AnswerMap, id: QuestionId) => { const answer = effectiveAnswer(answers,id); return !!answer && !unknown.has(answer.value); };
+const matches = (answers: AnswerMap, item: EvidenceRule) => answered(answers,item.questionId) && item.values.includes(effectiveAnswer(answers,item.questionId)!.value);
 const dedupe = <T,>(values: T[]) => [...new Set(values)];
 function observations(answers: AnswerMap, rules: readonly EvidenceRule[]): Evidence[] {
-  return rules.filter(item => matches(answers,item)).map(item => ({
-    questionId: item.questionId, answer: answers[item.questionId]!,
-    label: `${questionById.get(item.questionId)!.prompt} — ${answerLabel(item.questionId,answers[item.questionId])}`, weight: item.weight,
+  return uniqueEvidence(rules.filter(item => matches(answers,item)).map(item => {
+    const source = effectiveAnswer(answers,item.questionId)!;
+    return {questionId:source.questionId,answer:answers[source.questionId]!,label:`${questionById.get(source.questionId)!.prompt} — ${answerLabel(source.questionId,answers[source.questionId])}`,weight:item.weight};
   }));
 }
 function uniqueEvidence(values: Evidence[]): Evidence[] {
@@ -129,8 +130,10 @@ export function analyzePatterns(input: AnswerMap): PatternAnalysis {
   if (answers.temperature === 'mixed' || (sum(observations(answers,coldRules)) >= 4 && sum(observations(answers,heatRules)) >= 4)) conflicts.push('Både kyl- och värmetecken behöver särskiljas vid individuell bedömning.');
   if (answers.tongueColor === 'pale' && answers.temperature === 'hot' && answers.thirst === 'strong_cold') conflicts.push('Tungans färgobservation och tydliga värmefynd pekar åt olika håll.');
   const hasPainCharacter = answered(answers,'painCharacter') && answers.painCharacter !== 'none';
-  const hasAbdominalPain = answered(answers,'abdominalPain') && answers.abdominalPain !== 'none';
-  if (answers.pain === 'no' && (hasPainCharacter || hasAbdominalPain)) conflicts.push('Du har angett att du inte har återkommande värk eller stelhet men samtidigt beskrivit en smärtkaraktär eller buksmärta. Förtydliga vilka besvär och tidsperioder svaren gäller.');
+  // The general ache/stiffness screen and the abdominal symptom question have
+  // different scopes. A visitor can deny musculoskeletal pain and still have
+  // abdominal discomfort; this must not invalidate the whole differential.
+  if (answers.pain === 'no' && hasPainCharacter) conflicts.push('Du har angett att du inte har återkommande värk eller stelhet men samtidigt beskrivit en smärtkaraktär. Förtydliga vilka besvär och tidsperioder svaren gäller.');
   if (answers.painLocation === 'none' && hasPainCharacter) conflicts.push('Du har angett ingen värk när du beskriver platsen men samtidigt valt en smärtkaraktär. Dessa uppgifter behöver förtydligas.');
   const significantAnswerCount = Object.keys(answers).filter(id => !safetyQuestionIds.includes(id as QuestionId) && !['focus','duration','onset','trend','priorAssessment'].includes(id) && answered(answers,id as QuestionId)).length;
   const patterns: PatternFinding[] = patternCatalog.map(pattern => {
@@ -158,7 +161,7 @@ export function analyzePatterns(input: AnswerMap): PatternAnalysis {
 export const analyzeAnswers = analyzePatterns;
 
 export function productVerificationComplete(formula: FormulaRecord): boolean {
-  return !supplierVerificationPending(formula) && formula.productId !== null && formula.productIdentityVerified && formula.ingredientsVerified && formula.safetyVerified && formula.regulatoryVerified && formula.ingredients.length > 0 && formula.ingredients.every(value => value.trim().length > 0) && [formula.identityEvidence,formula.ingredientEvidence,formula.safetyEvidence,formula.regulatoryEvidence].every(value => value.trim().length >= 20);
+  return formula.referenceKind !== 'special_order' && !supplierVerificationPending(formula) && formula.productId !== null && formula.productIdentityVerified && formula.ingredientsVerified && formula.safetyVerified && formula.regulatoryVerified && formula.ingredients.length > 0 && formula.ingredients.every(value => value.trim().length > 0) && [formula.identityEvidence,formula.ingredientEvidence,formula.safetyEvidence,formula.regulatoryEvidence].every(value => value.trim().length >= 20);
 }
 
 /** Only independently supported candidates are checked against the assortment. */
@@ -199,7 +202,7 @@ export function matchFormulas(analysis: PatternAnalysis, input: AnswerMap, catal
     const productUrl = productVerificationComplete(formula) && formula.productUrl && /^\/butik\/[a-z0-9-]+$/.test(formula.productUrl) ? formula.productUrl : null;
     const productAvailable = productVerificationComplete(formula) && productUrl !== null;
     return [{
-      formulaId:formula.id,name:formula.name,pinyin:formula.pinyin,hanzi:formula.hanzi,swedishName:formula.swedishName,classicalName:formula.supplierProfile?.formulaName ?? formula.pinyin,
+      formulaId:formula.id,name:formula.name,pinyin:formula.pinyin,hanzi:formula.hanzi,swedishName:formula.swedishName,classicalName:formula.supplierProfile?.formulaName ?? formula.pinyin,referenceKind:formula.referenceKind,
       requiresVerification:supplierVerificationPending(formula),verificationNotes:supplierVerificationPending(formula) ? ['Produktens ingrediensuppgifter behöver verifieras. Referensen kan endast diskuteras vid en individuell bedömning.'] : [],
       score: sum(supporting)-sum(opposing),explanation:formula.theoryExplanation,supporting,opposing,missingQuestionIds,partial,
       limitation: partial ? `Formeln förklarar inte säkert hela symtombilden. ${formula.scopeLimitation}`.trim() : `En teoretisk referens för konsultation. ${formula.scopeLimitation}`.trim(),

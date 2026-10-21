@@ -33,6 +33,10 @@ export function consultationForAi(input: ConsultationDetails) {
   const { medicationDetails: _medication, conditionDetails: _condition, allergyDetails: _allergy, questionNotes, ...complaint } = ConsultationDetailsSchema.parse(input);
   return { ...complaint, questionNotes: Object.fromEntries(Object.entries(questionNotes).filter(([id, text]) => !safetyQuestionIds.has(id) && !!text)) };
 }
+export function hasAiConsultationDetails(input: ConsultationDetails): boolean {
+  const {questionNotes,...fields}=consultationForAi(input);
+  return Object.values(fields).some(value => value!=='' && value!==null) || Object.keys(questionNotes).length>0;
+}
 export function consultationDetailsText(input: ConsultationDetails, { includeSafetyDetails = true }: { includeSafetyDetails?: boolean } = {}): string {
   return consultationDetailRows(input).filter(row => includeSafetyDetails || !safetyFields.has(row.key) && !(row.key.startsWith('questionNotes.') && safetyQuestionIds.has(row.key.slice(14)))).map(row => `${row.label}: ${row.value}`).join('\n');
 }

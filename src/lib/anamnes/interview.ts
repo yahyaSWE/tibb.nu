@@ -2,13 +2,15 @@ import { getSafetyAssessment, safetyQuestionIds } from './engine';
 import { patternById } from './patterns';
 import { baseQuestionIds, getInitialQuestions, isPublicQuestion, questionById, validateAnswers } from './questions';
 import { type AnswerMap, type FormulaRecord, type PatternAnalysis, type QuestionId, type Report } from './types';
+import { effectiveAnswer, questionCovered, questionRelevant } from './answer-context';
 
 export const mandatoryInterviewQuestions: readonly QuestionId[] = ['emergency','clinicalRedFlags','adult','pregnancy','medication','chronicDisease','liverKidney','allergy'];
 export const mandatoryInterviewBackgroundQuestions: readonly QuestionId[] = ['focus','duration','onset','trend'];
 export const coreInterviewQuestions: readonly QuestionId[] = ['temperature','energy','sleep','appetite','stool','thirst','sweating','emotion','pain'];
 const backgroundIds: readonly QuestionId[] = [...mandatoryInterviewBackgroundQuestions,'priorAssessment'];
 const undecided = new Set(['unknown','prefer_not']);
-const isKnown = (answers: AnswerMap, id: QuestionId) => Object.hasOwn(answers,id) && !undecided.has(answers[id]!);
+const isKnown = (answers: AnswerMap, id: QuestionId) => { const answer = effectiveAnswer(answers,id); return !!answer && !undecided.has(answer.value); };
+const agrees = (answers: AnswerMap, rule: {questionId:QuestionId;values:string[]}) => isKnown(answers,rule.questionId) && rule.values.includes(effectiveAnswer(answers,rule.questionId)!.value);
 const focusedPainQuestionIds: readonly QuestionId[] = ['painLocation','painCharacter','painMovement','weatherPain','painWarmth','jointWarmth','stiffness'];
 
 /** Independent discriminators, before any assortment comparison. Own text is
@@ -34,7 +36,7 @@ export function getIndependentDifferentialQuestionIds(answers: AnswerMap): Quest
   if (answers.temperature === 'hot' || answers.temperature === 'mixed' || answers.hotPalms === 'yes' || answers.nightSweats === 'yes') {
     candidates.push('heatTiming','thirst','tongueCoating','tongueColor','hotPalms','nightSweats','dryMouth','backWeakness','constipation','energy');
   }
-  return [...new Set(candidates)].filter(id => !Object.hasOwn(answers,id));
+  return [...new Set(candidates)].filter(id => !questionCovered(answers,id) && questionRelevant(answers,id));
 }
 
 /** Do not automatically end a pain interview before its focused safety discriminator. */
@@ -68,7 +70,7 @@ export function sanitizeInterviewQuestionIds(ids: readonly unknown[], input: Ans
   for (const id of [...getPendingInterviewBackgroundQuestions(answers),...pendingPainSafety,...ids]) {
     if (typeof id !== 'string') continue;
     const question = questionById.get(id as QuestionId);
-    if (question && isPublicQuestion(question) && !Object.hasOwn(answers,question.id) && (!meaningful || meaningful.has(question.id))) unique.add(question.id);
+    if (question && isPublicQuestion(question) && !questionCovered(answers,question.id) && questionRelevant(answers,question.id) && (!meaningful || meaningful.has(question.id))) unique.add(question.id);
     if (unique.size === 3) break;
   }
   return [...unique];
@@ -122,26 +124,28 @@ function remainingInterviewQuestionIds(input: AnswerMap, analysis: PatternAnalys
     const definition = patternById.get(finding.id)!;
     // A known mismatch of a mandatory core cannot be repaired by collecting
     // unrelated supporting points. Unknown/withheld answers are not mismatches.
-    return finding.supporting.some(item => !backgroundIds.includes(item.questionId))
+    return finding.supporting.filter(item => !backgroundIds.includes(item.questionId)).length >= 2
       // A single component must not launch a search through every complex
       // three-component hypothesis. Presenting-area discriminators above can
       // still gather the missing context without assuming such a hypothesis.
-      && (!definition.requiredEvidenceGroups.length || definition.requiredEvidenceGroups.filter(group => group.some(rule => isKnown(answers,rule.questionId) && rule.values.includes(answers[rule.questionId]!))).length >= (definition.requiredEvidenceGroups.length >= 3 ? 2 : 1))
-      && definition.coreRules.every(rule => !isKnown(answers,rule.questionId) || rule.values.includes(answers[rule.questionId]!))
-      && definition.requiredEvidenceGroups.every(group => group.some(rule => !isKnown(answers,rule.questionId) || rule.values.includes(answers[rule.questionId]!)))
+      && (!definition.requiredEvidenceGroups.length || definition.requiredEvidenceGroups.filter(group => group.some(rule => agrees(answers,rule))).length >= (definition.requiredEvidenceGroups.length >= 3 ? 2 : 1))
+      && definition.coreRules.every(rule => !isKnown(answers,rule.questionId) || agrees(answers,rule))
+      && definition.requiredEvidenceGroups.every(group => group.some(rule => !isKnown(answers,rule.questionId) || agrees(answers,rule)))
       && finding.opposing.reduce((sum,item) => sum + item.weight,0) < 5;
   });
-  const missingForPatterns = feasible.slice(0,4).flatMap(finding => {
+  const missingForPatterns = feasible.slice(0,2).flatMap(finding => {
     const definition = patternById.get(finding.id)!;
-    const missingComponents = definition.requiredEvidenceGroups.filter(group => !group.some(rule => isKnown(answers,rule.questionId) && rule.values.includes(answers[rule.questionId]!))).flat();
-    return [...definition.coreRules.map(rule => rule.questionId),...missingComponents.map(rule => rule.questionId),...definition.requiredQuestionIds,...definition.opposingRules.map(rule => rule.questionId),...(!finding.qualified ? definition.supportingRules.map(rule => rule.questionId) : [])];
+    const missingComponents = definition.requiredEvidenceGroups.filter(group => !group.some(rule => agrees(answers,rule))).flatMap(group => group.filter(rule => !questionCovered(answers,rule.questionId)).slice(0,1));
+    const counterevidence = definition.opposingRules.filter(rule => rule.weight >= 4).slice(0,2);
+    const additionalSupport = finding.supporting.length < 3 ? definition.supportingRules.filter(rule => !questionCovered(answers,rule.questionId)).slice(0,2) : [];
+    return [...definition.coreRules.map(rule => rule.questionId),...missingComponents.map(rule => rule.questionId),...counterevidence.map(rule => rule.questionId),...additionalSupport.map(rule => rule.questionId)];
   });
   // Retain a general TCM picture even when six specific symptoms are already
   // known. Do not walk the whole bank after useful questions run out.
   const general = coreInterviewQuestions;
   return [...new Set([...getPendingInterviewBackgroundQuestions(answers),...focused,...getIndependentDifferentialQuestionIds(answers),...missingForPatterns,...general])].filter(id => {
     const question = questionById.get(id);
-    return question && isPublicQuestion(question) && !Object.hasOwn(answers,id);
+    return question && isPublicQuestion(question) && !questionCovered(answers,id) && questionRelevant(answers,id);
   });
 }
 
@@ -153,20 +157,23 @@ export function getInterviewCompletionQuestionIds(input: AnswerMap, analysis: Pa
 /** Clarify a reference only after the independent differential supports it. */
 export function getFormulaComparisonQuestionIds(input: AnswerMap, analysis: PatternAnalysis, catalog: readonly FormulaRecord[]): QuestionId[] {
   const answers = validateAnswers(input);
-  if (getSafetyAssessment(answers).level !== 'clear' || analysis.status !== 'preliminary' || !analysis.primary) return [];
+  if (getSafetyAssessment(answers).level !== 'clear' || analysis.status !== 'preliminary') return [];
   const qualified = new Set(analysis.patterns.filter(pattern => pattern.qualified).map(pattern => pattern.id));
-  const candidates = catalog.filter(formula => formula.active && formula.primaryPatternIds.includes(analysis.primary!.id) && formula.requiredPatternIds.every(id => qualified.has(id))
-    && !formula.contraindicationRules.some(rule => isKnown(answers,rule.questionId) && rule.values.includes(answers[rule.questionId]!))
-    && formula.requiredSafetyRules.every(rule => !isKnown(answers,rule.questionId) || rule.values.includes(answers[rule.questionId]!))).slice(0,3);
+  const dominant=analysis.primary ?? analysis.patterns.find(pattern => pattern.qualified);
+  if (!dominant) return [];
+  const candidates = catalog.filter(formula => formula.active && formula.primaryPatternIds.includes(dominant.id) && formula.requiredPatternIds.every(id => qualified.has(id))
+    && !formula.contraindicationRules.some(rule => agrees(answers,rule))
+    && formula.requiredSafetyRules.every(rule => !isKnown(answers,rule.questionId) || agrees(answers,rule))).slice(0,3);
   // Ask about counterevidence as well as support. A missing answer stays
   // missing; neither catalog membership nor a question creates a match.
+  const safetyIds = new Set(candidates.flatMap(formula => [...formula.requiredSafetyRules,...formula.contraindicationRules].map(rule => rule.questionId)));
   return [...new Set([
     ...candidates.flatMap(formula => formula.requiredSafetyRules.map(rule => rule.questionId)),
     ...candidates.flatMap(formula => formula.contraindicationRules.map(rule => rule.questionId)),
-    ...candidates.flatMap(formula => [...formula.requiredQuestionIds,...formula.opposingRules.map(rule => rule.questionId),...formula.supportingRules.map(rule => rule.questionId)]),
+    ...candidates.flatMap(formula => [...formula.requiredQuestionIds,...formula.opposingRules.filter(rule => rule.weight >= 4).map(rule => rule.questionId)]),
   ])].filter(id => {
     const question = questionById.get(id);
-    return question && isPublicQuestion(question) && !Object.hasOwn(answers,id);
+    return question && isPublicQuestion(question) && !questionCovered(answers,id) && (safetyIds.has(id) || questionRelevant(answers,id));
   });
 }
 

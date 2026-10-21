@@ -70,6 +70,11 @@ export const SupplierProfileSchema = z.object({
   verificationIssues: z.array(z.object({ code: z.string().min(1).max(100), message: z.string().min(1).max(2000), pages: SourcePagesSchema }).strict()).max(30), unverifiedFields: z.array(z.string().min(1).max(1000)).max(50),
 }).strict();
 export type SupplierProfile = z.infer<typeof SupplierProfileSchema>;
+export const ReferenceSourceSchema = z.object({
+  id:z.string().regex(/^special-book-[0-9]{3}$/),productName:z.string().min(1).max(200),document:z.string().min(1).max(200),documentSha256:z.string().regex(/^[a-f0-9]{64}$/),
+  pages:SourcePagesSchema,ingredientStatement:z.string().max(10000),traditionalDescription:z.string().max(16000),
+}).strict();
+export type ReferenceSource = z.infer<typeof ReferenceSourceSchema>;
 export const FormulaRecordSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/), name: z.string().min(1).max(160), pinyin: z.string().max(160), hanzi: z.string().max(100), swedishName: z.string().max(200), active: z.boolean(),
   primaryPatternIds: z.array(PatternIdSchema).min(1).max(patternIds.length), secondaryPatternIds: z.array(PatternIdSchema).max(patternIds.length), requiredPatternIds: z.array(PatternIdSchema).max(patternIds.length),
@@ -80,6 +85,7 @@ export const FormulaRecordSchema = z.object({
   ingredients: z.array(z.string().max(200)).max(80), tongueIndicators: z.array(z.string().max(500)).max(20).default([]), pulseIndicators: z.array(z.string().max(500)).max(20).default([]), classicalSource: z.string().max(2000), identityEvidence: z.string().max(4000), ingredientEvidence: z.string().max(4000), safetyEvidence: z.string().max(4000), regulatoryEvidence: z.string().max(4000),
   productId: z.number().int().positive().nullable(), productUrl: z.string().max(300).nullable().optional(), productIdentityVerified: z.boolean(), ingredientsVerified: z.boolean(), safetyVerified: z.boolean(), regulatoryVerified: z.boolean(), updatedAt: z.string().max(40).optional(),
   supplierProfile: SupplierProfileSchema.nullable().default(null), requiresVerification: z.boolean().default(false), verificationResolution: z.string().trim().max(4000).default(''),
+  referenceKind:z.enum(['assortment','special_order']).default('assortment'),referenceSource:ReferenceSourceSchema.nullable().default(null),
 }).strict();
 export type FormulaRecord = z.infer<typeof FormulaRecordSchema>;
 export const FormulaMatchSchema = z.object({
@@ -87,6 +93,7 @@ export const FormulaMatchSchema = z.object({
   explanation: z.string(), supporting: z.array(EvidenceSchema), opposing: z.array(EvidenceSchema), missingQuestionIds: z.array(QuestionIdSchema),
   partial: z.boolean(), limitation: z.string(), safetyNotes: z.array(z.string()), productAvailable: z.boolean(), productId: z.number().nullable(), productUrl: z.string().nullable(),
   classicalName: z.string().max(160).default(''), requiresVerification: z.boolean().default(false), verificationNotes: z.array(z.string().max(1000)).max(10).default([]),
+  referenceKind:z.enum(['assortment','special_order']).default('assortment'),
 }).strict();
 export type FormulaMatch = z.infer<typeof FormulaMatchSchema>;
 export const ReportSchema = z.object({

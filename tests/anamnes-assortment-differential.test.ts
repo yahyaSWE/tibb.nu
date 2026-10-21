@@ -77,7 +77,7 @@ test('independent discriminators ask about counterevidence and never repeat with
   assert.ok(independent.includes('reflux') && independent.includes('tongueCoating') && independent.includes('abdominalPain'));
   const hot = fixture({temperature:'hot'});
   assert.ok(getIndependentDifferentialQuestionIds(hot).includes('heatTiming'));
-  const stress = fixture({focus:'stress',ribTension:'yes'});
+  const stress = fixture({focus:'stress',ribTension:'yes',pain:'yes'});
   assert.ok(getIndependentDifferentialQuestionIds(stress).includes('painCharacter'));
   assert.ok(getIndependentDifferentialQuestionIds(stress).includes('currentInfection'));
   const held = {...hot,heatTiming:'unknown',tongueCoating:'prefer_not'};
@@ -214,9 +214,9 @@ test('admin-added safety and contraindication questions are prioritized without 
   };
   const analysis = analyzePatterns(answers);
   assert.equal(analysis.primary?.id,'qiBloodDeficiency');
-  assert.deepEqual(getFormulaComparisonQuestionIds(answers,analysis,[custom]),['currentInfection','nightSweats','heatTiming','cough','phlegm','windSensitivity']);
+  assert.deepEqual(getFormulaComparisonQuestionIds(answers,analysis,[custom]),['currentInfection','nightSweats','heatTiming','cough']);
   const withheld = {...answers,currentInfection:'prefer_not',nightSweats:'unknown',heatTiming:'prefer_not'};
-  assert.deepEqual(getFormulaComparisonQuestionIds(withheld,analyzePatterns(withheld),[custom]),['cough','phlegm','windSensitivity'],'an unclear safety answer remains unclear and must never be repeatedly asked');
+  assert.deepEqual(getFormulaComparisonQuestionIds(withheld,analyzePatterns(withheld),[custom]),['cough'],'an unclear safety answer remains unclear and must never be repeatedly asked');
   const contraindicated = {...answers,heatTiming:'persistent_strong'};
   assert.deepEqual(getFormulaComparisonQuestionIds(contraindicated,analyzePatterns(contraindicated),[custom]),[],'do not continue gathering points for an already excluded reference');
   assert.deepEqual(analyzePatterns(answers),analysis,'custom product rules cannot change the independent pattern analysis');

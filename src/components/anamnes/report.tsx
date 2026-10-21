@@ -1,6 +1,6 @@
 import { questionById } from "@/lib/anamnes/questions";
 import type { AnswerMap, ConsultationDetails, Evidence, PatternFinding, QuestionId, Report } from "@/lib/anamnes/types";
-import { consultationDetailRows } from "@/lib/anamnes/consultation";
+import { consultationDetailRows, hasAiConsultationDetails } from "@/lib/anamnes/consultation";
 import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
 import styles from "./tcm-anamnes.module.css";
 
@@ -50,7 +50,8 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
         <h3 id="anamnes-direction-title">{explanation.direction.heading}</h3>
         {explanation.direction.status !== "preliminary" && <p>{explanation.direction.body}</p>}
         {explanation.direction.references.length > 0 ? <h4>{explanation.direction.references.length === 1 ? "Örtformel att utvärdera" : "Örtformler att utvärdera"}</h4> : <p>{explanation.direction.formulaMessage}</p>}
-        {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => { const match = visibleMatches.find(item => item.name === reference.name); const classicalName = match?.classicalName || match?.pinyin; return <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{classicalName && classicalName !== reference.name && <span>Klassisk formel: {classicalName}</span>}{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}</li>; })}</ul>}
+        {explanation.direction.references.length > 0 && <ul className={styles.directionReferences}>{explanation.direction.references.map((reference, index) => { const match = visibleMatches.find(item => item.name === reference.name); const classicalName = match?.classicalName || match?.pinyin; return <li key={`${reference.name}-${index}`}><strong>{reference.name}</strong>{classicalName && classicalName !== reference.name && <span>Klassisk formel: {classicalName}</span>}{reference.partial && <span>Delvis överensstämmelse · täcker inte hela symtombilden</span>}{match?.referenceKind === 'special_order' && <><span>Specialbeställningsreferens · produkt och lämplighet behöver kontrolleras</span><a className={styles.productInfo} href="/boka">Fråga om specialbeställning · boka rådgivning</a></>}</li>; })}</ul>}
+        {explanation.direction.references.length > 0 && explanation.direction.status === 'uncertain' && <p>{explanation.direction.formulaMessage}</p>}
         {visibleMatches.length > 0 && <div className={styles.reportDetailsSafety}>
           {visibleMatches.some(match => !match.productAvailable || match.requiresVerification) && <p>Klassiska formelreferenser. En verifierad leverantörsprodukt är ännu inte kopplad till alla referenser.</p>}
           {!explanation.direction.references.length && visibleMatches.some(match => match.partial) && <p>Formeljämförelserna är delvisa och täcker inte hela symtombilden.</p>}
@@ -66,6 +67,7 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
       <section className={styles.reportSection} aria-labelledby="anamnes-overview-title">
         <h3 id="anamnes-overview-title">Sammanfattning av dina svar</h3>
         <p>Du har lämnat {explanation.coverage.answered} svar. Här sammanfattas det du själv har uppgett; det är inte en fastställd förklaring till besvären.</p>
+        {report.source === 'ai' && consultation && hasAiConsultationDetails(consultation) && <p>Din berättelse och dina kompletteringar har ingått i AI-underlaget. Egna texter räknas inte automatiskt som bekräftade formulärsvar.</p>}
         {explanation.overview.length > 0 && <ul className={styles.overviewList}>{explanation.overview.map(line => <li key={line}>{line}</li>)}</ul>}
         {explanation.observations.length > 0 && <dl className={styles.observationList}>{explanation.observations.map(item => <div key={item.questionId}><dt>{item.prompt}</dt><dd>{item.answer}</dd></div>)}</dl>}
         {explanation.limitations.length > 0 && <div className={styles.notice}><strong>Vad går att säga utifrån svaren?</strong><ul className={styles.evidenceList}>{explanation.limitations.map(line => <li key={line}>{line}</li>)}</ul></div>}
@@ -104,7 +106,7 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
         {report.formulaStatus === "disabled" && <p className={styles.notice}>Formelreferenser visas inte i den här rapporten.</p>}
         {noMatch && <p className={styles.notice}><strong>Ingen av de aktiva formlerna i sortimentet passar tillräckligt väl.</strong> Resultatet ska därför bedömas vidare i en konsultation i stället för att anpassas till en tillgänglig produkt.</p>}
         {!blocked && report.formulaReferencesEnabled && <div className={styles.patternStack}>{report.formulaMatches.slice(0, 3).map((match, index) => <article className={styles.patternCard} key={match.formulaId}>
-          <p className={styles.matchLabel}>Referens {index + 1} · {match.partial ? "Delvis överensstämmelse" : "Mönsteröverensstämmelse inom modellen"}</p>
+          <p className={styles.matchLabel}>Referens {index + 1} · {match.referenceKind === 'special_order' ? 'Specialbeställning via rådgivning' : 'Ordinarie sortiment'} · {match.partial ? "Delvis överensstämmelse" : "Mönsteröverensstämmelse inom modellen"}</p>
           <h4>{match.name}</h4><p className={styles.patternLanguage}>{(match.classicalName || match.pinyin) && <span>Klassisk formel: {match.classicalName || match.pinyin}</span>}{match.hanzi && <> · <span lang="zh">{match.hanzi}</span></>}{match.swedishName && ` · ${match.swedishName}`}</p><p>{match.explanation}</p>
           <div className={styles.evidenceGrid}><div><h5>Fynd som talar för</h5><EvidenceList evidence={match.supporting} empty="Inga tillräckligt specifika stödjande fynd." /></div><div><h5>Fynd som talar emot</h5><EvidenceList evidence={match.opposing} empty="Inga motstridiga fynd har fångats av frågorna. Det är ingen bekräftelse på att formeln är lämplig." /></div></div>
           {match.partial && <p className={styles.warning}><strong>Formeln täcker inte hela symtombilden.</strong> {match.limitation}</p>}
@@ -112,8 +114,9 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
           {match.missingQuestionIds.length > 0 && <details className={styles.reportDetails}><summary>Viktiga uppgifter som behöver kompletteras</summary><MissingQuestions ids={match.missingQuestionIds} /></details>}
           <div className={styles.safetyBox}><h5>Säkerhet att bedöma vid konsultation</h5><ul className={styles.evidenceList}>{match.safetyNotes.map((note, i) => <li key={i}>{note}</li>)}</ul></div>
           {match.requiresVerification && <div className={styles.warning}><strong>Produktuppgifter behöver verifieras.</strong><p>Referensen visas inför personlig rådgivning. Den innebär inte att produkten är tillgänglig eller lämplig för dig.</p>{match.verificationNotes.length > 0 && <ul className={styles.evidenceList}>{match.verificationNotes.map((note, index) => <li key={index}>{note}</li>)}</ul>}</div>}
-          <p className={styles.productStatus}>{match.productAvailable && !match.requiresVerification ? "Produktuppgifter har verifierats i verksamhetens katalog. Användning behöver fortfarande bedömas individuellt." : "Klassisk referens · En tillgänglig, verifierad leverantörsprodukt är ännu inte kopplad till referensen."}</p>
-          {match.productAvailable && !match.requiresVerification && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
+          <p className={styles.productStatus}>{match.referenceKind === 'special_order' ? 'Dokumentreferens för eventuell specialbeställning. Faktisk produkt, tillgång och säkerhet behöver bekräftas individuellt.' : match.productAvailable && !match.requiresVerification ? "Produktuppgifter har verifierats i verksamhetens katalog. Användning behöver fortfarande bedömas individuellt." : "Klassisk referens · En tillgänglig, verifierad leverantörsprodukt är ännu inte kopplad till referensen."}</p>
+          {match.referenceKind === 'special_order' && <a className={styles.productInfo} href="/boka">Fråga om specialbeställning · boka rådgivning</a>}
+          {match.referenceKind !== 'special_order' && match.productAvailable && !match.requiresVerification && match.productUrl && /^\/butik\/[a-z0-9-]+$/.test(match.productUrl) && <a className={styles.productInfo} href={match.productUrl}>Läs verifierad produktinformation</a>}
         </article>)}</div>}
       </section>
         </div>

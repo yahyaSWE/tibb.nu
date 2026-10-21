@@ -4,7 +4,7 @@ Datum: 2026-10-20. Internt arbetsunderlag för Tibb.nu. Detta dokument är en gr
 
 Källtranskriberingen och dess kvarstående innehållsfrågor finns i [anamnes-leverantorsunderlag.md](./anamnes-leverantorsunderlag.md). Original-PDF och interna leverantörsuppgifter ska inte publiceras som bilagor.
 
-Vid uppdateringen byts AI-kontraktets version till `ai-v4-supplier-differential`. En pågående analys från den äldre versionen kan därför inte skickas in med sitt gamla kvitto; besökaren får göra om analysen efter omladdning. Tidigare lagrade anamnesrapporter och terapeutanteckningar behåller sina originaluppgifter och räknas inte om mot det nya sortimentet.
+AI-kontraktets aktuella version är `ai-v5-adaptive-references` efter uppdateringen 2026-10-21 av frågeflöde och specialbeställningsreferenser. En pågående analys från en äldre version kan därför inte skickas in med sitt gamla kvitto; besökaren får göra om analysen efter omladdning. Tidigare lagrade anamnesrapporter och terapeutanteckningar behåller sina originaluppgifter och räknas inte om mot den nya katalogen. Separata dokumentreferenser och deras granskningsbehov beskrivs i [anamnes-frageflode-specialbestallning.md](./anamnes-frageflode-specialbestallning.md).
 
 ## Tjänstens avsedda ändamål måste bedömas
 

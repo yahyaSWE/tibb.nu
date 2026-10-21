@@ -1,6 +1,7 @@
 import { patternById } from './patterns';
 import { answerLabel, questionById, validateAnswers } from './questions';
 import type { AnswerMap, Evidence, QuestionId, Report } from './types';
+import { effectiveAnswer } from './answer-context';
 
 export interface ReportObservation {
   questionId: QuestionId;
@@ -85,7 +86,7 @@ function reportDirection(report: Report): ReportDirection {
         : report.analysis.status === 'preliminary' && !primary
           ? 'Flera preliminära mönster ligger nära varandra. En behandlare behöver särskilja dem innan ett huvudmönster kan väljas.'
           : 'Underlaget ger ingen tillräckligt tydlig riktning. Systemet väljer därför varken en huvudförklaring eller en passande örtformel.',
-      hypothesis:null,references:[],
+      hypothesis:null,references:report.analysis.status === 'preliminary' && report.formulaReferencesEnabled && report.formulaStatus === 'matched' ? report.formulaMatches.slice(0,3).map(formula => ({name:formula.name,partial:true})) : [],
       formulaMessage:report.analysis.status === 'preliminary' && !primary && report.formulaReferencesEnabled && report.formulaStatus === 'matched' && report.formulaMatches.length
         ? 'Ingen formelreferens kan prioriteras som huvudalternativ. Jämförelserna längre ned behöver särskiljas tillsammans med en behandlare.'
         : 'Ingen formelreferens kan väljas utifrån den samlade bedömningen.',
@@ -170,14 +171,15 @@ export function explainAnamnesReport(report: Report, input: AnswerMap): AnamnesR
   for (const candidate of candidates) {
     const definition = patternById.get(candidate.id);
     if (!definition) continue;
-    const unmetGroups = definition.requiredEvidenceGroups.filter(group => !group.some(rule => known(answers,rule.questionId) && rule.values.includes(answers[rule.questionId]!)));
+    const agrees = (rule: {questionId:QuestionId;values:string[]}) => { const answer=effectiveAnswer(answers,rule.questionId); return !!answer && rule.values.includes(answer.value); };
+    const unmetGroups = definition.requiredEvidenceGroups.filter(group => !group.some(agrees));
     for (const group of unmetGroups) {
       const publicRules = group.filter(rule => !questionById.get(rule.questionId)?.professionalOnly);
       if (!publicRules.length) continue;
       const key = publicRules.map(rule => `${rule.questionId}:${[...rule.values].sort().join(',')}`).sort().join('|');
       components.set(key,{alternatives:publicRules.map(rule => ({...criterion(rule.questionId),expectedAnswers:rule.values.map(value => answerLabel(rule.questionId,value))}))});
     }
-    const unmetCore = definition.coreRules.filter(rule => !known(answers,rule.questionId) || !rule.values.includes(answers[rule.questionId]!));
+    const unmetCore = definition.coreRules.filter(rule => !agrees(rule));
     const groupIds = new Set(definition.requiredEvidenceGroups.flat().map(rule => rule.questionId));
     for (const id of [...unmetCore.map(rule => rule.questionId),...candidate.missingQuestionIds.filter(id => !groupIds.has(id))]) {
       if (criteria.has(id) || questionById.get(id)?.professionalOnly) continue;

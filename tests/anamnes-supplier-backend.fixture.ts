@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createCipheriv, randomBytes, randomUUID } from 'node:crypto';
 import { createFirstAdmin, getDb, getUser } from '../src/lib/db';
 import type { User } from '../src/lib/types';
+import { specialOrderSeed } from '../src/lib/anamnes/special-order-catalog';
 import { formulaSeed, legacyFormulaIds } from '../src/lib/anamnes/catalog-seed';
 import { deleteFormulaCatalogEntry, getFormulaCatalog, getFormulaCatalogEntry, getFormulaCatalogStock, publicFormulaCatalog, saveFormulaCatalogEntry } from '../src/lib/anamnes/catalog';
 import { getAnamnesCase, reviewAnamnesCase, submitAnamnes } from '../src/lib/anamnes/cases';
@@ -69,8 +70,8 @@ after(async () => {
 test('migration removes the original ten catalog entries and preserves encrypted historical formula references', async () => {
   assert.equal(await getDb().prepare('SELECT value FROM app_meta WHERE key=?').get(migrationKey),undefined);
   const catalog = await getFormulaCatalog();
-  assert.equal(catalog.length,10);
-  assert.deepEqual(catalog.filter(item => item.active).map(item => item.id).sort(),formulaSeed.map(item => item.id).sort());
+  assert.equal(catalog.length,21);
+  assert.deepEqual(catalog.filter(item => item.active).map(item => item.id).sort(),[...formulaSeed,...specialOrderSeed].map(item => item.id).sort());
   for (const id of originalLegacy.keys()) {
     const row = await getDb().prepare('SELECT data_json FROM anamnes_formulas WHERE id=?').get(id);
     assert.equal(row,undefined,id);
@@ -137,6 +138,7 @@ test('public DTOs redact private supplier profiles and actual evidence while lea
   assert.ok(catalog.every(item => item.active && !legacyFormulaIds.some(id => id === item.id)));
   for (const item of catalog) {
     assert.equal(item.supplierProfile,null);
+    assert.equal(item.referenceSource,null);
     assert.equal(item.verificationResolution,'');
     assert.equal(item.classicalSource,'');
     assert.equal(item.identityEvidence,'');
@@ -150,8 +152,23 @@ test('public DTOs redact private supplier profiles and actual evidence while lea
   const encoded = JSON.stringify(catalog);
   assert.ok(!encoded.includes('Coronary heart disease'));
   assert.ok(!encoded.includes('documentSha256'));
+  assert.ok(!encoded.includes('traditionalDescription'));
+  assert.ok(!encoded.includes('ingredientStatement'));
   assert.ok(!encoded.includes(evidence));
   assert.equal(catalog.find(item => item.id === 'supplier-relax-resolve')?.pinyin,'Hua Yu Xiao Yao San');
+});
+
+test('special-order source remains an immutable original and activation/deletion are respected after seeding', async () => {
+  const original=(await getFormulaCatalogEntry('special-book-040'))!;
+  assert.equal(original.referenceSource?.productName,'DIGES – BAO HE WAN');
+  assert.equal(original.referenceKind,'special_order');
+  await assert.rejects(saveFormulaCatalogEntry(student,original),/behörighet/);
+  await assert.rejects(saveFormulaCatalogEntry(admin,{...original,referenceSource:null}),/Dokumentkällan/);
+  const updated=await saveFormulaCatalogEntry(admin,{...original,active:false});
+  assert.ok(!(await publicFormulaCatalog()).some(entry => entry.id===original.id));
+  assert.equal((await getFormulaCatalogEntry(original.id))?.active,false,'idempotent migration does not reactivate an edited reference');
+  await deleteFormulaCatalogEntry(admin,updated.id,updated.updatedAt);
+  assert.equal(await getFormulaCatalogEntry(updated.id),null,'catalog initialization does not resurrect a deleted reference');
 });
 
 test('supplier profiles are immutable and ingredient conflicts require a documented resolution before verification', async () => {

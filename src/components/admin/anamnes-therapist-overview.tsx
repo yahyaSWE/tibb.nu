@@ -1,7 +1,7 @@
 import { questionById } from "@/lib/anamnes/questions";
 import { consultationDetailRows } from "@/lib/anamnes/consultation";
 import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
-import { emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type FormulaRecord, type PatternFinding, type QuestionId, type Report } from "@/lib/anamnes/types";
+import { emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type FormulaRecord, type PatternFinding, type QuestionId, type Report, type ReferenceSource } from "@/lib/anamnes/types";
 
 type OverviewProps = {
   report: Report;
@@ -37,6 +37,11 @@ export function AnamnesSupplierProfile({ formula }: { formula: FormulaRecord }) 
     {sections.map(([title, statements]) => <details className="anamnes-therapist-details" key={title}><summary>{title}</summary>{statements.length ? <ul>{statements.map((statement, index) => <li key={index}>{statement.text}<br /><small>{originLabels[statement.kind]} · {pageLabel(statement.pages)}</small></li>)}</ul> : <p className="muted">Uppgift saknas i det dokumenterade underlaget.</p>}</details>)}
     {source.unverifiedFields.length > 0 && <div className="anamnes-therapist-attention"><h4>Uppgifter som ännu inte verifierats</h4><ul>{source.unverifiedFields.map((field, index) => <li key={index}>{field}</li>)}</ul></div>}
   </section>;
+}
+
+/** Original book excerpts remain restricted to the authenticated admin route. */
+export function AnamnesReferenceSource({source}:{source:ReferenceSource}) {
+  return <section className="anamnes-supplier-profile" aria-label={`Dokumentkälla för ${source.productName}`}><h3>{source.productName}</h3><p>{source.document} · PDF-sidor {source.pages.join(', ')}</p><p className="muted">Originaluppgifter ur dokumentet. Angivna mängder, utländska notifikationsnummer och traditionella indikationer verifierar inte en aktuell produkt eller svensk försäljningsstatus. Materialet är inte en personlig ordination.</p><details><summary>Uppräknat innehåll enligt dokumentet</summary><p className="anamnes-admin-reading">{source.ingredientStatement}</p></details><details><summary>Traditionell beskrivning enligt dokumentet</summary><p className="anamnes-admin-reading">{source.traditionalDescription}</p></details><p className="muted">SHA-256: <code>{source.documentSha256}</code></p></section>;
 }
 
 function answerLabel(answers: AnswerMap, id: QuestionId): string {

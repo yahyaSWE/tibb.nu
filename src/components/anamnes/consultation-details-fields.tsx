@@ -10,9 +10,9 @@ type Props = {
 };
 
 export function ConsultationDetailsFields({ value, disabled = false, onChange }: Props) {
-  return <details className={`${styles.reportDetails} ${styles.consultationFields}`}>
-    <summary>Beskriv besvären lite mer · valfritt</summary>
-    <p className={styles.smallNote}>Fyll i det som känns relevant. Uppgifterna hjälper till att förbereda samtalet och räknas inte som bekräftade fynd eller poäng.</p>
+  return <section className={styles.consultationFields} aria-labelledby="anamnes-complaint-details-title" aria-describedby="anamnes-complaint-details-help">
+    <h3 id="anamnes-complaint-details-title">Om dina besvär</h3>
+    <p id="anamnes-complaint-details-help" className={styles.smallNote}>Svara på det du känner till. Din berättelse och svaren här används tillsammans för att anpassa följdfrågorna när du väljer det anpassade frågeflödet. Du kan lämna ett fält tomt.</p>
     <div className={styles.detailFields}>
       <label htmlFor="anamnes-locations">Var sitter besvären?<input id="anamnes-locations" value={value.locations} disabled={disabled} maxLength={500} autoComplete="off" placeholder="Till exempel nacke, axlar och käke" onChange={event => onChange({ locations: event.target.value })} /></label>
       <div className={styles.detailFieldGrid}>
@@ -26,5 +26,5 @@ export function ConsultationDetailsFields({ value, disabled = false, onChange }:
       <label htmlFor="anamnes-previous-care">Vad har du redan provat eller fått undersökt?<textarea id="anamnes-previous-care" value={value.previousCare} disabled={disabled} maxLength={1500} rows={3} autoComplete="off" placeholder="Tidigare bedömningar, behandlingar och vad som hjälpt eller inte hjälpt" onChange={event => onChange({ previousCare: event.target.value })} /></label>
       <label htmlFor="anamnes-lifestyle">Något mer om dina vanor?<textarea id="anamnes-lifestyle" value={value.lifestyle} disabled={disabled} maxLength={1500} rows={3} autoComplete="off" placeholder="Till exempel matvanor, återhämtning, rörelse och stress" onChange={event => onChange({ lifestyle: event.target.value })} /></label>
     </div>
-  </details>;
+  </section>;
 }

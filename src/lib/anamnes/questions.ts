@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AnswerMapSchema, type AnswerMap, type FormulaRecord, type PatternAnalysis, type Question, type QuestionId } from './types';
+import { questionCovered, questionRelevant } from './answer-context';
 
 const unsure = [{ value: 'unknown', label: 'Vet inte' }, { value: 'prefer_not', label: 'Vill inte svara' }];
 const yesNo = [{ value: 'yes', label: 'Ja' }, { value: 'no', label: 'Nej' }];
@@ -30,12 +31,12 @@ export const questionBank: readonly Question[] = [
   q('stool','Matsmältning','Vilken beskrivning stämmer oftast med din avföring?',[['loose','Lös'],['dry','Torr eller hård'],['alternating','Växlar mellan lös och hård'],['sticky','Kladdig och svår att spola bort'],['normal','Formad utan tydliga besvär']]),
   q('sleep','Sömn och känsloliv','Hur upplever du sömnen?',[['difficulty','Svårt att somna'],['waking','Vaknar ofta'],['unrested','Sover men känner mig inte utvilad'],['normal','Oftast god sömn']]),
   q('emotion','Sömn och känsloliv','Vad märker du oftast känslomässigt?',[['worry','Oro och grubblande'],['irritable','Irritation och frustration'],['low','Nedstämdhet'],['calm','Vanligen lugn']]),
-  q('pain','Smärta och rörelse','Har du återkommande eller ihållande värk eller stelhet?'),
+  q('pain','Smärta och rörelse','Har du återkommande eller ihållande värk eller stelhet i muskler eller leder?',[], 'Bukbesvär beskriver du separat i frågorna om matsmältning.'),
   q('stressDigestion','Matsmältning','Förändras magbesvären tydligt av stress eller känslomässig belastning?'),
   q('afterMealBloat','Matsmältning','Blir du uppblåst eller obehagligt mätt efter måltider?'),
   q('nausea','Matsmältning','Har du återkommande illamående eller kväljningar?'),
   q('reflux','Matsmältning','Har du sura uppstötningar, rapningar eller reflux?',[['sour','Sura uppstötningar'],['belching','Rapningar som kan lindra tryck'],['none','Inget av detta']]),
-  q('abdominalPain','Matsmältning','Hur känns eventuella bukbesvär?',[['dull','Dovt och långvarigt'],['distending','Spänt eller uppblåst'],['burning','Brännande'],['sharp','Skarpt och på samma plats'],['none','Ingen buksmärta']]),
+  q('abdominalPain','Matsmältning','Hur känns eventuella bukbesvär?',[['dull','Dovt och långvarigt'],['distending','Spänt eller uppblåst'],['cramping','Krampartat eller i omgångar'],['burning','Brännande'],['sharp','Skarpt och på samma plats'],['none','Ingen buksmärta']]),
   q('bowelRelief','Matsmältning','Lindras bukbesvär efter avföring eller gasavgång?'),
   q('foodTrigger','Matsmältning','Är fullhet och magbesvär tydligt kopplade till stora eller svårsmälta måltider?'),
   q('stoolOdor','Matsmältning','Är lös avföring samtidigt ovanligt illaluktande och förenad med sveda eller stark brådska?'),
@@ -93,7 +94,7 @@ export const questionById = new Map<QuestionId, Question>(questionBank.map(quest
 export const isPublicQuestion = (question: Question) => !question.professionalOnly && !question.retired;
 export const baseQuestionIds: readonly QuestionId[] = ['adult','pregnancy','medication','chronicDisease','liverKidney','allergy','emergency','clinicalRedFlags','focus','duration','onset','trend','temperature','thirst','sweating','energy','appetite','stool','sleep','emotion','pain','stressDigestion'];
 const focusedQuestionIds: Record<string, QuestionId[]> = {
-  digestion: ['afterMealBloat','nausea','foodTrigger','ribTension','heaviness','tongueCoating'],
+  digestion: ['afterMealBloat','nausea','foodTrigger','reflux','abdominalPain','tongueCoating'],
   energy: ['weakVoice','exertion','pallor','dizziness','sinking','tongueColor'],
   sleep: ['sleepOnset','nightWaking','rumination','palpitations','nightSweats','tongueColor'],
   stress: ['ribTension','irritability','stressRelief','afterMealBloat','pallor','tongueColor'],
@@ -133,7 +134,7 @@ export function getFollowupQuestions(answers: AnswerMap, analysis: PatternAnalys
   const candidates = [...selectedIds, ...missing, 'tongueCoating', 'tongueColor', 'painCharacter', 'hotPalms', 'pallor'] as QuestionId[];
   return [...new Set(candidates)].filter(id => {
     const question = questionById.get(id);
-    return question && isPublicQuestion(question) && !initial.has(id) && !Object.hasOwn(answers,id);
+    return question && isPublicQuestion(question) && !initial.has(id) && !questionCovered(answers,id) && questionRelevant(answers,id);
   }).slice(0,5).map(id => questionById.get(id)!);
 }
 export function validateFormulaRules(formula: FormulaRecord): boolean {

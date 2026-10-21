@@ -86,9 +86,10 @@ beforeEach(async () => {
 });
 after(async () => { globalThis.fetch = originalFetch; console.warn = originalWarn; clearConfiguration(); await getDb().close(); });
 
-test("catalog seeds only ten unverified formulas and hides supplier evidence", async () => {
+test("catalog seeds ten ordinary and eleven special-order references and hides source evidence", async () => {
   const entries = await getFormulaCatalog();
-  assert.equal(entries.length, 10);
+  assert.equal(entries.filter(entry => entry.referenceKind === "assortment").length, 10);
+  assert.equal(entries.filter(entry => entry.referenceKind === "special_order").length, 11);
   const publicEntries = await publicFormulaCatalog();
   assert.ok(publicEntries.every((entry) => entry.active && entry.productId === null && !entry.productUrl && !entry.productIdentityVerified && !entry.ingredientsVerified && !entry.safetyVerified));
   assert.ok(publicEntries.every((entry) => entry.identityEvidence === "" && entry.ingredientEvidence === ""));
@@ -149,7 +150,7 @@ test("AI choice still requires server readiness and switching back to rules stop
 });
 
 test("catalog mutations require admin, reviewed option values and documented verification", async () => {
-  const original = (await getFormulaCatalog())[0];
+  const original = (await getFormulaCatalog()).find(entry => entry.id === "supplier-athletic")!;
   await assert.rejects(saveFormulaCatalogEntry(student, original), /behörighet/);
   await assert.rejects(saveFormulaCatalogEntry(admin, { ...original, productIdentityVerified: true }), /underlaget/);
   await assert.rejects(saveFormulaCatalogEntry(admin, { ...original, supportingRules: [{ questionId: "energy", values: ["invented"], weight: 1 }] }), /giltiga/);
@@ -187,7 +188,7 @@ test("administrator-added mandatory safety questions remain reachable in local a
 test("availability requires all verified documents, ingredients and a published product in an open shop", async () => {
   const now = new Date().toISOString();
   const created = await getDb().prepare("INSERT INTO shop_products(name,slug,price_ore,stock,published,created_at,updated_at) VALUES('Synthetic product','synthetic-product',100,5,0,?,?)").run(now, now);
-  const original = (await getFormulaCatalog())[0];
+  const original = (await getFormulaCatalog()).find(entry => entry.id === "supplier-athletic")!;
   const evidence = "Owned synthetic fixture documentation only. Not a verified supplier document.";
   const saved = await saveFormulaCatalogEntry(admin, { ...original, id: "synthetic-availability", updatedAt: undefined, productId: Number(created.lastInsertRowid), productUrl: "https://attacker.invalid/buy", ingredients: ["synthetic fixture"], productIdentityVerified: true, ingredientsVerified: true, safetyVerified: true, regulatoryVerified: true, identityEvidence: evidence, ingredientEvidence: evidence, safetyEvidence: evidence, regulatoryEvidence: evidence });
   assert.equal((await publicFormulaCatalog()).find((item) => item.id === saved.id)!.productId, null);
@@ -386,7 +387,7 @@ test("narrative-specific TCM questions survive local focus filtering and receive
 test("valid narrative followups prevent false exhaustion beyond ten rounds until an explicit stop", async () => {
   await configure();
   const aiConsentVersion = getAnamnesConfigStatus().ai.consentVersion;
-  const answers: AnswerMap = {...coreHistory,adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"pain",duration:"years",onset:"gradual",trend:"variable",irritability:"yes",ribTension:"no",stressRelief:"yes",painLocation:"muscles",painCharacter:"distending",painWarmth:"neutral",painMovement:"better",weatherPain:"yes",stiffness:"yes",tongueColor:"red",jointWarmth:"no"};
+  const answers: AnswerMap = {...coreHistory,sleep:"unrested",adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"pain",duration:"years",onset:"gradual",trend:"variable",irritability:"yes",ribTension:"no",stressRelief:"yes",painLocation:"muscles",painCharacter:"distending",painWarmth:"neutral",painMovement:"better",weatherPain:"yes",stiffness:"yes",tongueColor:"red",jointWarmth:"no"};
   const input = {answers,narrative:"Syntetiskt fall: besvär med både värk och sömn.",aiConsent:true,aiConsentVersion};
   providerReply = response({patternIds:[],questionIds:["sleepOnset"],sufficient:true});
   for (const round of [6,10,25]) {
@@ -1014,7 +1015,7 @@ test("schema eleven upgrade preserves existing users, courses and anamnes catalo
   assert.equal(version!.user_version, 11);
   assert.equal((await getDb().prepare("SELECT COUNT(*) n FROM courses").get())!.n, beforeCount!.n);
   assert.ok(await getUser(admin.id));
-  assert.equal((await getFormulaCatalog()).length, 10);
+  assert.equal((await getFormulaCatalog()).length, 21);
 });
 
 test("consultation context reaches AI only as separately untrusted complaint data, excluding private safety details and notes", async () => {
@@ -1042,6 +1043,42 @@ test("consultation context reaches AI only as separately untrusted complaint dat
   assert.equal((await analyzeAnamnes(input)).report.source, 'rules');
   assert.equal(JSON.stringify(aiDiagnostics).includes(complaintCanary), false);
   assert.equal(JSON.stringify(aiDiagnostics).includes(privateCanary), false);
+});
+
+test("each interview request combines all seven complaint fields, own story and updated notes without scoring them", async () => {
+  await configure();
+  const answers=completeAnswers();
+  const snapshot=structuredClone(answers);
+  const narrative='SYNTHETIC_STORY_WITHOUT_REAL_PATIENT_DATA';
+  const privateText='SYNTHETIC_SAFETY_ONLY';
+  const fields={locations:'SYNTHETIC_LOCATION',intensity:6,frequency:'weekly' as const,dailyImpact:'SYNTHETIC_IMPACT',goal:'SYNTHETIC_GOAL',previousCare:'SYNTHETIC_PREVIOUS_CARE',lifestyle:'SYNTHETIC_LIFESTYLE'};
+  for (const round of [0,1]) {
+    const note=`SYNTHETIC_NOTE_${round}`;
+    const consultation=ConsultationDetailsSchema.parse({...fields,medicationDetails:privateText,conditionDetails:privateText,allergyDetails:privateText,questionNotes:{energy:note,medication:privateText}});
+    providerReply=response({patternIds:['qiBloodDeficiency'],questionIds:[],sufficient:true});
+    const result=await interviewAnamnes({answers,narrative,consultation,aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion,round});
+    assert.equal(result.report.source,'ai');
+    const payload=JSON.parse((lastProviderBody.input as {content:{text:string}[]}[])[0].content[0].text);
+    assert.equal(payload.untrustedNarrative,narrative);
+    assert.deepEqual(payload.untrustedConsultation,{...fields,questionNotes:{energy:note}});
+    assert.deepEqual(payload.confirmedAnswers,answers);
+    assert.equal(payload.confirmedAnswers.pulse,undefined);
+    for (const field of Object.keys(fields)) assert.ok(String(lastProviderBody.instructions).includes(field),field);
+    const encoded=JSON.stringify(lastProviderBody);
+    assert.ok(!encoded.includes(privateText));
+    assert.ok(!encoded.includes('notificatie boek') && !encoded.includes('ingredientStatement') && !encoded.includes('special-book-'));
+  }
+  assert.deepEqual(answers,snapshot);
+});
+
+test("complaint fields can guide relevant AI questions even when the opening story is empty", async () => {
+  await configure();
+  const answers: AnswerMap={adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no',focus:'other',duration:'months',onset:'gradual',trend:'stable'};
+  providerReply=response({patternIds:[],questionIds:['sleepOnset','nightWaking','rumination'],sufficient:false});
+  const result=await interviewAnamnes({answers,consultation:ConsultationDetailsSchema.parse({dailyImpact:'Syntetiska svårigheter att somna och återhämta sig.'}),aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion,round:0});
+  assert.equal(result.complete,false);
+  assert.deepEqual(result.questionIds,['sleepOnset','nightWaking','rumination']);
+  assert.equal(answers.sleepOnset,undefined);
 });
 
 test("consultation context is bound to AI receipts and roundtrips only inside encrypted cases", async () => {

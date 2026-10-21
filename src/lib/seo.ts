@@ -4,7 +4,7 @@ import { databaseConfigured } from "./database-config";
 export const SITE_NAME = "Tibb.nu";
 export const PRACTITIONER_NAME = "Johan Yahya Blomdahl";
 export const CITY = "Jönköping";
-const FALLBACK_URL = "https://tibbnu.vercel.app";
+const FALLBACK_URL = "https://www.tibb.nu";
 
 function publicOrigin(value: string | undefined): URL | undefined {
   if (!value) return;
@@ -22,7 +22,9 @@ function publicOrigin(value: string | undefined): URL | undefined {
       host.endsWith(".local") || host === "[::1]" ||
       host === "0.0.0.0" || privateIpv4 || /^\[(?:fc|fd|fe[89ab])/.test(host)
     ) return;
-    return url;
+    // Retired production origins may remain in Vercel's SITE_URL/APP_URL.
+    // Keep payment callbacks independent while discovery uses the primary domain.
+    return host === "tibbnu.vercel.app" || host === "tibb.nu" ? new URL(FALLBACK_URL) : url;
   } catch { return; }
 }
 

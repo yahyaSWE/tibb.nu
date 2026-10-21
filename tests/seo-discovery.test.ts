@@ -117,11 +117,11 @@ after(async () => {
 
 test("the production sitemap discovers only canonical public pages and currently published content", () => {
   const urls = results.production.sitemap.map((entry) => entry.url);
-  const expected = results.pages.map((path) => new URL(path, "https://tibbnu.vercel.app").href);
-  expected.push("https://tibbnu.vercel.app/artiklar/public-article", "https://tibbnu.vercel.app/artiklar/invalid-date", "https://tibbnu.vercel.app/artiklar/invalid-calendar-date", `https://tibbnu.vercel.app/artiklar/${truncatedSlug}`, "https://tibbnu.vercel.app/kurser/public-course", `https://tibbnu.vercel.app/kurser/${truncatedSlug}`);
+  const expected = results.pages.map((path) => new URL(path, "https://www.tibb.nu").href);
+  expected.push("https://www.tibb.nu/artiklar/public-article", "https://www.tibb.nu/artiklar/invalid-date", "https://www.tibb.nu/artiklar/invalid-calendar-date", `https://www.tibb.nu/artiklar/${truncatedSlug}`, "https://www.tibb.nu/kurser/public-course", `https://www.tibb.nu/kurser/${truncatedSlug}`);
   assert.deepEqual(urls.toSorted(), expected.toSorted());
   assert.equal(new Set(urls).size, urls.length);
-  assert.ok(urls.every((url) => new URL(url).origin === "https://tibbnu.vercel.app" && !new URL(url).search));
+  assert.ok(urls.every((url) => new URL(url).origin === "https://www.tibb.nu" && !new URL(url).search));
   assert.ok(!urls.some((url) => /draft-article|private-course|admin|elevportal|api\/uploads|token=/.test(url)));
 });
 
@@ -149,14 +149,14 @@ test("specific AI search crawler groups retain every private and query exclusion
     }
     assert.deepEqual(rule.disallow, rules[0].disallow);
   }
-  assert.equal(results.production.robots.sitemap, "https://tibbnu.vercel.app/sitemap.xml");
+  assert.equal(results.production.robots.sitemap, "https://www.tibb.nu/sitemap.xml");
   assert.ok(!JSON.stringify(rules).includes("GPTBot"));
 });
 
 test("existing safe CMS slugs ending with a truncation hyphen remain discoverable without allowing paths or queries", () => {
   assert.equal(truncatedSlug.length, 100);
   for (const [prefix, title] of [["artiklar", "Lång offentlig artikel"], ["kurser", "Lång offentlig kurs"]]) {
-    const url = `https://tibbnu.vercel.app/${prefix}/${truncatedSlug}`;
+    const url = `https://www.tibb.nu/${prefix}/${truncatedSlug}`;
     assert.ok(results.production.sitemap.some((entry) => entry.url === url));
     assert.ok(results.production.llms.text.includes(`[${title}](${url})`));
   }
@@ -170,8 +170,8 @@ test("the optional text map contains public links and a truthful selftest bounda
   assert.equal(map.type, "text/plain; charset=utf-8");
   assert.equal(map.cache, "no-store");
   assert.equal(map.indexing, "noindex");
-  assert.ok(map.text.includes("https://tibbnu.vercel.app/artiklar/public-article"));
-  assert.ok(map.text.includes("https://tibbnu.vercel.app/kurser/public-course"));
+  assert.ok(map.text.includes("https://www.tibb.nu/artiklar/public-article"));
+  assert.ok(map.text.includes("https://www.tibb.nu/kurser/public-course"));
   assert.ok(map.text.includes("Offentlig \\[artikel\\] Ny rad"));
   assert.match(map.text, /inte ett medicinskt diagnostiskt verktyg/);
   assert.match(map.text, /ingen garanti om indexering/);

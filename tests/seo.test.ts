@@ -15,17 +15,17 @@ function withEnvironment(values: Record<string, string | undefined>, work: () =>
 }
 
 test("canonical origin can migrate independently of payment callbacks and never uses a preview URL", () => {
-  withEnvironment({ SITE_URL: "https://tibb.nu", APP_URL: "https://tibbnu.vercel.app", VERCEL_URL: "preview.vercel.app" }, () => {
-    assert.equal(getSiteUrl().href, "https://tibb.nu/");
-    assert.equal(absoluteUrl("/boka"), "https://tibb.nu/boka");
+  withEnvironment({ SITE_URL: "https://tibbnu.vercel.app", APP_URL: "https://tibbnu.vercel.app", VERCEL_URL: "preview.vercel.app" }, () => {
+    assert.equal(getSiteUrl().href, "https://www.tibb.nu/");
+    assert.equal(absoluteUrl("/boka"), "https://www.tibb.nu/boka");
   });
-  withEnvironment({ APP_URL: "http://localhost:3000", VERCEL_URL: "preview.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://tibbnu.vercel.app/"));
-  withEnvironment({ VERCEL_ENV: "preview", APP_URL: "https://preview.vercel.app", VERCEL_PROJECT_PRODUCTION_URL: "tibbnu.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://tibbnu.vercel.app/"));
+  withEnvironment({ APP_URL: "http://localhost:3000", VERCEL_URL: "preview.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://www.tibb.nu/"));
+  withEnvironment({ VERCEL_ENV: "preview", APP_URL: "https://preview.vercel.app", VERCEL_PROJECT_PRODUCTION_URL: "tibbnu.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://www.tibb.nu/"));
 });
 
 test("unsafe, private and non-origin URL configuration cannot become a canonical", () => {
   for (const value of ["http://tibb.nu", "https://name:secret@tibb.nu", "https://tibb.nu/path", "https://tibb.nu/?secret=x", "https://localhost", "https://192.168.1.2", "https://10.0.0.1", "https://[::1]"]) {
-    withEnvironment({ SITE_URL: value }, () => assert.equal(getSiteUrl().href, "https://tibbnu.vercel.app/", value));
+    withEnvironment({ SITE_URL: value }, () => assert.equal(getSiteUrl().href, "https://www.tibb.nu/", value));
   }
   for (const path of ["//attacker.test", "https://attacker.test", "/boka?token=secret", "/\\attacker.test"]) assert.throws(() => absoluteUrl(path));
 });
@@ -46,9 +46,9 @@ test("only configured production is indexable, including private local next star
 test("page-specific canonicals and share metadata agree; private metadata clears inherited public URLs", () => {
   withEnvironment({ NODE_ENV: "production", VERCEL_ENV: "production", SITE_URL: "https://tibb.nu" }, () => {
     const metadata = createPageMetadata({ title: "Boka behandling", description: "Välj datum.", path: "/boka" });
-    assert.equal(metadata.alternates?.canonical, "https://tibb.nu/boka");
-    assert.equal(metadata.openGraph?.url, "https://tibb.nu/boka");
-    assert.equal((metadata.openGraph?.images as { url: string }[])[0].url, "https://tibb.nu/opengraph-image");
+    assert.equal(metadata.alternates?.canonical, "https://www.tibb.nu/boka");
+    assert.equal(metadata.openGraph?.url, "https://www.tibb.nu/boka");
+    assert.equal((metadata.openGraph?.images as { url: string }[])[0].url, "https://www.tibb.nu/opengraph-image");
     assert.deepEqual(PRIVATE_METADATA.alternates, { canonical: null });
     assert.equal(PRIVATE_METADATA.openGraph, null);
     assert.equal(PRIVATE_METADATA.twitter, null);

@@ -15,10 +15,14 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { absoluteUrl, buildOrganizationSchema, createPageMetadata, organizationId, websiteId } from "@/lib/seo";
 import "./home.css";
 
-export const metadata = createPageMetadata({
-  title: "Traditionell kinesisk medicin i Jönköping | Tibb.nu", path: "/",
-  description: "Behandlingar i Jönköping hos Tibb.nu. Klassisk kinesisk medicin i ljuset av profetisk vägledning. Boka behandling, läs artiklar och utforska våra kurser.",
-});
+export const metadata = {
+  ...createPageMetadata({
+    title: "Traditionell kinesisk medicin i Jönköping | Tibb.nu", path: "/",
+    description: "Behandlingar i Jönköping hos Tibb.nu. Klassisk kinesisk medicin i ljuset av profetisk vägledning. Boka behandling, läs artiklar och utforska våra kurser.",
+  }),
+  // Every URL above is absolute. Preserve the requested homepage trailing slash.
+  metadataBase: null,
+};
 
 export default async function HomePage() {
   const [allCourses, allArticles, treatments, settings] = await Promise.all([

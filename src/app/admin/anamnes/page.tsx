@@ -16,6 +16,7 @@ export default async function AnamnesAdminOverview() {
   const analysisMode = await getAnamnesAnalysisMode();
   return <>
     <AdminHeading title="Anamnes" description="Förvalta formelreferenser, kontrollera driftsättningen och granska anamneser med separat behandlarbehörighet." action={<Link href="/anamnes" className="button button-secondary">Öppna besökarvyn</Link>} />
+    <p><Link className="text-link" href="/admin/inskickade-underlag">Visa inskickade självtester och anamneser</Link></p>
     <AnamnesAdminNav current="overview" therapist={therapist} />
     <div className="anamnes-admin-grid">
       <AnamnesAnalysisSettings mode={analysisMode} aiConfigured={status.ai.available} />

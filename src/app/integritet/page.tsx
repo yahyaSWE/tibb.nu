@@ -89,9 +89,25 @@ export default async function PrivacyPage() {
       <h2>Självtestet och din webbläsare</h2>
       <p>
         Självtestets svar och resultat sparas lokalt i din webbläsare för att du
-        ska kunna fortsätta senare. De skickas inte till Tibb.nu:s server och
-        kopplas inte till ditt elevkonto. Du kan ta bort dem genom att rensa
+        ska kunna fortsätta senare. De skickas inte automatiskt till Tibb.nu:s
+        server och kopplas inte till ditt elevkonto. Du kan ta bort dem genom att rensa
         webbplatsens data i webbläsaren. När du gör om testet ersätts tidigare svar.
+      </p>
+      <h2>Frivilligt inskickade självtester och anamneser</h2>
+      <p>
+        Efter ett färdigt självtest eller en anamnes kan du, när inskickning är
+        aktiverad, välja att skicka svar och resultat till oss inför kontakt eller
+        konsultation. Du anger då namn och e-postadress. Telefonnummer är valfritt.
+        Du behöver inget elevkonto. Uppgifterna skickas först när du bekräftar
+        inskickningen och används som underlag för kontakten med dig.
+      </p>
+      <p>
+        Kontaktuppgifter, svar och resultat lagras krypterat och kan bara läsas av
+        administratörer med särskild behandlarbehörighet. Aktuell lagringstid och
+        information om behandlingen visas innan du skickar. Efter lagringstidens
+        slut spärras underlaget och rensas vid nästa rensningskörning. Du kan också
+        kontakta oss för att begära radering. Att rensa webbläsaren tar inte bort
+        ett underlag som du redan har skickat till oss.
       </p>
       <h2>Kakor och inbäddade videor</h2>
       <p>

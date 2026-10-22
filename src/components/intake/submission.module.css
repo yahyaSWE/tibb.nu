@@ -1,0 +1,12 @@
+.panel { margin: 32px 0; padding: clamp(20px,4vw,32px); background: #fffdf7; border: 1px solid #d2dec9; border-radius: 20px; }
+.panel summary { color:#274c40; font-weight:600; cursor:pointer; font-size:18px; }
+.panel p { line-height:1.7; }
+.fields { display:grid; gap:18px; margin:20px 0; }
+.fields label { display:grid; gap:8px; font-size:14px; }
+.fields input { width:100%; box-sizing:border-box; border:1px solid #cbd8c2; border-radius:12px; padding:13px 15px; color:inherit; background:#fffef9; font:inherit; }
+.fields input:focus-visible { outline:2px solid #35584c; outline-offset:3px; }
+.consent { display:flex; gap:12px; align-items:flex-start; line-height:1.6; margin:20px 0; }
+.consent input { flex-shrink:0; width:18px; height:18px; margin-top:4px; accent-color:#35584c; }
+.error { padding:16px; background:#fff0dd; border-radius:12px; }
+.success { padding:20px; border-radius:14px; background:#e5ecdf; overflow-wrap:anywhere; }
+.notice { color:#526558; font-size:14px; }

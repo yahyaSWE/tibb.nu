@@ -9,6 +9,11 @@ export const ANAMNES_SCHEMA = `
     revision INTEGER NOT NULL DEFAULT 0 CHECK(revision>=0)
   );
   CREATE INDEX IF NOT EXISTS anamnes_cases_expiry ON anamnes_cases(expires_at);
+  CREATE TABLE IF NOT EXISTS self_test_cases (
+    id TEXT PRIMARY KEY, encrypted_payload TEXT NOT NULL,
+    created_at TEXT NOT NULL, expires_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS self_test_cases_expiry ON self_test_cases(expires_at);
   CREATE TABLE IF NOT EXISTS anamnes_case_reviews (
     case_id TEXT NOT NULL REFERENCES anamnes_cases(id) ON DELETE CASCADE,
     revision INTEGER NOT NULL CHECK(revision>=1), encrypted_payload TEXT NOT NULL,

@@ -1007,13 +1007,13 @@ test("origin checks accept only the request origin or configured public site thr
   }
 });
 
-test("schema eleven upgrade preserves existing users, courses and anamnes catalog", async () => {
+test("current schema upgrade preserves existing users, courses and anamnes catalog", async () => {
   const beforeCount = await getDb().prepare("SELECT COUNT(*) n FROM courses").get();
   await getDb().exec("PRAGMA user_version=10;");
   await getDb().close();
   await getDb().initialize();
   const version = await getDb().prepare("PRAGMA user_version").get();
-  assert.equal(version!.user_version, 11);
+  assert.equal(version!.user_version, (await import('../src/lib/schema')).SCHEMA_VERSION);
   assert.equal((await getDb().prepare("SELECT COUNT(*) n FROM courses").get())!.n, beforeCount!.n);
   assert.ok(await getUser(admin.id));
   assert.equal((await getFormulaCatalog()).length, 21);

@@ -31,12 +31,14 @@ import {
 } from "@/lib/five-phases/session";
 import {
   ELEMENTS,
+  type Answer,
   type AnswerValue,
   type ElementType,
   type TestResult,
   type TestSession,
 } from "@/lib/five-phases/types";
 import "./self-test.css";
+import { SelfTestSubmissionForm } from "./submission-form";
 
 const ANSWER_OPTIONS: readonly { value: AnswerValue; label: string }[] = [
   { value: 1, label: "Stämmer inte alls" },
@@ -139,11 +141,13 @@ function CombinationCard({
 
 function ResultView({
   result,
+  answers,
   headingRef,
   onRestart,
   canPersist,
 }: {
   result: TestResult;
+  answers: readonly Answer[];
   headingRef: RefObject<HTMLHeadingElement | null>;
   onRestart: () => void;
   canPersist: boolean;
@@ -254,6 +258,7 @@ function ResultView({
         </p>
       </section>
 
+      <SelfTestSubmissionForm answers={answers}/>
       {tied ? (
         <section className="selftest-tied-profiles">
           <div className="selftest-section-heading">
@@ -372,8 +377,8 @@ function ResultView({
         </button>
         <p>
           {canPersist
-            ? "Resultatet sparas bara i den här webbläsaren."
-            : "Resultatet finns bara kvar under det här besöket."}
+            ? "Resultatet sparas lokalt i den här webbläsaren. Du kan välja att skicka det till Tibb.nu ovan."
+            : "Resultatet finns kvar under det här besöket. Du kan välja att skicka det till Tibb.nu ovan."}
         </p>
       </div>
       <Disclaimer />
@@ -595,7 +600,7 @@ export function FivePhasesSelfTest() {
           </section>
           <p className="selftest-local-note">
             {canPersist
-              ? "Dina svar sparas bara i den här webbläsaren. De skickas inte till Tibb.nu."
+              ? "Dina svar sparas i den här webbläsaren. När testet är klart kan du själv välja att skicka svar och resultat till Tibb.nu."
               : "Dina svar skickas inte till Tibb.nu. Lokal lagring är blockerad, så testet finns bara kvar under det här besöket."}
           </p>
           <Disclaimer />
@@ -603,6 +608,7 @@ export function FivePhasesSelfTest() {
       ) : result ? (
         <ResultView
           result={result}
+          answers={session!.answers}
           headingRef={headingRef}
           canPersist={canPersist}
           onRestart={() => dialogRef.current?.showModal()}

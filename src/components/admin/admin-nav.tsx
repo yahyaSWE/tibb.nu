@@ -26,6 +26,7 @@ const links = [
   { href: "/admin/behandlare", label: "Behandlare", icon: Stethoscope },
   { href: "/admin/tider", label: "Tillgängliga tider", icon: Clock3 },
   { href: "/admin/anamnes", label: "Anamnes", icon: Stethoscope },
+  { href: "/admin/inskickade-underlag", label: "Inskickade underlag", icon: FileText },
   { href: "/admin/artiklar", label: "Artiklar", icon: FileText },
   { href: "/admin/kurser", label: "Kurser", icon: BookOpen },
   { href: "/admin/elever", label: "Elever", icon: Users },

@@ -1,9 +1,9 @@
 import "server-only";
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getDb, transaction } from "../database";
 import type { User } from "../types";
-import { anamnesAiConfig, anamnesEncryptionKey, anamnesRetentionDays, anamnesSubmissionsAvailable, anamnesSubmissionConsentVersion } from "./config";
+import { anamnesAiConfig, anamnesRetentionDays, anamnesSubmissionsAvailable, anamnesSubmissionConsentVersion } from "./config";
 import { AnamnesError } from "./http";
 import { AnswerMapSchema, ConsultationDetailsSchema, MedicationNamesSchema, NarrativeSchema, PatternIdSchema, ReportSchema, emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type Report } from "./types";
 import { validateAnswers } from "./questions";
@@ -12,9 +12,11 @@ import { getFormulaCatalogEntry, publicFormulaCatalog } from "./catalog";
 import { AnalysisReceiptSchema, verifyAnalysisReceipt } from "./ai";
 import { finalizeInterviewReport } from "./interview";
 import { normalizeConsultationDetails } from "./consultation";
+import { IntakeContactSchema as ContactSchema } from "../intake-contact";
+import { encryptIntake as encrypt, decryptIntake as decrypt } from "./secure-storage";
 
 const IdSchema = z.string().uuid();
-const ContactSchema = z.object({ name: z.string().trim().min(1).max(120), email: z.email().max(254), phone: z.string().trim().max(50).default("") }).strict();
+
 export const SubmitAnamnesSchema = z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), consultation: ConsultationDetailsSchema.default(emptyConsultationDetails), medicationNames: MedicationNamesSchema.default(""), formulaReferencesEnabled: z.boolean().default(true), sendConsent: z.literal(true), submissionConsentVersion: z.string().regex(/^[a-f0-9]{64}$/), contact: ContactSchema, report: ReportSchema.optional(), receipt: AnalysisReceiptSchema.optional() }).strict().refine((value) => !!value.report === !!value.receipt, { message: "Rapportens underlag saknas." }).refine((value) => value.answers.medication !== "yes" || !!value.medicationNames, { path: ["medicationNames"], message: "Ange namnen på dina läkemedel eller kosttillskott." }).transform(value => ({ ...value, medicationNames: value.answers.medication === "yes" ? value.medicationNames : "", consultation: normalizeConsultationDetails(value.consultation, value.answers) }));
 const ReviewFieldsSchema = z.object({ notes: z.string().max(10000), tongueNotes: z.string().max(5000), pulseNotes: z.string().max(5000), corrections: z.string().max(10000), finalAssessment: z.string().max(10000), selectedPrimaryPatternId: PatternIdSchema.nullable().default(null), selectedSecondaryPatternIds: z.array(PatternIdSchema).max(2).default([]), selectedFormulaId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/).nullable().default(null), formulaNotes: z.string().max(5000).default("") }).strict();
 export const AnamnesReviewInputSchema = ReviewFieldsSchema.extend({ expectedRevision: z.number().int().min(0) }).superRefine((value, context) => {
@@ -32,27 +34,6 @@ export function therapistAccess(user: User | null): boolean {
 }
 function assertTherapist(actor: User) {
   if (!therapistAccess(actor)) throw new AnamnesError("Du har inte behörighet till denna vy.", 403);
-}
-function encrypt(value: unknown, associatedData: string): string {
-  const key = anamnesEncryptionKey();
-  if (!key) throw new AnamnesError("Säker lagring är inte konfigurerad.", 503);
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  cipher.setAAD(Buffer.from(associatedData));
-  const data = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
-  return `v1.${iv.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${data.toString("base64url")}`;
-}
-function decrypt(value: string, associatedData: string): unknown {
-  const key = anamnesEncryptionKey();
-  if (!key) throw new AnamnesError("Säker lagring är inte konfigurerad.", 503);
-  const [version, iv, tag, data, extra] = value.split(".");
-  if (version !== "v1" || !iv || !tag || !data || extra) throw new AnamnesError("Anamnesen kunde inte öppnas.", 503);
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
-    decipher.setAAD(Buffer.from(associatedData));
-    decipher.setAuthTag(Buffer.from(tag, "base64url"));
-    return JSON.parse(Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8")) as unknown;
-  } catch { throw new AnamnesError("Anamnesen kunde inte öppnas.", 503); }
 }
 const CasePayloadSchema = z.object({ intake: z.object({ answers: AnswerMapSchema, narrative: NarrativeSchema.default(""), medicationNames: MedicationNamesSchema.default(""), consultation: ConsultationDetailsSchema.default(emptyConsultationDetails) }).strict(), report: ReportSchema, contact: ContactSchema, sendConsentAt: z.string(), consent: StoredConsentSchema.optional(), provenance: StoredProvenanceSchema.optional() }).strict();
 const ReviewPayloadSchema = ReviewFieldsSchema.extend({ revision: z.number().int().positive(), authorId: z.number().int().positive(), authorName: z.string(), reviewedAt: z.string() }).strict();
@@ -122,4 +103,16 @@ export async function deleteAnamnesCase(actor: User, id: string): Promise<void> 
   assertTherapist(actor);
   IdSchema.parse(id);
   await getDb().prepare("DELETE FROM anamnes_cases WHERE id=?").run(id);
+}
+
+/** Minimal contact DTO for the authorized, private combined intake list. */
+export async function listAnamnesContacts(actor: User) {
+  assertTherapist(actor);
+  await pruneExpiredAnamnesCases();
+  const rows=await getDb().prepare("SELECT id,encrypted_payload,created_at,expires_at FROM anamnes_cases WHERE expires_at>? ORDER BY created_at DESC LIMIT 100").all(new Date().toISOString());
+  return rows.map(row => {
+    const id=String(row.id);
+    const payload=CasePayloadSchema.parse(decrypt(String(row.encrypted_payload),`case:${id}`));
+    return {id,createdAt:String(row.created_at),expiresAt:String(row.expires_at),name:payload.contact.name,email:payload.contact.email};
+  });
 }

@@ -140,6 +140,8 @@ analyskvitton ändras inte av valet.
 - `/admin/anamnes`: teknisk status och exakt vilka miljöinställningar som saknas.
 - `/admin/anamnes/formler`: lägg till, ändra, inaktivera eller ta bort formler utan att ändra AI-koden. Här finns mönsterkopplingar, stöd/motregler, saknade frågor, säkerhetsuppgifter och verifieringsunderlag.
 - `/admin/anamnes/arenden`: listning och skyddad terapeutvy för separat inskickade underlag. Kräver både administratörskonto och e-postadress i `ANAMNES_THERAPIST_EMAILS`.
+- `/admin/inskickade-underlag`: gemensam inkorg för frivilligt inskickade självtester och anamneser. Visar namn, e-post, typ och datum. Samma extra behandlarbehörighet krävs innan uppgifter hämtas eller dekrypteras.
+- `/admin/inskickade-underlag/sjalvtest/[slumpmässigt UUID]`: kontaktuppgifter, alla 40 självtestsvar, fem faspoäng, frågetexterna vid inskickningen och informationen som besökaren godkände. Behörig administratör kan radera underlaget här.
 - `/admin/anamnes/arenden/[slumpmässigt UUID]`: kontaktuppgifter, fullständig anamnes, ursprunglig serverberäknad regel-/AI-assisterad rapport, samtliga mönster, säkerhetsflaggor och separata daterade behandlarbedömningar. Det slumpmässiga ID:t är inte en åtkomstnyckel; servern kontrollerar behörighet på varje läsning och ändring.
 
 En vanlig administratör kan hantera katalogen men får inte därmed läsa hälsouppgifter. Ändra behandlarbehörighet via serverns miljövariabler och starta om/bygg om installationen enligt värdplattformens rutin. Listvyn visar inte besökarens namn eller symtom. Kontakt- och hälsoinformation placeras inte i länkar eller felmeddelanden.
@@ -235,7 +237,7 @@ I det krypterade ärendeinnehållet sparas även inskickningsinformationens exak
 
 ### Schemalagd rensning
 
-`GET /api/anamnes/retention` rensar utgångna ärenden och tillhörande bedömningar. Anropet kräver `Authorization: Bearer <CRON_SECRET>`, med minst 32 tecken i hemligheten. Svaret innehåller endast antal raderade ärenden. Skicka inte hemligheten i URL:en.
+`GET /api/anamnes/retention` rensar utgångna anamnesärenden, tillhörande bedömningar och inskickade självtester. Anropet kräver `Authorization: Bearer <CRON_SECRET>`, med minst 32 tecken i hemligheten. Svaret innehåller endast sammanlagt antal raderade underlag. Skicka inte hemligheten i URL:en.
 
 Sätt upp ett dagligt jobb via en betrodd schemaläggare som kan skicka headern. Vercel Cron kan användas enligt aktuellt abonnemang och Vercels rutin för `CRON_SECRET`; något cron-schema har inte lagts till automatiskt i projektet. Kontrollera körning/fel utan att logga kontakt- eller hälsoinformation. Testa med syntetiska utgångna ärenden att både huvudpost och bedömningsposter raderas. Nyckel- och backuphantering behöver ingå i samma dokumenterade rutin.
 

@@ -16,6 +16,10 @@ import { SafetyQuestions } from "./safety-questions";
 import { ConsultationDetailsFields } from "./consultation-details-fields";
 import { AiExtractionSchema, confirmObservations, removeConfirmedObservation, type ExtractionObservation, type ObservationDecision } from '@/lib/anamnes/observations';
 import { ObservationReview } from './observation-review';
+import { useAnamnesDraft } from './use-anamnes-draft';
+import { AnamnesDraftPanel } from './draft-panel';
+import { AnamnesStartControls } from './start-controls';
+import { draftResumeCursor, type AnamnesDraft } from '@/lib/anamnes/draft';
 import styles from "./tcm-anamnes.module.css";
 
 const CatalogResponseSchema = z.object({
@@ -62,6 +66,8 @@ export default function TcmAnamnes() {
   const [config, setConfig] = useState<CatalogResponse>(initialConfig);
   const [catalogState, setCatalogState] = useState<"loading" | "ready" | "unavailable">("loading");
   const [aiConsentVersion, setAiConsentVersion] = useState<string | null>(null);
+  const [aiStartAccepted,setAiStartAccepted]=useState(false);
+  const [aiSessionUnavailable,setAiSessionUnavailable]=useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -85,8 +91,11 @@ export default function TcmAnamnes() {
   const phase = stage === "intro" ? 0 : stage === "safety" ? 1 : stage === "report" ? 3 : 2;
   const questionNote = currentQuestion && currentQuestion.id !== "pulse" ? consultation.questionNotes[currentQuestion.id] ?? "" : "";
   const questionNoteLimit = Math.max(0, Math.min(400, 6000 - Object.entries(consultation.questionNotes).reduce((total, [id, value]) => total + (id === currentQuestion?.id ? 0 : value?.length ?? 0), 0)));
-  const aiChoiceAvailable = catalogState === "ready" && config.analysisMode === "ai" && config.ai.available && !!config.ai.consentVersion;
+  const aiChoiceAvailable = !aiSessionUnavailable && catalogState === "ready" && config.analysisMode === "ai" && config.ai.available && !!config.ai.consentVersion;
   const completionQuestions = useMemo(() => report ? getInterviewCompletionQuestionIds(answers, report.analysis) : [], [answers, report]);
+  const drafts=useAnamnesDraft({version:1,answers,narrative,medicationNames,consultation,flow:interviewActive&&!localInterview?'ai':'rules',position:{
+    stage:stage==='observations'?'safety':stage,questionId:['questions','followup','interview'].includes(stage)?currentQuestion?.id??null:null,
+    index,history:(stage==='questions'?currentQuestions:interviewHistory).map(question=>question.id),followups:followups.map(question=>question.id),round:interviewRound}});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -99,6 +108,7 @@ export default function TcmAnamnes() {
     headingRef.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [stage, index]);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  useEffect(()=>{setAiStartAccepted(false);setAiSessionUnavailable(false);},[config.ai.consentVersion]);
   useEffect(() => {
     // Wait for the confirmed AnswerMap and provenance to render before the next request.
     if (extractionReady && !busy) { setExtractionReady(false); void advanceInterview(); }
@@ -141,6 +151,7 @@ export default function TcmAnamnes() {
     return false;
   }
   function reset() {
+    void drafts.clear();setAiStartAccepted(false);
     setExtracted([]);setExtractionReady(false);
     request.current?.abort(); sequence.current++; setBusy(false); setAnswers({}); setNarrative(""); setMedicationNames(""); setConsultation(emptyConsultationDetails()); setInterviewActive(false); setLocalInterview(false); setReviewingAnswers(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setReport(null); setFollowups([]); setStage("intro"); setIndex(0); setAiConsentVersion(null); setContact({ name: "", email: "", phone: "" }); clearStatus();
   }
@@ -163,10 +174,31 @@ export default function TcmAnamnes() {
     if (!validateConsultation()) return;
     if (getSafetyAssessment(answers, narrative.trim(), consultation).level === "emergency") { setReport(buildReport(answers, [], { narrative: narrative.trim(), consultation })); setStage("report"); clearStatus(); return; }
     if (useAi && !aiChoiceAvailable) { setError("AI är inte tillgänglig just nu. Du kan fortsätta utan AI."); return; }
+    if(useAi&&!aiStartAccepted){setError('Bekräfta att du vill använda AI-analys innan du börjar.');return;}
     if (useAi && !narrative.trim()) { setError("Beskriv först vad du söker hjälp för, så att AI kan anpassa frågorna. Du kan också starta utan AI."); return; }
     // Only an intentional start beside the displayed AI information grants consent.
     setAiConsentVersion(useAi ? config.ai.consentVersion! : null);
     setInterviewActive(useAi); setLocalInterview(false); setReviewingAnswers(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setReport(null); setFollowups([]); setIndex(0); setStage("safety"); clearStatus();
+  }
+  function restoreDraft(draft:AnamnesDraft,useAi:boolean){
+    request.current?.abort();sequence.current++;setBusy(false);setExtractionReady(false);setExtracted([]);clearStatus();
+    setContact({name:'',email:'',phone:''});setAiStartAccepted(false);setAnswers(draft.answers);setNarrative(draft.narrative);setMedicationNames(draft.medicationNames);setConsultation(draft.consultation);
+    // The restored choice may precede completion of safety answers. It grants
+    // consent only; every provider call still requires the full safety gate.
+    const safety=getSafetyAssessment(draft.answers,draft.narrative,draft.consultation),allowAi=useAi&&aiChoiceAvailable;
+    setAiConsentVersion(allowAi?config.ai.consentVersion!:null);setInterviewActive(true);setLocalInterview(!allowAi);setReviewingAnswers(false);setInterviewRound(draft.position.round);
+    setSessionNotice(allowAi?'Ditt utkast är återställt. Du har valt att fortsätta med AI.':'Ditt utkast är återställt. Inga svar skickas till AI utan ett nytt aktivt val.');
+    if(safety.level==='emergency'||draft.position.stage==='report'){
+      if(safety.level!=='emergency')setSessionNotice(catalogState==='ready'?'Dina sparade svar är återställda. En ny regelbaserad rapport har räknats fram med den aktuella katalogen. En tidigare AI-rapport sparas inte i utkastet.':'Dina sparade svar är återställda. Rapporten bygger på aktuella regler, men formelkatalogen kunde inte hämtas. Inga formelreferenser visas.');
+      setReport(finalizeInterviewReport(buildReport(draft.answers,config.formulas,{narrative:draft.narrative,consultation:draft.consultation}),draft.answers));setStage('report');setIndex(0);return;
+    }
+    setReport(null);
+    if(['intro','safety'].includes(draft.position.stage)||!canAnalyzePatterns(safety)){
+      setStage(draft.position.stage==='intro'?'intro':'safety');setIndex(0);setInterviewHistory([]);return;
+    }
+    const {history,index:restoredIndex}=draftResumeCursor(draft);
+    if(!history.length){setInterviewHistory([]);setStage('safety');setIndex(0);return;}
+    setInterviewHistory(history);setIndex(restoredIndex);setStage('interview');
   }
   function finishSafety(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -185,6 +217,7 @@ export default function TcmAnamnes() {
       setSessionNotice("Du granskar och kan ändra dina tidigare svar. När du är klar skapas ett uppdaterat lokalt underlag.");
       return;
     }
+    if(interviewActive&&localInterview){continueLocally(buildReport(answers,config.formulas,{narrative:narrative.trim(),consultation}),false);return;}
     if (interviewActive && canAnalyzePatterns(safety)) {
       if (interviewHistory.length) setStage("interview");
       else void prepareObservations();
@@ -246,11 +279,13 @@ export default function TcmAnamnes() {
       const value = InterviewResponseSchema.parse(await response.json());
       if (run !== sequence.current) return;
       if (value.reason === "fallback") {
+        setAiSessionUnavailable(true);
         setAiConsentVersion(null); setLocalInterview(true); setSessionNotice("AI kunde inte användas. Du fortsätter med lokala följdfrågor och behåller dina tidigare svar. Rapporten bygger på poängmodellen.");
       }
       showInterviewStep(value.report, value.questionIds, value.complete || finish, value.reason, value.receipt, finish);
     } catch {
       if (controller.signal.aborted || run !== sequence.current) return;
+      setAiSessionUnavailable(true);
       setCatalogState("unavailable"); setAiConsentVersion(null); setLocalInterview(true); setSessionNotice("Anslutningen kunde inte användas. Du kan fortsätta lokalt med dina tidigare svar. Formelreferenser visas först när den aktuella katalogen har kunnat kontrolleras.");
       continueLocally(buildReport(answers, [], { narrative: narrative.trim(), consultation }), finish);
     } finally { if (run === sequence.current) { setBusy(false); request.current = null; } }
@@ -343,7 +378,7 @@ export default function TcmAnamnes() {
       const response = await fetch("/api/anamnes/submit", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]), body: JSON.stringify({ answers, narrative: narrative.trim(), medicationNames: answers.medication === "yes" ? medicationNames.trim() : "", consultation, formulaReferencesEnabled: true, sendConsent: true, submissionConsentVersion: sendConsentVersion, contact, ...(report?.source === "ai" && receipt ? { report, receipt } : {}) }) });
       if (!response.ok) throw new Error(response.status === 409 ? "Rapportens eller samtyckets giltighet behöver förnyas. Gå igenom svaren och skapa en ny rapport innan du skickar, eller ta med den kopierade sammanfattningen till konsultationen." : "Inskickningen kunde inte bekräftas. Kontrollera informationen och försök igen, eller ta med den kopierade sammanfattningen till konsultationen.");
       const result = z.object({ reference: z.string().uuid(), expiresAt: z.string().datetime() }).parse(await response.json());
-      if (run === sequence.current) { setSubmission(result); setSendConsentVersion(null); }
+      if (run === sequence.current) { setSubmission(result); setSendConsentVersion(null); if(drafts.enabled)void drafts.clear(); }
     } catch (failure) { if (run === sequence.current && !controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Anamnesen kunde inte skickas."); }
     finally { if (run === sequence.current) { setBusy(false); request.current = null; } }
   }
@@ -354,6 +389,7 @@ export default function TcmAnamnes() {
   return <div className={styles.shell}>
     <div className={styles.topbar}><span><Leaf size={18} aria-hidden="true" />Tibb.nu · Strukturerad TCM-anamnes</span><span><LockKeyhole size={14} aria-hidden="true" />Du styr hur svaren används</span></div>
     <div className={styles.body}>
+      {report?.safety.level!=="emergency"&&<AnamnesDraftPanel controls={drafts} aiAvailable={aiChoiceAvailable} busy={busy||catalogState==="loading"} onResume={restoreDraft}/>}
       {report?.safety.level !== "emergency" && <nav className={styles.phaseProgress} aria-label="Anamnesens steg"><ol>{["Din berättelse", "Trygghetsfrågor", "Följdfrågor", "Ditt underlag"].map((label, step) => <li key={label} className={step <= phase ? styles.phaseReached : undefined} aria-current={step === phase ? "step" : undefined}><span aria-hidden="true">{step + 1}</span>{label}</li>)}</ol></nav>}
       {stage !== "intro" && stage !== "report" && report?.safety.level !== "emergency" && <div className={styles.questionProgress}><div><span>{stage === "safety" ? `${answeredSafetyCount} av ${safetyQuestionIds.length} trygghetsfrågor besvarade` : `Fråga ${index + 1}${stage === "interview" ? " · anpassas efter dina svar" : ""}`}</span></div>{stage !== "safety" && <p className={styles.modeStatus} role="status"><strong>{interviewActive && !localInterview ? "AI-anpassade frågor" : "Lokala frågor"}</strong>{sessionNotice ? <span>{sessionNotice}</span> : <span>{interviewActive && !localInterview ? "Din beskrivning och dina bekräftade svar styr vilka frågor som kommer härnäst." : "Dina valda svar används i poängmodellen. Beskrivningen och dina förtydliganden finns kvar för behandlaren."}</span>}</p>}</div>}
       {stage === "intro" && <section>
@@ -361,13 +397,9 @@ export default function TcmAnamnes() {
         <p className={styles.lead}>Berätta vad du vill ha hjälp med. Sedan följer trygghetsfrågor och frågor om dina besvär. Räkna med ungefär 5–10 minuter; antalet frågor anpassas efter svaren.</p>
         {narrativeEditor()}
         <ConsultationDetailsFields value={consultation} disabled={busy} onChange={updateConsultation} />
-        <div className={styles.features}><div><span className={styles.featureIcon}><Check size={21} aria-hidden="true" /></span><strong>Frågor efter dina svar</strong><p>Följdfrågor tills relevanta uppgifter är genomgångna.</p></div><div><span className={styles.featureIcon}><LockKeyhole size={21} aria-hidden="true" /></span><strong>Svar först lokalt</strong><p>Inget sparas eller skickas automatiskt.</p></div><div><span className={styles.featureIcon}><ShieldCheck size={21} aria-hidden="true" /></span><strong>Individuell bedömning</strong><p>Formelreferenser inför en konsultation.</p></div></div>
+        <div className={styles.features}><div><span className={styles.featureIcon}><Check size={21} aria-hidden="true" /></span><strong>Frågor efter dina svar</strong><p>Följdfrågor tills relevanta uppgifter är genomgångna.</p></div><div><span className={styles.featureIcon}><LockKeyhole size={21} aria-hidden="true" /></span><strong>Spara om du vill</strong><p>Fortsätt senare med ett frivilligt utkast på din enhet.</p></div><div><span className={styles.featureIcon}><ShieldCheck size={21} aria-hidden="true" /></span><strong>Individuell bedömning</strong><p>Formelreferenser inför en konsultation.</p></div></div>
         {catalogState === "unavailable" && <p className={styles.warning}>Den aktuella formelkatalogen kunde inte laddas. Du kan fortsätta med frågorna och få en mönsteranalys; ingen inaktuell katalog används som reserv.</p>}
-        {aiChoiceAvailable ? <>
-          <div className={styles.actions}><button type="button" className={styles.primary} aria-describedby="anamnes-ai-start-info" onClick={() => start(true)}>Börja frågorna<ArrowRight size={17} aria-hidden="true" /></button><button type="button" className={styles.secondary} onClick={() => start(false)}>Starta simpel frågeställning</button></div>
-          <p id="anamnes-ai-start-info" className={styles.smallNote}>”Börja frågorna” delar din beskrivning, dina kompletteringar och svar med {config.ai.providerLabel} för AI-anpassning. Det enkla frågeflödet sker lokalt.</p>
-          <details className={styles.reportDetails}><summary>Mer om AI och dina svar</summary><p>Genom att välja ”Börja frågorna” samtycker du till att din beskrivning, dina kompletteringar om besvären och dina formulärsvar skickas via Tibb.nu till {config.ai.providerLabel} för anpassade frågor och en preliminär analys. Det du skriver i de separata fälten för läkemedelsnamn, läkemedelsdetaljer, sjukdomar och allergier skickas inte till AI. Välj ”Starta simpel frågeställning” om du vill fortsätta utan AI.</p><p>{config.ai.privacyNotice}</p><p>Att skicka rapporten till en behandlare är ett separat val. Svaren sparas inte automatiskt i webbläsaren eller som ett ärende.</p><Link href="/integritet" className={styles.productInfo} prefetch={false}>Integritetsinformation</Link></details>
-        </> : <button type="button" className={styles.primary} disabled={catalogState === "loading"} onClick={() => start()}>{catalogState === "loading" ? "Förbereder formuläret…" : "Börja frågorna"}<ArrowRight size={17} aria-hidden="true" /></button>}
+        <AnamnesStartControls aiAvailable={aiChoiceAvailable} loading={catalogState==='loading'} providerLabel={config.ai.providerLabel} privacyNotice={config.ai.privacyNotice} accepted={aiStartAccepted} onAccepted={setAiStartAccepted} onStart={start}/>
       </section>}
       {stage === "observations" && <section aria-busy={busy}><h2 ref={headingRef} tabIndex={-1} className={styles.heading}>Granska din berättelse</h2><ObservationReview proposals={extracted} onConfirm={acceptObservations} onSkip={()=>{setExtracted([]);setExtractionReady(true);}} disabled={busy}/></section>}
       {stage === "safety" && <section aria-labelledby="anamnes-safety-title" aria-busy={busy}>

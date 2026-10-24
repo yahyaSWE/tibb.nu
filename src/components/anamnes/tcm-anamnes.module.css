@@ -15,6 +15,8 @@
 .features p { font-size: 12px; margin-top: 5px; }
 .notice, .warning, .alert { padding: 20px 22px; border-radius: 16px; margin-block: 24px; font-size: 14px; line-height: 1.75; }
 .notice { background: var(--sage); border: 1px solid var(--line); }
+.draftPanel { margin-block:20px 28px; padding-block:16px; border-block:1px solid var(--line); }
+.draftPanel .smallNote { margin-block:10px; }
 .observationCard { min-width:0; }
 .observationCard legend { max-width:100%; padding-inline:8px; font-weight:600; }
 .observationSelect { display:grid; gap:8px; margin-block:16px; font-weight:600; }

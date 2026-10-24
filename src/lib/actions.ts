@@ -242,6 +242,20 @@ export async function deleteSlotAction(form: FormData): Promise<void> {
     async () => await admin.deleteSlot(user.id, idField(form)),
   );
 }
+export async function deleteSlotsAction(form: FormData): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/tider", async () => {
+    let selected: unknown;
+    try { selected = JSON.parse(field(form, "slotIds")); }
+    catch { throw new DomainError("Markera de tider du vill ta bort och försök igen."); }
+    const ids = z.array(z.number().int().positive()).min(1, "Markera minst en tid.").max(50000).parse(selected);
+    const result = await admin.deleteSlots(user.id, ids);
+    const message = `${result.removed} ${result.removed === 1 ? "obokad tid" : "obokade tider"} togs bort.` +
+      (result.booked ? ` ${result.booked} ${result.booked === 1 ? "tid är bokad" : "tider är bokade"} och behölls.` : "") +
+      (result.unavailable ? ` ${result.unavailable} ${result.unavailable === 1 ? "tid" : "tider"} hade redan tagits bort eller passerat.` : "");
+    return "/admin/tider?success=" + encodeURIComponent(message);
+  });
+}
 export async function saveAvailabilityScheduleAction(
   form: FormData,
 ): Promise<void> {

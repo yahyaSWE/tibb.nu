@@ -249,6 +249,32 @@ export async function deleteSlot(actorId: number, id: number) {
     await getDb().prepare("UPDATE slots SET archived=1 WHERE id=?").run(id);
   });
 }
+export async function deleteSlots(actorId: number, slotIds: number[]) {
+  return transaction(async () => {
+    await assertAdmin(actorId);
+    const ids = [...new Set(z.array(z.number().int().positive()).min(1, "Markera minst en tid.").max(50000, "Välj ett mindre datumintervall.").parse(slotIds))];
+    await expireBookings();
+    const now = new Date().toISOString();
+    const result = { removed: 0, booked: 0, unavailable: 0 };
+    // Keep below SQLite's parameter limits and retain one write transaction
+    // across every batch so reservation and removal cannot race each other.
+    for (let offset = 0; offset < ids.length; offset += 400) {
+      const batch = ids.slice(offset, offset + 400);
+      const placeholders = batch.map(() => "?").join(",");
+      const occupied = "EXISTS(SELECT 1 FROM bookings b WHERE b.practitioner_id=s.practitioner_id AND b.status IN ('pending','confirmed','completed') AND b.start<s.end AND b.end>s.start)";
+      const rows = await getDb().prepare(
+        `SELECT s.id,${occupied} AS booked FROM slots s WHERE s.id IN (${placeholders}) AND s.archived=0 AND s.start>?`,
+      ).all(...batch, now);
+      result.booked += rows.filter(row => !!row.booked).length;
+      result.unavailable += batch.length - rows.length;
+      const removed = await getDb().prepare(
+        `UPDATE slots AS s SET archived=1 WHERE s.id IN (${placeholders}) AND s.archived=0 AND s.start>? AND NOT ${occupied}`,
+      ).run(...batch, now);
+      result.removed += removed.changes;
+    }
+    return result;
+  });
+}
 export async function updateBooking(
   actorId: number,
   id: number,

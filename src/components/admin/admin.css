@@ -623,6 +623,15 @@
   color: var(--muted);
   font-size: 12px;
 }
+.admin-shell .availability-bulk-toolbar { display:grid; gap:12px; padding:16px; margin-bottom:18px; border:1px solid var(--line); border-radius:14px; background:var(--sage); }
+.admin-shell .availability-bulk-toolbar p { margin:0; font-weight:600; font-size:13px; }
+.admin-shell .availability-bulk-toolbar small { font-size:12px; line-height:1.7; color:var(--muted); }
+.admin-shell .availability-bulk-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.admin-shell .availability-bulk-confirm { padding:18px; margin-bottom:18px; border:1px solid #e2cdbb; border-radius:14px; background:#fbf3e9; }
+.admin-shell .availability-bulk-confirm p { font-size:14px; line-height:1.7; margin:0 0 14px; }
+.admin-shell .availability-select-cell { width:46px; text-align:center; }
+.admin-shell .availability-select-cell input { appearance:auto; width:18px; height:18px; margin:0; padding:0; accent-color:var(--green); cursor:pointer; vertical-align:middle; }
+.admin-shell .availability-select-cell input:disabled { cursor:not-allowed; }
 .admin-shell .availability-pagination {
   display: flex;
   align-items: center;

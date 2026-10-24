@@ -3,6 +3,7 @@ import { patternById } from './patterns';
 import { baseQuestionIds, getInitialQuestions, isPublicQuestion, questionById, validateAnswers } from './questions';
 import { type AnswerMap, type FormulaRecord, type PatternAnalysis, type QuestionId, type Report } from './types';
 import { effectiveAnswer, questionCovered, questionRelevant } from './answer-context';
+import { differentialDecision } from './differential';
 
 export const mandatoryInterviewQuestions: readonly QuestionId[] = ['emergency','clinicalRedFlags','adult','pregnancy','medication','chronicDisease','liverKidney','allergy'];
 export const mandatoryInterviewBackgroundQuestions: readonly QuestionId[] = ['focus','duration','onset','trend'];
@@ -149,8 +150,18 @@ function remainingInterviewQuestionIds(input: AnswerMap, analysis: PatternAnalys
 }
 
 /** Meaningful, unseen follow-ups for both the interview and optional report completion. */
-export function getInterviewCompletionQuestionIds(input: AnswerMap, analysis: PatternAnalysis): QuestionId[] {
+export function getInterviewCompletionQuestionIdsBaseline(input: AnswerMap, analysis: PatternAnalysis): QuestionId[] {
   return remainingInterviewQuestionIds(input,analysis).slice(0,5);
+}
+
+export function getInterviewDecision(input:AnswerMap,analysis:PatternAnalysis) {
+  const answers=validateAnswers(input);
+  const mandatory=[...getPendingInterviewSafetyQuestions(answers),...getPendingInterviewBackgroundQuestions(answers),
+    ...(answers.focus==='pain'?['jointWarmth' as const,...focusedPainQuestionIds]:[])];
+  return differentialDecision(answers,analysis,remainingInterviewQuestionIds(answers,analysis),mandatory);
+}
+export function getInterviewCompletionQuestionIds(input:AnswerMap,analysis:PatternAnalysis):QuestionId[]{
+  return getInterviewDecision(input,analysis).rankedQuestions.slice(0,5).map(question=>question.questionId);
 }
 
 /** Clarify a reference only after the independent differential supports it. */

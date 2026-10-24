@@ -3,11 +3,12 @@ import { IntakeRequestSchema, InterviewRequestSchema, InterviewResponseSchema, R
 import { validateAnswers, getInitialQuestions } from "./questions";
 import { analyzePatterns, buildReport, canAnalyzePatterns, getSafetyAssessment } from "./engine";
 import { publicFormulaCatalog } from "./catalog";
-import { requestAiDifferential, requestAiInterview, createAnalysisReceipt } from "./ai";
+import { requestAiDifferential, requestAiInterview, requestAiExtraction, createAnalysisReceipt } from "./ai";
+import { validateExtractedObservations } from './observations';
 import { getAnamnesConfigStatus } from "./config";
 import { getAnamnesAnalysisMode } from "./settings";
 import { hasAiConsultationDetails, normalizeConsultationDetails } from "./consultation";
-import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
+import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewDecision, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
 
 export async function getPublicAnamnesCatalog() {
   const status = getAnamnesConfigStatus();
@@ -29,6 +30,15 @@ export async function analyzeAnamnes(input: unknown) {
   const report = ReportSchema.parse(buildReport(answers, catalog, { narrative: value.narrative, consultation, source: differential ? "ai" : "rules", formulaReferencesEnabled: value.formulaReferencesEnabled, followUpQuestionIds: differential?.followUpQuestionIds, acceptedPatternIds: differential?.patternIds }));
   const receipt = createAnalysisReceipt(answers, report, value.narrative, consultation);
   return receipt ? { report, receipt } : { report };
+}
+export async function extractAnamnesObservations(input:unknown) {
+  const answers=validateAnswers(input&&typeof input==='object'?(input as Record<string,unknown>).answers:undefined);
+  const value=IntakeRequestSchema.parse(input);
+  const consultation=normalizeConsultationDetails(value.consultation,answers);
+  const config=getAnamnesConfigStatus();
+  if(!value.aiConsent||value.aiConsentVersion!==config.ai.consentVersion||!canAnalyzePatterns(getSafetyAssessment(answers,value.narrative,consultation))||!config.ai.available||await getAnamnesAnalysisMode()!=='ai')return {observations:[],available:false};
+  const proposal=await requestAiExtraction(answers,value.narrative,consultation);
+  return {observations:proposal?validateExtractedObservations(proposal,answers,value.narrative,consultation):[],available:!!proposal};
 }
 
 export async function interviewAnamnes(input: unknown): Promise<InterviewResponse> {
@@ -65,6 +75,10 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
     const next = finalRound ? [] : fallbackQuestions();
     return result(next, finalRound || next.length === 0, "fallback");
   }
+  const decision=getInterviewDecision(answers,analysis);
+  // A model cannot prolong an exhausted history with unrelated confirmations.
+  // Reference safety rules remain downstream of the independent differential.
+  if(!finalRound&&decision.shouldStop&&referenceQuestions().length===0)return result([],true,decision.reason==='supported'?'enough':'exhausted');
   const differential = await requestAiInterview(answers, analysis, value.narrative, consultation);
   if (!differential) {
     const next = finalRound ? [] : fallbackQuestions();
@@ -73,7 +87,11 @@ export async function interviewAnamnes(input: unknown): Promise<InterviewRespons
   // Only an explicit visitor stop can close an unfinished interview. A model
   // confidence signal cannot skip relevant unanswered reviewed questions.
   const remaining = getInterviewCompletionQuestionIds(answers,analysis);
-  const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds, answers, analysis, { allowNarrativeQuestions: !!value.narrative || hasAiConsultationDetails(consultation) });
+  const allowedQuestions=new Set(decision.rankedQuestions.map(question=>question.questionId));
+  // Before a differential has emerged the story can identify a different area
+  // of the bank. Later batches must concentrate on the shortlisted criteria.
+  const narrativeDiscovery=decision.candidatePatternIds.length<2&&decision.answeredSymptomCount<15&&(!!value.narrative||hasAiConsultationDetails(consultation));
+  const curatedIds = sanitizeInterviewQuestionIds(differential.questionIds.filter(id=>narrativeDiscovery||allowedQuestions.has(id)), answers, analysis, { allowNarrativeQuestions: narrativeDiscovery });
   const comparisonIds = referenceQuestions();
   const hasQualifiedPattern = differential.patternIds.length > 0 && analysis.patterns.some(pattern => pattern.qualified);
   // A provider's generic confidence must not close an empty report while the

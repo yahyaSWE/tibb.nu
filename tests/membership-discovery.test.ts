@@ -21,7 +21,7 @@ before(async()=>{
   const {stdout}=await promisify(execFile)(process.execPath,["--conditions=react-server","--import=tsx","--eval",source],{env,timeout:30000,maxBuffer:1000000});snapshots=JSON.parse(stdout.trim());
 });
 test("only offered memberships in a published group enter public search discovery",()=>{
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/medlemskap"));assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/medlemskap/public-membership"));assert.ok(snapshots.open.text.includes("/medlemskap/public-membership"));
+  assert.ok(snapshots.open.urls.includes("https://www.tibb.nu/medlemskap"));assert.ok(snapshots.open.urls.includes("https://www.tibb.nu/medlemskap/public-membership"));assert.ok(snapshots.open.text.includes("/medlemskap/public-membership"));
   for(const snapshot of [snapshots.closed,snapshots.draftGroup,snapshots.draftPlan]){assert.ok(!snapshot.urls.some(url=>url.includes("/medlemskap")));assert.ok(!snapshot.text.includes("public-membership"));}
 });
 test("group descriptions, posts, drafts and confirmation pages never enter public discovery",()=>{

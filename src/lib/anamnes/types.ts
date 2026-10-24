@@ -42,9 +42,17 @@ export const EvidenceRuleSchema = z.object({
 export type EvidenceRule = z.infer<typeof EvidenceRuleSchema>;
 export const EvidenceSchema = z.object({ questionId: QuestionIdSchema, answer: z.string(), label: z.string(), weight: z.number() }).strict();
 export type Evidence = z.infer<typeof EvidenceSchema>;
+export const PatternAssessmentSchema = z.object({
+  state:z.enum(['insufficient_evidence','conflicting_evidence','supported_pattern']),
+  assessedCriteria:z.number().int().nonnegative(), totalCriteria:z.number().int().nonnegative(),
+  supportWeight:z.number().nonnegative(), oppositionWeight:z.number().nonnegative(), normalizedSupport:z.number(),
+  missingCoreQuestionIds:z.array(QuestionIdSchema), contradictedCoreQuestionIds:z.array(QuestionIdSchema),
+  components:z.array(z.object({id:z.string(),label:z.string(),state:z.enum(['supported','opposed','unknown']),supportingQuestionIds:z.array(QuestionIdSchema),opposingQuestionIds:z.array(QuestionIdSchema)}).strict()),
+}).strict();
 export const PatternFindingSchema = z.object({
   id: PatternIdSchema, name: z.string(), pinyin: z.string(), hanzi: z.string(), explanation: z.string(), score: z.number(),
   supporting: z.array(EvidenceSchema), opposing: z.array(EvidenceSchema), missingQuestionIds: z.array(QuestionIdSchema), qualified: z.boolean(),
+  assessment:PatternAssessmentSchema.optional(),
 }).strict();
 export type PatternFinding = z.infer<typeof PatternFindingSchema>;
 export const DimensionSchema = z.object({ value: z.string(), supporting: z.array(EvidenceSchema), opposing: z.array(EvidenceSchema) }).strict();
@@ -124,6 +132,7 @@ export const ConsultationDetailsSchema = z.object({
   previousCare: consultationText(1500).default(''), lifestyle: consultationText(1500).default(''),
   medicationDetails: consultationText(1500).default(''), conditionDetails: consultationText(1500).default(''), allergyDetails: consultationText(1500).default(''),
   questionNotes: ConsultationQuestionNotesSchema.default({}),
+  confirmedObservations:z.array(z.object({questionId:QuestionIdSchema,answer:z.string().min(1).max(60),excerpt:consultationText(300),source:z.enum(['narrative','locations','dailyImpact','goal','previousCare','lifestyle','questionNote']),sourceQuestionId:QuestionIdSchema.nullable().optional(),corrected:z.boolean()}).strict()).max(40).optional(),
 }).strict().superRefine((value, context) => {
   if (Object.values(value.questionNotes).reduce((total, note) => total + (note?.length ?? 0), 0) > 6000) context.addIssue({ code: 'custom', path: ['questionNotes'], message: 'Ange sammanlagt högst 6 000 tecken i frågekommentarerna.' });
 });

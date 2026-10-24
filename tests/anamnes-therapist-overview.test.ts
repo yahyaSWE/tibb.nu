@@ -72,7 +72,7 @@ test("public answers keep notes once inside a closed reading view and the admin 
   assert.doesNotMatch(html, /^<details[^>]*\bopen=/);
   for (const text of [consultation.goal, consultation.questionNotes.energy, consultation.questionNotes.sleep]) assert.equal(html.split(text).length - 1, 1, text);
   assert.match(html, /Egen komplettering/);
-  assert.match(html, /inte verifierade fynd eller poängsatta/);
+  assert.match(html, /övrig fritext ger inga poäng/);
   const audit = renderToStaticMarkup(createElement(AnamnesReport, { report: buildReport(energy, formulaSeed), answers: energy, consultation, showAnswers: false }));
   assert.doesNotMatch(audit, /Alla lämnade svar|Unik komplettering till svaret|Unik notering utan fast svar|Unikt eget mål/);
 });

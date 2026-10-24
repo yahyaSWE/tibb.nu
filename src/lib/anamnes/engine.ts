@@ -4,6 +4,7 @@ import { FormulaRecordSchema, NarrativeSchema, type AnswerMap, type Consultation
 import { consultationSafetyTexts, normalizeConsultationDetails } from './consultation';
 import { supplierVerificationPending } from './formula-verification';
 import { effectiveAnswer } from './answer-context';
+import { assessPattern, defaultWeightingPolicy, type WeightingPolicy } from './assessment';
 
 const unknown = new Set(['unknown','prefer_not']);
 const answered = (answers: AnswerMap, id: QuestionId) => { const answer = effectiveAnswer(answers,id); return !!answer && !unknown.has(answer.value); };
@@ -112,7 +113,8 @@ function summarizeYinYang(coldHeat: PatternAnalysis['baGang']['coldHeat'], defic
   }
   return {value,supporting,opposing};
 }
-export function analyzePatterns(input: AnswerMap): PatternAnalysis {
+/** Frozen pre-optimization algorithm for reproducible A/B regression comparisons. */
+export function analyzePatternsBaseline(input: AnswerMap): PatternAnalysis {
   const answers = validateAnswers(input);
   const coldRules = [rule('temperature','cold',4),rule('painWarmth','better',2),rule('thirst','low',1)];
   const heatRules = [rule('temperature','hot',4),rule('thirst','strong_cold',3),rule('hotPalms','yes',2),rule('tongueColor','red',1),rule('heatTiming','persistent_strong',3),rule('tongueCoating','yellow_dry',2)];
@@ -158,6 +160,15 @@ export function analyzePatterns(input: AnswerMap): PatternAnalysis {
     zangFu: stopped ? [] : dedupe(qualified.slice(0,3).flatMap(pattern => patternById.get(pattern.id)!.zangFu)),
     missingQuestionIds: dedupe(patterns.slice(0,3).flatMap(pattern => pattern.missingQuestionIds)).slice(0,15), conflicts,
   };
+}
+export function analyzePatterns(input:AnswerMap, policy:WeightingPolicy=defaultWeightingPolicy):PatternAnalysis {
+  const baseline=analyzePatternsBaseline(input),answers=validateAnswers(input);
+  const patterns=baseline.patterns.map(finding=>({...finding,assessment:assessPattern(patternById.get(finding.id)!,finding,answers,policy)}));
+  // Normalize priority for information gathering. Keep clinical qualification,
+  // final main-pattern and formula gates unchanged until the owner has reviewed
+  // the A/B cases; an engineering weight is not evidence to replace a diagnosis.
+  return {...baseline,patterns,primary:patterns.find(finding=>finding.id===baseline.primary?.id)??null,
+    secondary:baseline.secondary.map(finding=>patterns.find(pattern=>pattern.id===finding.id)!)};
 }
 export const analyzeAnswers = analyzePatterns;
 

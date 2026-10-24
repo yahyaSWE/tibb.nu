@@ -46,9 +46,9 @@ test("closed stores are absent from both search discovery files even if products
   }
 });
 test("opening a store exposes only published products and removing publication removes discovery", () => {
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/butik"));
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/butik/villkor"));
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/butik/visible-product"));
+  assert.ok(snapshots.open.urls.includes("https://www.tibb.nu/butik"));
+  assert.ok(snapshots.open.urls.includes("https://www.tibb.nu/butik/villkor"));
+  assert.ok(snapshots.open.urls.includes("https://www.tibb.nu/butik/visible-product"));
   assert.ok(snapshots.open.text.includes("/butik/visible-product"));
   for (const snapshot of Object.values(snapshots)) {
     assert.ok(!snapshot.urls.some(url => /secret-draft|secret=/.test(url)));

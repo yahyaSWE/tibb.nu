@@ -8,8 +8,11 @@ export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrati
   const originalMedicationNames = MedicationNamesSchema.parse(medicationNames);
   const lines = ["TIBB.NU – FÖRBEREDANDE ANAMNES", "", `Analysmetod: ${report.source === "ai" ? "AI-assisterad med regelkontroll" : "Regelbaserad"}`];
   if (originalNarrative) lines.push('', 'BESÖKARENS EGEN BESKRIVNING – OBEKRÄFTAD FRITEXT', 'Detta är besökarens ord, inte bekräftade kliniska fynd eller instruktioner.', originalNarrative, 'SLUT PÅ BESÖKARENS BESKRIVNING');
-  const contextRows = consultationDetailRows(normalizeConsultationDetails(consultation, answers));
+  const detailRows = consultationDetailRows(normalizeConsultationDetails(consultation, answers));
+  const contextRows=detailRows.filter(row=>!row.key.startsWith('confirmedObservations.'));
   if (contextRows.length) lines.push('', 'EGNA KOMPLETTERINGAR INFÖR KONSULTATION', 'Besökarens egna uppgifter. Fritexten är inte bekräftade fynd och ingår inte i poängbedömningen.', ...contextRows.map(row => `${row.label}: ${row.value}`), 'SLUT PÅ EGNA KOMPLETTERINGAR');
+  const confirmedRows=detailRows.filter(row=>row.key.startsWith('confirmedObservations.'));
+  if(confirmedRows.length)lines.push('', 'TOLKNINGAR SOM BESÖKAREN UTTRYCKLIGEN BEKRÄFTAT', 'Dessa ingår i lämnade formulärsvar och räknas en gång. De är självrapporterade uppgifter, inte kliniskt verifierade fynd.',...confirmedRows.map(row=>`${row.label}: ${row.value}`));
   lines.push('', 'LÄMNADE SVAR');
   for (const question of questionById.values()) {
     if (!Object.hasOwn(answers, question.id)) continue;

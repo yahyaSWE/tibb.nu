@@ -15,6 +15,11 @@
 .features p { font-size: 12px; margin-top: 5px; }
 .notice, .warning, .alert { padding: 20px 22px; border-radius: 16px; margin-block: 24px; font-size: 14px; line-height: 1.75; }
 .notice { background: var(--sage); border: 1px solid var(--line); }
+.observationCard { min-width:0; }
+.observationCard legend { max-width:100%; padding-inline:8px; font-weight:600; }
+.observationSelect { display:grid; gap:8px; margin-block:16px; font-weight:600; }
+.observationSelect select { width:100%; min-width:0; min-height:48px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:#fffdf8; color:var(--ink); font:inherit; font-size:16px; font-weight:400; }
+.observationSelect select:focus-visible { outline:2px solid var(--green); outline-offset:3px; }
 .warning { background: #fbefd9; color: #654a22; border: 1px solid #e4cfaa; }
 .alert, .error { background: #fff0e9; color: #833d2b; border: 1px solid #e8c5b7; }
 .notice p, .warning p, .alert p { color: inherit; margin-top: 7px; }

@@ -22,15 +22,22 @@ export function consultationDetailRows(input: ConsultationDetails): { key: strin
     const question = questionById.get(id as keyof ConsultationDetails['questionNotes']);
     if (value && question && !question.professionalOnly) rows.push({ key: `questionNotes.${id}`, label: question.prompt, value });
   }
+  for(const item of details.confirmedObservations??[]){
+    const question=questionById.get(item.questionId);
+    if(question&&!safetyQuestionIds.has(item.questionId)&&!question.professionalOnly){
+      const option=question.options.find(value=>value.value===item.answer);
+      if(option)rows.push({key:`confirmedObservations.${item.questionId}`,label:`Bekräftad tolkning${item.corrected?' (korrigerad)':''}: ${question.prompt}`,value:`${option.label} · Egen text: ”${item.excerpt}”`});
+    }
+  }
   return rows;
 }
 export function hasConsultationDetails(input: ConsultationDetails): boolean { return consultationDetailRows(input).length > 0; }
 export function normalizeConsultationDetails(input: ConsultationDetails | undefined, answers: AnswerMap): ConsultationDetails {
   const details = ConsultationDetailsSchema.parse(input ?? {});
-  return { ...details, medicationDetails: answers.medication === 'yes' ? details.medicationDetails : '', conditionDetails: answers.chronicDisease === 'yes' || answers.liverKidney === 'yes' ? details.conditionDetails : '', allergyDetails: answers.allergy === 'yes' ? details.allergyDetails : '' };
+  return { ...details, ...(details.confirmedObservations?{confirmedObservations:details.confirmedObservations.filter((item,index,all)=>!safetyQuestionIds.has(item.questionId)&&item.questionId!=='pulse'&&item.questionId!=='priorAssessment'&&answers[item.questionId]===item.answer&&questionById.get(item.questionId)?.options.some(option=>option.value===item.answer)&&all.findIndex(other=>other.questionId===item.questionId)===index)}:{}), medicationDetails: answers.medication === 'yes' ? details.medicationDetails : '', conditionDetails: answers.chronicDisease === 'yes' || answers.liverKidney === 'yes' ? details.conditionDetails : '', allergyDetails: answers.allergy === 'yes' ? details.allergyDetails : '' };
 }
 export function consultationForAi(input: ConsultationDetails) {
-  const { medicationDetails: _medication, conditionDetails: _condition, allergyDetails: _allergy, questionNotes, ...complaint } = ConsultationDetailsSchema.parse(input);
+  const { medicationDetails: _medication, conditionDetails: _condition, allergyDetails: _allergy, confirmedObservations:_observations, questionNotes, ...complaint } = ConsultationDetailsSchema.parse(input);
   return { ...complaint, questionNotes: Object.fromEntries(Object.entries(questionNotes).filter(([id, text]) => !safetyQuestionIds.has(id) && !!text)) };
 }
 export function hasAiConsultationDetails(input: ConsultationDetails): boolean {

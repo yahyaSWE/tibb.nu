@@ -1,20 +1,22 @@
 # Anslut e-post till Tibb.nu
 
-Förberett 2026-10-08. Ingen extern tjänst har anslutits och inga verkliga meddelanden har skickats under utvecklingstesterna. Tibb.nu använder Resends HTTPS-API direkt; ett ytterligare SDK-paket behövs inte.
+Förberett 2026-10-08, konfigurationsexempel uppdaterade 2026-10-23. Tibb.nu använder Resends HTTPS-API direkt; ett ytterligare SDK-paket behövs inte. Guiden bekräftar inte att produktionsnycklar, domänverifiering eller leverans redan fungerar.
 
 ## Konfigurera avsändaren
 
 1. Ägaren öppnar sitt Resend-konto och lägger till en domän som verksamheten kontrollerar. Följ Resends egna DNS-poster för SPF och DKIM och invänta status **Verified**. Ange inga påhittade DNS-värden. Resends avsändarverifiering skapar inte automatiskt en inkorg för verksamhetens kontaktadress.
-2. Kontrollera separat att den riktiga kontaktadressen tar emot mejl och att besökare kan få svar. Webbplatsens egen domän och HTTPS behöver fungera innan den används i länkar. Använd den befintliga Vercel-adressen tills den egna domänen är ansluten.
+2. Kontrollera separat att den riktiga kontaktadressen tar emot mejl och att besökare kan få svar. Huvudadressen `https://www.tibb.nu` fungerar nu över HTTPS och används i exemplen nedan. Behåll kontaktinkorgens befintliga MX-poster; lägg till Resends angivna poster för utskick på rätt namn/subdomän.
 3. Skapa en API-nyckel för utskick med minsta lämpliga behörighet i Resend. Spara den direkt i **Vercel → Project → Settings → Environment Variables**, aldrig i chatten, Git, källkod eller en `NEXT_PUBLIC_`-variabel.
 
 | Variabel | Innehåll |
 | --- | --- |
 | `RESEND_API_KEY` | Hemlig API-nyckel från verksamhetens Resend-konto. |
-| `EMAIL_FROM` | Verifierad avsändare, exempelvis `Tibb.nu <avsandare@din-verifierade-doman>` med verksamhetens faktiska domän. |
-| `APP_URL` | Webbplatsens exakta betrodda HTTPS-origin, utan underkatalog, query eller fragment. Nuvarande adress: `https://tibbnu.vercel.app`. |
+| `EMAIL_FROM` | Exempel: `Tibb.nu <kontakt@tibb.nu>`, om `tibb.nu` är verifierad för utskick i Resend. Använd annars en avsändaradress på den domän/subdomän du faktiskt har verifierat. |
+| `APP_URL` | `https://www.tibb.nu`, utan underkatalog, query eller fragment. Variabeln används även för betalningarnas återlänkar; kontrollera kundresan på samma huvudadress. |
 | `EMAIL_NOTIFICATION_TO` | Valfri verklig administratörsadress för bokningsaviseringar; annars används kontaktadressen i Admin → Inställningar. |
 | `CRON_SECRET` | Valfritt separat slumpmässigt värde med minst 32 tecken för återförsöksjobbet. |
+
+Skapa API-nyckeln med **Sending access**, gärna begränsad till den verifierade avsändardomänen. `EMAIL_NOTIFICATION_TO` är administratörens mottagare, inte kundens adress; kunden får sin bekräftelse på adressen som anges vid bokningen. `CRON_SECRET` kommer inte från Resend och behövs inte för det första utskicket. Behåll ett befintligt fungerande värde eftersom andra skyddade rensningsjobb också kan använda det. En hemlighet aktiverar inte schemaläggning i sig.
 
 Sätt produktionsvärden endast i **Production**. Preview ska använda separata testvärden och kontrollerade mottagare, eller sakna e-postkonfiguration. Publicera på nytt efter ändrade miljövariabler. Kopiera inga produktionsnycklar till testdatabaser eller automatiserade tester. Testerna ersätter nätverksanrop med lokala mocks.
 

@@ -116,7 +116,7 @@ test('formula clarification follows an independent primary and includes current 
 
 test('pain interviews prioritize explicit pain discriminators and stop chasing contradicted core patterns', () => {
   const background: AnswerMap = {...clearSafety,focus:'pain',duration:'years',onset:'gradual',trend:'variable'};
-  assert.deepEqual(getInterviewFallbackQuestions(background,analyzePatterns(background)),['painLocation','painCharacter','painMovement']);
+  assert.deepEqual(getInterviewFallbackQuestions(background,analyzePatterns(background)),['jointWarmth','painLocation','painCharacter']);
   // Synthetic regression: several pain observations do not independently
   // establish a core pattern. A neutral heat response and denied rib tension
   // must not trigger an endless search for points to rescue those patterns.

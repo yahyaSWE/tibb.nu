@@ -7,7 +7,7 @@ import { ConsultationDetailsSchema, FormulaRecordSchema, emptyConsultationDetail
 import { getInitialQuestions, isPublicQuestion, questionBank } from "../src/lib/anamnes/questions";
 import { getSafetyAssessment, analyzePatterns } from "../src/lib/anamnes/engine";
 import { getFormulaCatalog, saveFormulaCatalogEntry, deleteFormulaCatalogEntry, publicFormulaCatalog } from "../src/lib/anamnes/catalog";
-import { analyzeAnamnes, interviewAnamnes, getPublicAnamnesCatalog } from "../src/lib/anamnes/service";
+import { analyzeAnamnes, interviewAnamnes, extractAnamnesObservations, getPublicAnamnesCatalog } from "../src/lib/anamnes/service";
 import { anamnesAiConfig, anamnesSubmissionConsentVersion, getAnamnesConfigStatus } from "../src/lib/anamnes/config";
 import { submitAnamnes, therapistAccess, listAnamnesCases, getAnamnesCase, reviewAnamnesCase, deleteAnamnesCase } from "../src/lib/anamnes/cases";
 import { assertAnamnesOrigin, anamnesRequestJson, enforceAnamnesRateLimit, anamnesResponseError } from "../src/lib/anamnes/http";
@@ -15,8 +15,12 @@ import { GET as retentionGET } from "../src/app/api/anamnes/retention/route";
 import { POST as analyzePOST } from "../src/app/api/anamnes/analyze/route";
 import { POST as submitPOST } from "../src/app/api/anamnes/submit/route";
 import { POST as interviewPOST } from "../src/app/api/anamnes/interview/route";
+import { POST as extractPOST } from '../src/app/api/anamnes/extract/route';
+import { getFormulaComparisonQuestionIds, getInterviewDecision } from '../src/lib/anamnes/interview';
+import { listQualityReviews, saveQualityReview } from '../src/lib/anamnes/quality-reviews';
+import { qualityDatasetVersion } from '../src/lib/anamnes/quality';
 import { getAnamnesAnalysisMode, saveAnamnesAnalysisMode } from "../src/lib/anamnes/settings";
-import { requestAiDifferential, verifyAnalysisReceipt } from "../src/lib/anamnes/ai";
+import { requestAiDifferential, requestAiInterview, verifyAnalysisReceipt } from "../src/lib/anamnes/ai";
 
 // This helper is intentionally outside the *.test.ts glob. Refuse accidental
 // direct execution against an operator's existing environment/database.
@@ -340,7 +344,9 @@ test("narrative is untrusted data only, never confirmed symptoms, model prose or
   providerReply = response({ patternIds: ["spleenQiDeficiency", "kidneyYinDeficiency"], questionIds: ["pallor", "pulse", "energy"], sufficient: false });
   const result = await interviewAnamnes({ answers, narrative, aiConsent: true, aiConsentVersion: getAnamnesConfigStatus().ai.consentVersion, round: 0 });
   assert.equal(result.report.source, "ai");
-  assert.deepEqual(result.questionIds, ["pallor"]);
+  assert.ok(result.questionIds.length>0);
+  const referenceIds=getFormulaComparisonQuestionIds(answers,analyzePatterns(answers),await publicFormulaCatalog());
+  assert.ok(result.questionIds.every(id=>getInterviewDecision(answers,analyzePatterns(answers)).rankedQuestions.some(question=>question.questionId===id)||referenceIds.includes(id)));
   assert.equal(result.complete, false);
   assert.equal(result.receipt, undefined, "intermediate interview reports cannot authenticate a final clinic submission");
   const input = JSON.parse((lastProviderBody.input as { content: { text: string }[] }[])[0].content[0].text);
@@ -384,7 +390,7 @@ test("narrative-specific TCM questions survive local focus filtering and receive
   assert.equal(requests,2);
 });
 
-test("valid narrative followups prevent false exhaustion beyond ten rounds until an explicit stop", async () => {
+test("exhausted low-gain history stops independently of transport round count", async () => {
   await configure();
   const aiConsentVersion = getAnamnesConfigStatus().ai.consentVersion;
   const answers: AnswerMap = {...coreHistory,sleep:"unrested",adult:"yes",pregnancy:"no",medication:"no",chronicDisease:"no",liverKidney:"no",allergy:"no",emergency:"no",clinicalRedFlags:"no",focus:"pain",duration:"years",onset:"gradual",trend:"variable",irritability:"yes",ribTension:"no",stressRelief:"yes",painLocation:"muscles",painCharacter:"distending",painWarmth:"neutral",painMovement:"better",weatherPain:"yes",stiffness:"yes",tongueColor:"red",jointWarmth:"no"};
@@ -392,9 +398,11 @@ test("valid narrative followups prevent false exhaustion beyond ten rounds until
   providerReply = response({patternIds:[],questionIds:["sleepOnset"],sufficient:true});
   for (const round of [6,10,25]) {
     const ongoing = await interviewAnamnes({...input,round});
-    assert.equal(ongoing.complete,false);
-    assert.deepEqual(ongoing.questionIds,["sleepOnset"]);
+    assert.equal(ongoing.complete,true);
+    assert.deepEqual(ongoing.questionIds,[]);
+    assert.equal(ongoing.reason,'exhausted');
     assert.equal(ongoing.receipt,undefined);
+    assert.equal(requests,0,'an exhausted local decision needs no provider call');
   }
   const ended = await interviewAnamnes({...input,round:26,finalize:true});
   assert.equal(ended.complete,true);
@@ -427,8 +435,8 @@ test("formula checks clarify counterevidence after independent analysis and pres
   assert.equal(clarify.report.analysis.primary?.id,"qiBloodDeficiency");
   const checked = {...answers,currentInfection:"no",tongueCoating:"normal",temperature:"neutral",thirst:"normal",heaviness:"no",stool:"normal",heatTiming:"none"};
   const followup = await interviewAnamnes({...input,answers:checked,round:4});
-  assert.equal(followup.complete,false,'sufficient=true must not erase an explicit valid question');
-  assert.deepEqual(followup.questionIds,["dryEyes"]);
+  assert.equal(followup.complete,false,'a missing independent core still needs clarification');
+  assert.ok(followup.questionIds.includes('sinking'),'a differential discriminator takes priority over generic extra confirmation');
   const completed = await interviewAnamnes({...input,answers:{...checked,dryEyes:"unknown"},round:5,finalize:true});
   assert.equal(completed.complete,true);
   assert.equal(completed.report.analysis.primary?.id,"qiBloodDeficiency");
@@ -521,7 +529,7 @@ test("unknown background does not erase a qualified history but AI confidence ca
   const exhausted = await interviewAnamnes({answers:{...pain,jointWarmth:"no"},aiConsent:true,aiConsentVersion,round:6});
   assert.equal(exhausted.complete,true);
   assert.equal(exhausted.reason,"exhausted");
-  assert.equal(exhausted.report.analysis.status,"insufficient");
+  assert.equal(exhausted.report.analysis.status,"conflicting");
   assert.deepEqual(exhausted.questionIds,[]);
   assert.deepEqual(exhausted.report.formulaMatches,[]);
 });
@@ -616,7 +624,8 @@ test("completed Responses SSE is accepted when a compatible gateway streams desp
   const result = await interviewAnamnes(input);
   assert.equal(result.report.source, "ai");
   assert.equal(result.reason, "continue");
-  assert.deepEqual(result.questionIds, ["weakVoice"]);
+  assert.ok(result.questionIds.length>0);
+  assert.deepEqual((await requestAiInterview(completeAnswers(),analyzePatterns(completeAnswers()),''))?.questionIds,['weakVoice']);
 });
 
 test("Responses done events use completed message items and never partial deltas", async () => {
@@ -658,7 +667,8 @@ test("model JSON compatibility accepts only complete objects and canonicalizes k
   };
   const result = await interviewAnamnes({ ...input, narrative: "Syntetiskt fall: magen efter mat.", round: 0 });
   assert.equal(result.report.source, "ai");
-  assert.deepEqual(result.questionIds, ["weakVoice"]);
+  assert.ok(result.questionIds.length>0);
+  assert.deepEqual((await requestAiInterview(completeAnswers(),analyzePatterns(completeAnswers()),''))?.questionIds,['weakVoice']);
 });
 
 test("model JSON compatibility never repairs unknown IDs, keys, types, unbounded counts, surrounding prose or multiple answers", async () => {
@@ -695,7 +705,8 @@ test("validated known model IDs are stably deduplicated and capped only after ch
   providerReply = response({ patternIds: [...patternIds.slice(0, 8)], questionIds: ["weakVoice", "weakVoice", "pallor", "dizziness", "dryEyes"], sufficient: false });
   const interview = await interviewAnamnes(input);
   assert.equal(interview.report.source, "ai");
-  assert.deepEqual(interview.questionIds, ["weakVoice", "pallor", "dizziness"]);
+  assert.ok(interview.questionIds.length>0);
+  assert.deepEqual((await requestAiInterview(answers,analyzePatterns(answers),''))?.questionIds,['weakVoice','pallor','dizziness']);
   const requestedInterview = (lastProviderBody.text as { format: { schema: { properties: Record<string, { maxItems: number }> } } }).format.schema;
   assert.equal(requestedInterview.properties.patternIds.maxItems, 6);
   assert.equal(requestedInterview.properties.questionIds.maxItems, 3);
@@ -1090,10 +1101,10 @@ test("current medication allows consented AI analysis and followups while clinic
   assert.equal(payload.confirmedAnswers.medication,'yes');
   providerReply=response({patternIds:['qiBloodDeficiency'],questionIds:['constipation'],sufficient:false});
   const next=await interviewAnamnes({...input,round:0});
-  assert.equal(next.complete,false);
-  assert.equal(next.report.source,'ai');
-  assert.equal(next.reason,'continue');
-  assert.ok(next.questionIds.length);
+  assert.equal(next.complete,true);
+  assert.equal(next.report.source,'rules');
+  assert.equal(next.reason,'enough');
+  assert.equal(next.questionIds.length,0);
   assert.equal(JSON.stringify(lastProviderBody).includes(privateDetail),false);
   providerReply=response({patternIds:['qiBloodDeficiency'],questionIds:[],sufficient:true});
   const final=await interviewAnamnes({...input,round:1,finalize:true});
@@ -1184,4 +1195,62 @@ test("legacy encrypted intake without consultation details defaults to an empty 
   const encrypted = `v1.${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${ciphertext.toString('base64url')}`;
   await getDb().prepare('INSERT INTO anamnes_cases(id,encrypted_payload,created_at,expires_at) VALUES(?,?,?,?)').run(id, encrypted, createdAt, new Date(Date.now() + 86400000).toISOString());
   assert.deepEqual((await getAnamnesCase(admin, id))!.intake.consultation, emptyConsultationDetails());
+});
+
+
+test('extraction requires current consent and complete safety, with no automatic symptom scoring',async()=>{
+  await configure();
+  const answers:AnswerMap={adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no'};
+  const narrative='Syntetiskt fall: jag är trött och fryser.';
+  const input={answers,narrative,aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion};
+  const observation={questionId:'energy',answer:'low',certainty:'explicit',polarity:'affirmed',evidence:[{source:'narrative',sourceQuestionId:null,excerpt:'jag är trött'}]};
+  providerReply=response({observations:[observation]});
+  for(const invalid of [{...input,aiConsent:false},{...input,aiConsentVersion:'a'.repeat(64)},{...input,answers:{...answers,pregnancy:'yes'}},{...input,answers:{...answers,allergy:'unknown'}}]){
+    const result=await extractAnamnesObservations(invalid);assert.equal(result.available,false);assert.deepEqual(result.observations,[]);
+  }
+  assert.equal(requests,0);
+  const result=await extractAnamnesObservations(input);assert.equal(result.available,true);assert.deepEqual(result.observations,[observation]);assert.equal(answers.energy,undefined);
+  const wire=JSON.parse((lastProviderBody.input as {content:{text:string}[]}[])[0].content[0].text);
+  assert.equal(wire.untrustedNarrative,narrative);assert.deepEqual(wire.confirmedAnswers,answers);
+  assert.equal(wire.independentPatternGuide,undefined);assert.equal(wire.formulas,undefined);
+  assert.ok(wire.questions.every((question:{id:string})=>!['medication','pulse','pregnancy','priorAssessment'].includes(question.id)));
+  assert.equal((lastProviderBody.text as {format:{name:string}}).format.name,'anamnes_extraction');
+  assert.equal(lastProviderBody.store,false);
+});
+
+test('extraction filters unsupported quotations and route-origin errors without leaking provider output',async()=>{
+  await configure();const answers:AnswerMap={adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no'};
+  providerReply=response({observations:[{questionId:'energy',answer:'low',certainty:'explicit',polarity:'affirmed',evidence:[{source:'narrative',sourceQuestionId:null,excerpt:'invented quote'}]}]});
+  const input={answers,narrative:'Syntetisk berättelse.',aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion};
+  assert.deepEqual((await extractAnamnesObservations(input)).observations,[]);
+  const denied=await extractPOST(new Request('https://website.example.test/api/anamnes/extract',{method:'POST',headers:{origin:'https://attacker.invalid','content-type':'application/json'},body:JSON.stringify(input)}));
+  assert.equal(denied.status,403);assert.equal(requests,1);
+  providerReply=response({observations:[{invented:'secret provider content'}]});
+  const invalid=await extractAnamnesObservations(input);assert.equal(invalid.available,false);assert.deepEqual(invalid.observations,[]);
+  assert.equal(JSON.stringify(aiDiagnostics).includes('secret provider content'),false);
+});
+
+test('confirmed observation provenance binds analysis receipt and cannot overwrite selected answers',async()=>{
+  await configure();const answers={...completeAnswers(),weakVoice:'yes'};
+  providerReply=response({patternIds:['spleenQiDeficiency'],followUpQuestionIds:[]});
+  const consultation={...emptyConsultationDetails(),confirmedObservations:[{questionId:'weakVoice' as const,answer:'yes',excerpt:'Min röst känns svag',source:'narrative' as const,corrected:false}]};
+  const input={answers,narrative:'Min röst känns svag',consultation,aiConsent:true,aiConsentVersion:getAnamnesConfigStatus().ai.consentVersion};
+  const result=await analyzeAnamnes(input);assert.ok(result.receipt);
+  assert.equal(verifyAnalysisReceipt(answers,result.report,result.receipt!,input.narrative,consultation),true);
+  assert.equal(verifyAnalysisReceipt(answers,result.report,result.receipt!,input.narrative,{...consultation,confirmedObservations:[]}),false);
+  const wire=JSON.stringify(lastProviderBody);assert.equal(wire.includes('confirmedObservations'),false);
+});
+
+test('quality reviews require therapist authorization, explicit independent approval and current revisions',async()=>{
+  process.env.ANAMNES_THERAPIST_EMAILS=admin.email;
+  const input={datasetVersion:qualityDatasetVersion,caseId:'case-001',expectedStatus:'insufficient_evidence',expectedPatterns:[],notes:'Synthetic test of independent review storage.',approved:true,revision:0};
+  await assert.rejects(listQualityReviews(student));await assert.rejects(saveQualityReview(student,input));
+  await assert.rejects(saveQualityReview(admin,{...input,approved:false}));
+  await assert.rejects(saveQualityReview(admin,{...input,datasetVersion:'previous'}));
+  const saved=await saveQualityReview(admin,input);assert.equal(saved.revision,1);assert.equal(saved.reviewerId,admin.id);
+  assert.equal((await listQualityReviews(admin)).length,1);
+  await assert.rejects(saveQualityReview(admin,input),/ändrats/);
+  const updated=await saveQualityReview(admin,{...input,revision:1,notes:'An explicitly updated independent test review.'});assert.equal(updated.revision,2);
+  await assert.rejects(saveQualityReview(admin,{...input,caseId:'case-999'}));
+  process.env.ANAMNES_THERAPIST_EMAILS='other@example.test';await assert.rejects(saveQualityReview(admin,{...input,revision:2}));
 });

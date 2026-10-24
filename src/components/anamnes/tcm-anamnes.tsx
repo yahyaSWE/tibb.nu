@@ -7,13 +7,15 @@ import { ArrowLeft, ArrowRight, Check, Clipboard, Leaf, LockKeyhole, RotateCcw, 
 import { buildReport, canAnalyzePatterns, getSafetyAssessment, safetyQuestionIds } from "@/lib/anamnes/engine";
 import { getInitialQuestions, getFollowupQuestions, isPublicQuestion, questionBank, questionById } from "@/lib/anamnes/questions";
 import { FormulaRecordSchema, ReportSchema, InterviewResponseSchema, NarrativeSchema, MedicationNamesSchema, ConsultationDetailsSchema, emptyConsultationDetails, type ConsultationDetails, type AnswerMap, type FormulaRecord, type Question, type QuestionId, type Report } from "@/lib/anamnes/types";
-import { finalizeInterviewReport, getInterviewCompletionQuestionIds } from "@/lib/anamnes/interview";
+import { finalizeInterviewReport, getInterviewCompletionQuestionIds, getFormulaComparisonQuestionIds } from "@/lib/anamnes/interview";
 import { formatAnamnesSummary } from "@/lib/anamnes/summary";
 import { consultationDetailsText, hasConsultationDetails } from "@/lib/anamnes/consultation";
 import { AnamnesReport } from "./report";
 import { IntakeContactFields } from "@/components/intake/contact-fields";
 import { SafetyQuestions } from "./safety-questions";
 import { ConsultationDetailsFields } from "./consultation-details-fields";
+import { AiExtractionSchema, confirmObservations, removeConfirmedObservation, type ExtractionObservation, type ObservationDecision } from '@/lib/anamnes/observations';
+import { ObservationReview } from './observation-review';
 import styles from "./tcm-anamnes.module.css";
 
 const CatalogResponseSchema = z.object({
@@ -26,7 +28,7 @@ const CatalogResponseSchema = z.object({
 type CatalogResponse = z.infer<typeof CatalogResponseSchema>;
 const ReceiptSchema = z.object({ expiresAt: z.iso.datetime(), signature: z.string().regex(/^[a-f0-9]{64}$/), aiConsentVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 type AnalysisReceipt = z.infer<typeof ReceiptSchema>;
-type Stage = "intro" | "safety" | "questions" | "followup" | "interview" | "report";
+type Stage = "intro" | "safety" | "observations" | "questions" | "followup" | "interview" | "report";
 const initialConfig: CatalogResponse = {
   analysisMode: "rules", formulas: [], referencesEnabled: true,
   ai: { available: false, providerLabel: "AI är avstängd", privacyNotice: "Ingen extern AI används när du väljer regelanalys." },
@@ -48,6 +50,8 @@ export default function TcmAnamnes() {
   const [interviewActive, setInterviewActive] = useState(false);
   const [localInterview, setLocalInterview] = useState(false);
   const [reviewingAnswers, setReviewingAnswers] = useState(false);
+  const [extracted, setExtracted] = useState<ExtractionObservation[]>([]);
+  const [extractionReady,setExtractionReady] = useState(false);
   const [sessionNotice, setSessionNotice] = useState("");
   const [interviewHistory, setInterviewHistory] = useState<Question[]>([]);
   const [interviewRound, setInterviewRound] = useState(0);
@@ -95,10 +99,41 @@ export default function TcmAnamnes() {
     headingRef.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [stage, index]);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  useEffect(() => {
+    // Wait for the confirmed AnswerMap and provenance to render before the next request.
+    if (extractionReady && !busy) { setExtractionReady(false); void advanceInterview(); }
+  }, [extractionReady, busy]);
 
   function clearStatus() { setError(""); setNotice(""); setCopied(false); setSubmission(null); setSendConsentVersion(null); setReceipt(null); }
   function updateConsultation(patch: Partial<ConsultationDetails>) {
-    setConsultation(previous => ({ ...previous, ...patch })); clearStatus();
+    const changedSources=['locations','dailyImpact','goal','previousCare','lifestyle'].filter(key=>Object.hasOwn(patch,key));
+    const changedNotes=patch.questionNotes?Object.keys({...consultation.questionNotes,...patch.questionNotes}).filter(id=>consultation.questionNotes[id as keyof ConsultationDetails["questionNotes"]]!==patch.questionNotes?.[id as keyof ConsultationDetails["questionNotes"]]):[];
+    const cleaned = changedSources.length||changedNotes.length ? revokeInterpretations(changedSources,changedNotes) : consultation;
+    setConsultation({ ...cleaned, ...patch }); clearStatus();
+  }
+  function revokeInterpretations(sources:string[],notes:string[]=[]) {
+    let value={answers,consultation};
+    for(const origin of consultation.confirmedObservations??[])if(sources.includes(origin.source)||(origin.source==='questionNote'&&notes.length&&(!origin.sourceQuestionId||notes.includes(origin.sourceQuestionId))))value=removeConfirmedObservation(value.answers,value.consultation,origin.questionId);
+    setAnswers(value.answers);setConsultation(value.consultation);setExtracted([]);
+    return value.consultation;
+  }
+  function acceptObservations(decisions:ObservationDecision[]) {
+    const value=confirmObservations(answers,consultation,extracted,decisions);
+    setAnswers(value.answers);setConsultation(value.consultation);setExtracted([]);clearStatus();setExtractionReady(true);
+  }
+  async function prepareObservations() {
+    const run=++sequence.current,controller=new AbortController();request.current?.abort();request.current=controller;setBusy(true);
+    try {
+      const response=await fetch('/api/anamnes/extract',{method:'POST',cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)]),headers:{'Content-Type':'application/json'},body:JSON.stringify({answers,narrative:narrative.trim(),consultation,aiConsent:true,aiConsentVersion,formulaReferencesEnabled:true})});
+      if(!response.ok)throw new Error('Extraction unavailable');
+      const result=AiExtractionSchema.extend({available:z.boolean()}).parse(await response.json());
+      if(run!==sequence.current)return;
+      if(result.observations.length){setExtracted(result.observations);setStage('observations');}
+      else setExtractionReady(true);
+    } catch {
+      if(controller.signal.aborted||run!==sequence.current)return;
+      setNotice('Tolkningen kunde inte förberedas. Du kan besvara frågorna som vanligt.');setExtractionReady(true);
+    } finally {if(run===sequence.current){setBusy(false);request.current=null;}}
   }
   function validateConsultation(value = consultation) {
     if (ConsultationDetailsSchema.safeParse(value).success) return true;
@@ -106,14 +141,17 @@ export default function TcmAnamnes() {
     return false;
   }
   function reset() {
+    setExtracted([]);setExtractionReady(false);
     request.current?.abort(); sequence.current++; setBusy(false); setAnswers({}); setNarrative(""); setMedicationNames(""); setConsultation(emptyConsultationDetails()); setInterviewActive(false); setLocalInterview(false); setReviewingAnswers(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setReport(null); setFollowups([]); setStage("intro"); setIndex(0); setAiConsentVersion(null); setContact({ name: "", email: "", phone: "" }); clearStatus();
   }
   function updateAnswer(question: Question, value: string) {
     const next = { ...answers, [question.id]: value };
     setAnswers(next); clearStatus();
+    if(stage==='report'){setReport(null);setReviewingAnswers(true);setAiConsentVersion(null);setStage('safety');setIndex(0);}
     if (question.id === "medication" && value !== "yes") setMedicationNames("");
     const nextConsultation = safetyQuestionIds.includes(question.id) ? { ...consultation, ...(next.medication !== "yes" ? { medicationDetails: "" } : {}), ...(next.chronicDisease !== "yes" && next.liverKidney !== "yes" ? { conditionDetails: "" } : {}), ...(next.allergy !== "yes" ? { allergyDetails: "" } : {}) } : consultation;
-    if (nextConsultation !== consultation) setConsultation(nextConsultation);
+    const correctedConsultation={...nextConsultation,confirmedObservations:nextConsultation.confirmedObservations?.filter(origin=>origin.questionId!==question.id||origin.answer===value)};
+    setConsultation(correctedConsultation);
     if (!NarrativeSchema.safeParse(narrative).success) { setError("Beskrivningen innehåller osynliga kontrolltecken eller är för lång. Gå tillbaka och rätta texten."); return; }
     if (!validateConsultation(nextConsultation)) return;
     if (getSafetyAssessment(next, narrative.trim(), nextConsultation).level === "emergency") {
@@ -149,7 +187,7 @@ export default function TcmAnamnes() {
     }
     if (interviewActive && canAnalyzePatterns(safety)) {
       if (interviewHistory.length) setStage("interview");
-      else void advanceInterview();
+      else void prepareObservations();
     } else {
       if (interviewActive) { setAiConsentVersion(null); setSessionNotice("Med dessa säkerhetsuppgifter används lokala frågor. Din beskrivning finns kvar för behandlaren och skickas inte till AI."); }
       setInterviewActive(true); setLocalInterview(true);
@@ -168,7 +206,7 @@ export default function TcmAnamnes() {
     setInterviewHistory(previous => [...previous, ...nextQuestions]); setIndex(interviewHistory.length); setInterviewRound(previous => previous + 1); setStage("interview");
   }
   function continueLocally(nextReport: Report, finish: boolean) {
-    const ids = getInterviewCompletionQuestionIds(answers, nextReport.analysis).slice(0, 3);
+    const ids = [...new Set([...getInterviewCompletionQuestionIds(answers, nextReport.analysis),...getFormulaComparisonQuestionIds(answers,nextReport.analysis,config.formulas)])].slice(0, 3);
     const complete = finish || ids.length === 0;
     showInterviewStep(complete ? finalizeInterviewReport(nextReport, answers) : nextReport, ids, complete, ids.length === 0 ? "exhausted" : "continue", undefined, finish);
   }
@@ -310,7 +348,7 @@ export default function TcmAnamnes() {
     finally { if (run === sequence.current) { setBusy(false); request.current = null; } }
   }
   function narrativeEditor() {
-    return <div className={styles.storyEditor}><label htmlFor="anamnes-story">Berätta med egna ord</label><p id="anamnes-story-help" className={styles.smallNote}>Vad söker du hjälp för, när började det och vad gör det bättre eller sämre? Beskriv gärna flera besvär. Undvik namn, personnummer och kontaktuppgifter.</p><textarea id="anamnes-story" value={narrative} maxLength={4000} rows={6} autoComplete="off" disabled={busy} aria-describedby="anamnes-story-help anamnes-story-count" placeholder="Jag söker hjälp för…" onChange={event => { setNarrative(event.target.value); clearStatus(); }} /><span id="anamnes-story-count" className={styles.smallNote}>{narrative.length} av 4 000 tecken.</span></div>;
+    return <div className={styles.storyEditor}><label htmlFor="anamnes-story">Berätta med egna ord</label><p id="anamnes-story-help" className={styles.smallNote}>Vad söker du hjälp för, när började det och vad gör det bättre eller sämre? Beskriv gärna flera besvär. Undvik namn, personnummer och kontaktuppgifter.</p><textarea id="anamnes-story" value={narrative} maxLength={4000} rows={6} autoComplete="off" disabled={busy} aria-describedby="anamnes-story-help anamnes-story-count" placeholder="Jag söker hjälp för…" onChange={event => { revokeInterpretations(["narrative"]); setNarrative(event.target.value); clearStatus(); }} /><span id="anamnes-story-count" className={styles.smallNote}>{narrative.length} av 4 000 tecken.</span></div>;
   }
 
   return <div className={styles.shell}>
@@ -331,6 +369,7 @@ export default function TcmAnamnes() {
           <details className={styles.reportDetails}><summary>Mer om AI och dina svar</summary><p>Genom att välja ”Börja frågorna” samtycker du till att din beskrivning, dina kompletteringar om besvären och dina formulärsvar skickas via Tibb.nu till {config.ai.providerLabel} för anpassade frågor och en preliminär analys. Det du skriver i de separata fälten för läkemedelsnamn, läkemedelsdetaljer, sjukdomar och allergier skickas inte till AI. Välj ”Starta simpel frågeställning” om du vill fortsätta utan AI.</p><p>{config.ai.privacyNotice}</p><p>Att skicka rapporten till en behandlare är ett separat val. Svaren sparas inte automatiskt i webbläsaren eller som ett ärende.</p><Link href="/integritet" className={styles.productInfo} prefetch={false}>Integritetsinformation</Link></details>
         </> : <button type="button" className={styles.primary} disabled={catalogState === "loading"} onClick={() => start()}>{catalogState === "loading" ? "Förbereder formuläret…" : "Börja frågorna"}<ArrowRight size={17} aria-hidden="true" /></button>}
       </section>}
+      {stage === "observations" && <section aria-busy={busy}><h2 ref={headingRef} tabIndex={-1} className={styles.heading}>Granska din berättelse</h2><ObservationReview proposals={extracted} onConfirm={acceptObservations} onSkip={()=>{setExtracted([]);setExtractionReady(true);}} disabled={busy}/></section>}
       {stage === "safety" && <section aria-labelledby="anamnes-safety-title" aria-busy={busy}>
         <h2 ref={headingRef} tabIndex={-1} id="anamnes-safety-title" className={styles.heading}>Innan vi börjar</h2>
         <p className={styles.lead}>Besvara säkerhetsfrågorna här, så fortsätter vi sedan med dina besvär. Du kan välja ”Vet inte” eller ”Vill inte svara”.</p>
@@ -373,6 +412,7 @@ export default function TcmAnamnes() {
           <div className={styles.editActions}><button type="button" disabled={busy} onClick={() => { setAiConsentVersion(null); setInterviewActive(false); setReviewingAnswers(true); setStage("safety"); setIndex(0); clearStatus(); }}>Gå igenom och ändra svar</button><button type="button" disabled={busy} onClick={() => { setStage("intro"); clearStatus(); }}>Ändra beskrivning och analysinställningar</button></div>
         </>}
       </section>}
+      {(consultation.confirmedObservations?.length??0)>0 && stage!=="intro" && <details className={styles.reportDetails}><summary>Svar från din berättelse som du bekräftat ({consultation.confirmedObservations!.length})</summary>{consultation.confirmedObservations!.map(origin=>{const question=questionById.get(origin.questionId)!;return <div className={styles.notice} key={origin.questionId}><label>{question.prompt}<select disabled={busy} value={answers[origin.questionId]??''} onChange={event=>updateAnswer(question,event.target.value)}>{question.options.map(option=><option value={option.value} key={option.value}>{option.label}</option>)}</select></label><p>Från din text: ”{origin.excerpt}”</p><button type="button" disabled={busy} className={styles.secondary} onClick={()=>{const value=removeConfirmedObservation(answers,consultation,origin.questionId);setAnswers(value.answers);setConsultation(value.consultation);setReport(null);setLocalInterview(true);setAiConsentVersion(null);clearStatus();setStage('safety');}}>Ta bort tolkningen</button></div>;})}</details>}
       {error && <p ref={errorRef} tabIndex={-1} role="alert" className={styles.error}>{error}</p>}
       {stage !== "intro" && <div className={styles.editActions}><button type="button" onClick={reset}><RotateCcw size={14} aria-hidden="true" />Rensa svar och börja om</button></div>}
       <details className={styles.reportDetails}><summary>Om anamnesen och säkerhet</summary><p>Modellen är inte kliniskt validerad. Den kan missa viktiga symtom eller förklaringar. Du får ingen diagnos, örtordination, dosering eller rekommendation att köpa en produkt. Sök vård vid nya, tilltagande eller allvarliga besvär.</p><div className={styles.sources}><a href="https://www.1177.se/undersokning-behandling/fler-behandlingar/alternativa-behandlingar/vaxtbaserade-lakemedel-och-naturlakemedel/" target="_blank" rel="noopener noreferrer">1177 – växtbaserade läkemedel ↗</a><a href="https://www.nccih.nih.gov/health/traditional-chinese-medicine-what-you-need-to-know" target="_blank" rel="noopener noreferrer">NCCIH – traditionell kinesisk medicin ↗</a><Link href="/integritet" prefetch={false}>Integritetsinformation</Link></div></details>

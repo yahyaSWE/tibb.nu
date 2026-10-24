@@ -91,7 +91,7 @@ export default async function BookingsPage({
                     <td>
                       {booking.treatmentName}
                       <small className="table-description">
-                        {booking.durationMinutes} minuter
+                        {booking.durationMinutes} minuter · {booking.deliveryMode === "remote" ? "Distans" : "På plats"}
                       </small>
                     </td>
                     <td>{booking.practitionerName}</td>

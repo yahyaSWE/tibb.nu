@@ -13,6 +13,7 @@ const relatedPages: Record<string, string[]> = {
   "/admin/tider": ["/boka", "/admin"],
   "/admin/bokningar": [
     "/boka",
+    "/bokning/bekraftelse",
     "/admin",
     "/admin/tider",
     "/admin/bokningar/[id]",

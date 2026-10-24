@@ -10,6 +10,7 @@ import {
   Leaf,
   MapPin,
   UserRound,
+  Video,
 } from "lucide-react";
 import type { Practitioner, Slot, Treatment } from "@/lib/types";
 import { formatDateTime, formatMoney } from "@/lib/time";
@@ -118,6 +119,7 @@ export function BookingForm({
                     />
                   </div>
                   <p>{t.description}</p>
+                  {t.deliveryMode === "remote" && <p className="treatment-delivery"><Video size={15} aria-hidden="true" />Distans · digitalt möte</p>}
                   <span className="treatment-option-meta">
                     <Clock3 size={13} />
                     {t.durationMinutes} minuter
@@ -127,16 +129,12 @@ export function BookingForm({
               ))}
             </div>
           </fieldset>
+          {treatment?.deliveryMode === "remote" && <div className="notice"><p>Besöket sker på distans. Behandlaren lägger till en möteslänk på din privata bokningssida. Spara bekräftelsen efter bokningen.</p></div>}
           <fieldset>
             <legend>Välj behandlare</legend>
             {practitioners.length ? (
               <div className="practitioner-options">
                 {practitioners.map((person) => {
-                  const count = slots.filter(
-                    (slot) =>
-                      slot.treatmentId === treatmentId &&
-                      slot.practitionerId === person.id,
-                  ).length;
                   return (
                     <label className="practitioner-option" key={person.id}>
                       <span className="practitioner-avatar">
@@ -162,11 +160,6 @@ export function BookingForm({
                         {person.description && (
                           <span>{person.description}</span>
                         )}
-                        <small>
-                          {count
-                            ? `${count} lediga tider för vald behandling`
-                            : "Inga lediga tider för vald behandling"}
-                        </small>
                       </span>
                       <input
                         type="radio"
@@ -350,10 +343,10 @@ export function BookingForm({
               : "Välj en ledig tid"}
           </strong>
         </div>
-        {location && (
+        {(treatment?.deliveryMode === "remote" || location) && (
           <div className="summary-item">
             <span>Plats</span>
-            <strong>{location}</strong>
+            <strong>{treatment?.deliveryMode === "remote" ? "Distans · digitalt möte" : location}</strong>
           </div>
         )}
         <div className="summary-total">

@@ -164,6 +164,20 @@ export class DatabaseAdapter {
         if (!userColumns.rows.some((row) => row.name === "email_verified_at"))
           await tx.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
         await tx.executeMultiple(ACCOUNT_EMAIL_SCHEMA);
+        const visitAdditions: Record<string, Record<string, string>> = {
+          treatments: { delivery_mode: "TEXT NOT NULL DEFAULT 'onsite' CHECK(delivery_mode IN ('onsite','remote'))" },
+          bookings: {
+            delivery_mode: "TEXT NOT NULL DEFAULT 'onsite' CHECK(delivery_mode IN ('onsite','remote'))",
+            meeting_url: "TEXT NOT NULL DEFAULT ''",
+          },
+        };
+        for (const [table, additions] of Object.entries(visitAdditions)) {
+          const present = await tx.execute(`PRAGMA table_info(${table})`);
+          for (const [column, definition] of Object.entries(additions)) {
+            if (!present.rows.some((row) => row.name === column))
+              await tx.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+          }
+        }
         await tx.executeMultiple(SHOP_IMAGE_SCHEMA);
         await tx.executeMultiple(SHOP_SCHEMA);
         await tx.executeMultiple(SHOP_EMAIL_SCHEMA);

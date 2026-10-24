@@ -2,9 +2,10 @@ import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById } from "@/lib/db";
-import { updateBookingAction } from "@/lib/actions";
+import { updateBookingAction, saveBookingMeetingLinkAction } from "@/lib/actions";
 import { getBookingEmailStatus, type BookingEmailState } from "@/lib/email-outbox";
 import { retryBookingEmailsAction } from "@/lib/account-actions";
+import { SubmitButton } from "@/components/admin/submit-button";
 import {
   AdminHeading,
   AdminNotice,
@@ -83,6 +84,7 @@ export default async function BookingDetailPage({
               <dt>Behandlare</dt>
               <dd>{booking.practitionerName}</dd>
             </div>
+            <div><dt>Besöksform</dt><dd>{booking.deliveryMode === "remote" ? "Distans · digitalt möte" : "På plats"}</dd></div>
             <div>
               <dt>Start</dt>
               <dd>{dateTime(booking.start)}</dd>
@@ -199,6 +201,18 @@ export default async function BookingDetailPage({
           )}
         </section>
       </div>
+      {booking.deliveryMode === "remote" && <section className="panel form-panel">
+        <SectionHeading title="Distansmöte" description="Lägg till länken från till exempel Google Meet, Zoom eller Teams. Kunden hittar den på sin privata bokningssida via länken i bokningsbekräftelsen." />
+        {booking.status === "pending" || booking.status === "confirmed" ? <form action={saveBookingMeetingLinkAction} className="stack">
+          <ReturnTo path={`/admin/bokningar/${id}`} />
+          <input type="hidden" name="id" value={booking.id} />
+          <Field label="Möteslänk" name="meetingUrl" help="Länken visas för kunden först när bokningen är bekräftad. Lämna fältet tomt för att ta bort länken.">
+            <input id="meetingUrl" name="meetingUrl" type="url" maxLength={2000} defaultValue={booking.meetingUrl} placeholder="https://meet.google.com/…" autoComplete="off" />
+          </Field>
+          <div><SubmitButton>Spara möteslänk</SubmitButton></div>
+          <p className="muted">Den sparade länken visas på bokningssidan. Inget nytt mejl skickas när du ändrar den.</p>
+        </form> : <p className="muted">Bokningen är {booking.status === "cancelled" ? "avbokad" : "genomförd"}. Möteslänken visas inte längre för kunden.</p>}
+      </section>}
       <section className="panel form-panel">
         <SectionHeading title="Bokningsmejl" description="Accepterat betyder att Resend har tagit emot meddelandet. Kontrollera faktisk leverans och eventuella studsar i Resend." />
         {!email.configured && <p className="notice">E-posttjänsten är inte ansluten. Bokningen finns kvar; bekräftelser kan skickas när Resend är konfigurerat.</p>}

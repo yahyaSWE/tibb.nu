@@ -6,6 +6,7 @@ export type User = {
   createdAt: string;
   emailVerifiedAt: string | null;
 };
+export type DeliveryMode = "onsite" | "remote";
 export type Treatment = {
   id: number;
   name: string;
@@ -13,6 +14,7 @@ export type Treatment = {
   durationMinutes: number;
   priceOre: number;
   active: boolean;
+  deliveryMode: DeliveryMode;
 };
 export type Practitioner = {
   id: number;
@@ -101,6 +103,8 @@ export type Booking = {
   treatmentId: number;
   slotId: number;
   treatmentName: string;
+  deliveryMode: DeliveryMode;
+  meetingUrl: string;
   practitionerId: number;
   practitionerName: string;
   durationMinutes: number;

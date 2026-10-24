@@ -24,8 +24,8 @@ Sparning och radering serialiseras så att ett långsamt kryptografianrop inte k
 
 ## AI-valet
 
-”Starta simpel frågeställning” visas endast när AI inte är tillgänglig. Den fristående delningsparagrafen är borttagen. Full information om leverantör och data finns under ”Mer om AI och dina svar”, med ett kort uttryckligt AI-val före start. Efter återkomst krävs ett nytt aktivt AI-val för ett återupptaget AI-flöde. Även ett sådant val tillåter inga externa anrop innan befintliga säkerhetsfrågor och serverkontroller är uppfyllda.
+”Starta simpel frågeställning” visas endast när AI inte är tillgänglig. Den fristående delningsparagrafen och den separata kryssrutan före start är borttagna. Full information om leverantör, data och startknappens innebörd finns under ”Mer om AI och dina svar”. Besökaren startar med ”Börja frågorna”; enbart sidladdning ger inget AI-val. Efter återkomst krävs ett nytt aktivt AI-val för ett återupptaget AI-flöde. Även ett sådant val tillåter inga externa anrop innan befintliga säkerhetsfrågor och serverkontroller är uppfyllda.
 
 ## Kontroller
 
-`tests/anamnes-draft.test.ts` prövar krypterad återläsning, exakt frågeposition, privatdata som inte får sparas, felaktiga alternativ/puls, utgångstid, förvanskning, radering under långsam kryptering, konkurrerande flikar och lagringsfel. UI-tester prövar knappsynlighet, tomma samtyckesval, återupptagning utan att hälsosvar exponeras i bannern och fallback utan AI. Inga verkliga hälsouppgifter eller externa AI-anrop behövs i testerna.
+`tests/anamnes-draft.test.ts` prövar krypterad återläsning, exakt frågeposition, privatdata som inte får sparas, felaktiga alternativ/puls, utgångstid, förvanskning, radering under långsam kryptering, konkurrerande flikar och lagringsfel. UI-tester prövar startknappens tillgänglighet, samlad AI-information, nytt val vid återupptagning utan att hälsosvar exponeras i bannern och fallback utan AI. Inga verkliga hälsouppgifter eller externa AI-anrop behövs i testerna.

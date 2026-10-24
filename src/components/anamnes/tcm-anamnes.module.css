@@ -17,8 +17,9 @@
 .notice { background: var(--sage); border: 1px solid var(--line); }
 .draftPanel { margin-block:20px 28px; padding-block:16px; border-block:1px solid var(--line); }
 .draftPanel .smallNote { margin-block:10px; }
-.observationCard { min-width:0; }
-.observationCard legend { max-width:100%; padding-inline:8px; font-weight:600; }
+.observationGroup { min-width:0; margin:24px 0; padding:0; border:0; }
+.observationCard { min-width:0; margin:0; }
+.observationCard .observationTitle { margin:0 0 18px; font-weight:600; overflow-wrap:anywhere; }
 .observationSelect { display:grid; gap:8px; margin-block:16px; font-weight:600; }
 .observationSelect select { width:100%; min-width:0; min-height:48px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:#fffdf8; color:var(--ink); font:inherit; font-size:16px; font-weight:400; }
 .observationSelect select:focus-visible { outline:2px solid var(--green); outline-offset:3px; }

@@ -15,6 +15,8 @@ import {
 } from "./db";
 import { stockholmToIso } from "./time";
 import { emailSchema, money, safeUrl, slug, text } from "./validation";
+import { DeliveryModeSchema, MeetingUrlSchema } from "./booking-details";
+import type { DeliveryMode } from "./types";
 export {
   saveAvailabilitySchedule,
   deleteAvailabilitySchedule,
@@ -107,6 +109,7 @@ export async function saveTreatment(
     durationMinutes: number;
     price: string;
     active: boolean;
+    deliveryMode?: DeliveryMode;
   },
 ) {
   return await transaction(async () => {
@@ -119,6 +122,7 @@ export async function saveTreatment(
         durationMinutes: z.number().int().min(5).max(480),
         price: z.string(),
         active: z.boolean(),
+        deliveryMode: DeliveryModeSchema.optional(),
       })
       .parse(input);
     const price = money(value.price);
@@ -138,7 +142,7 @@ export async function saveTreatment(
         );
       await getDb()
         .prepare(
-          "UPDATE treatments SET name=?,description=?,duration_minutes=?,price_ore=?,active=? WHERE id=?",
+          "UPDATE treatments SET name=?,description=?,duration_minutes=?,price_ore=?,active=?,delivery_mode=? WHERE id=?",
         )
         .run(
           value.name,
@@ -146,12 +150,13 @@ export async function saveTreatment(
           value.durationMinutes,
           price,
           value.active ? 1 : 0,
+          value.deliveryMode ?? current.deliveryMode,
           value.id,
         );
     } else
       await getDb()
         .prepare(
-          "INSERT INTO treatments(name,description,duration_minutes,price_ore,active) VALUES(?,?,?,?,?)",
+          "INSERT INTO treatments(name,description,duration_minutes,price_ore,active,delivery_mode) VALUES(?,?,?,?,?,?)",
         )
         .run(
           value.name,
@@ -159,6 +164,7 @@ export async function saveTreatment(
           value.durationMinutes,
           price,
           value.active ? 1 : 0,
+          value.deliveryMode ?? "onsite",
         );
   });
 }
@@ -277,6 +283,19 @@ export async function updateBooking(
         "UPDATE bookings SET status=?,payment_status=?,expires_at=NULL WHERE id=?",
       )
       .run(status, paymentStatus, id);
+  });
+}
+export async function saveBookingMeetingLink(actorId: number, id: number, meetingUrl: string) {
+  return transaction(async () => {
+    await assertAdmin(actorId);
+    z.number().int().positive().parse(id);
+    const url = MeetingUrlSchema.parse(meetingUrl);
+    await expireBookings();
+    const row = await getDb().prepare("SELECT delivery_mode,status FROM bookings WHERE id=?").get(id);
+    if (!row) throw new DomainError("Bokningen finns inte.");
+    if (row.delivery_mode !== "remote") throw new DomainError("Möteslänkar kan bara läggas till för distansbokningar.");
+    if (!["pending", "confirmed"].includes(String(row.status))) throw new DomainError("Möteslänken kan inte ändras för en avbokad eller genomförd bokning.");
+    await getDb().prepare("UPDATE bookings SET meeting_url=? WHERE id=?").run(url, id);
   });
 }
 export async function saveSettings(

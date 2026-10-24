@@ -59,7 +59,10 @@ test("version 4 upgrade atomically adds a disabled empty shop and preserves exis
     `);
     const tables = ["users", "sessions", "auth_tokens", "courses", "lessons", "enrollments", "progress", "bookings", "booking_email_outbox", "settings"];
     const before = new Map<string, unknown>();
-    for (const table of tables) before.set(table, (await client.execute(`SELECT * FROM ${table}`)).rows);
+    for (const table of tables) {
+      const rows = (await client.execute(`SELECT * FROM ${table}`)).rows;
+      before.set(table, table === "bookings" ? rows.map(row => ({...row,delivery_mode:"onsite",meeting_url:""})) : rows);
+    }
     await assert.rejects(adapter.initialize(), /interrupted shop migration/);
     assert.equal((await client.execute("PRAGMA user_version")).rows[0].user_version, 4);
     assert.equal((await client.execute("SELECT COUNT(*) total FROM sqlite_master WHERE name='shop_settings'")).rows[0].total, 0);

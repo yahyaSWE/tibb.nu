@@ -269,6 +269,11 @@
   flex-direction: column;
   gap: 7px;
 }
+
+.inner-page .treatment-delivery { display:flex; align-items:center; gap:7px; font-weight:600; margin-top:12px; color:var(--green); }
+.booking-preparation { text-align:left; }
+.booking-preparation h2 { font-size:28px; margin-bottom:12px; }
+.booking-preparation .button { margin-top:18px; }
 .inner-page .practitioner-copy strong {
   font-family: var(--serif);
   font-weight: 400;

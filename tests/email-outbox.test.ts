@@ -91,6 +91,8 @@ test("parallel dispatchers claim each job once and messages contain no treatment
   }
   const customer = deliveries.find((delivery) => delivery.payload.to[0] === value.email)!;
   assert.ok(customer.payload.text.includes(value.reference));
+  assert.match(customer.payload.text, /Skicka in din anamnes minst 24 timmar före mötet/);
+  assert.match(customer.payload.text, /https:\/\/trusted\.example\.test\/anamnes/);
   assert.ok(!deliveries.find((delivery) => delivery.payload.to[0] === "notify@example.test")!.payload.text.includes(value.reference));
   const status = await getBookingEmailStatus(value.id);
   assert.equal(status.customer?.status, "sent");

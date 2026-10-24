@@ -108,6 +108,8 @@ test("availability migration preserves legacy accounts, slots and bookings and a
       ...booking,
       practitioner_id: 1,
       practitioner_name: "Tibb.nu",
+      delivery_mode: "onsite",
+      meeting_url: "",
     }));
     raw.close();
 

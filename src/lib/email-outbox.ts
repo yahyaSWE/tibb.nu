@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, getBookingById, getSettings, transaction } from "./db";
 import { emailAppUrl, emailConfigurationStatus, requireEmailConfiguration, sendEmail } from "./email-provider";
 import { formatDateTime } from "./time";
+import { anamnesPreparation } from "./booking-details";
 
 export type BookingEmailState = "pending" | "sending" | "sent" | "failed" | "skipped";
 export type BookingEmailDelivery = { status: BookingEmailState; attempts: number; sentAt: string | null };
@@ -22,7 +23,8 @@ export async function queueBookingEmails(bookingId: number): Promise<void> {
     const now = new Date().toISOString();
     const confirmation = new URL("/bokning/bekraftelse", origin);
     confirmation.searchParams.set("ref", booking.reference);
-    const customerText = `Din tid hos Tibb.nu är bokad.\n\nTid: ${formatDateTime(booking.start)}\n\nUppgifter om plats och betalning finns på din privata bokningssida:\n${confirmation}\n\nSpara länken och dela den inte. Kontakta verksamheten via hemsidan om du behöver ändra bokningen.`;
+    const remoteInfo = booking.deliveryMode === "remote" ? "Mötet sker på distans. Behandlaren lägger till möteslänken på din privata bokningssida.\n\n" : "";
+    const customerText = `Din tid hos Tibb.nu är bokad.\n\nTid: ${formatDateTime(booking.start)}\n\n${remoteInfo}Uppgifter om plats och betalning finns på din privata bokningssida:\n${confirmation}\n\n${anamnesPreparation(booking.start)}\nFyll i och skicka anamnesen här:\n${new URL("/anamnes", origin)}\n\nSpara bokningslänken och dela den inte. Kontakta verksamheten via hemsidan om du behöver ändra bokningen.`;
     const notify = process.env.EMAIL_NOTIFICATION_TO?.trim() || settings.email;
     const recipients: { audience: "customer" | "admin"; email: string; subject: string; body: string }[] = [
       { audience: "customer", email: booking.email, subject: "Din bokningsbekräftelse från Tibb.nu", body: customerText },

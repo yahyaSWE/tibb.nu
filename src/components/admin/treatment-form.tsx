@@ -1,6 +1,7 @@
 import { saveTreatmentAction } from "@/lib/actions";
 import { Field, ReturnTo } from "./common";
 import { SubmitButton } from "./submit-button";
+import type { DeliveryMode } from "@/lib/types";
 
 type TreatmentFormValue = {
   id: number;
@@ -9,6 +10,7 @@ type TreatmentFormValue = {
   durationMinutes: number;
   priceOre: number;
   active: boolean;
+  deliveryMode: DeliveryMode;
 };
 
 export function TreatmentForm({
@@ -80,6 +82,12 @@ export function TreatmentForm({
           />
         </Field>
       </div>
+      <Field label="Besöksform" name="deliveryMode" help="Gäller nya bokningar. För distans lägger du till möteslänken på respektive bokning.">
+        <select id="deliveryMode" name="deliveryMode" defaultValue={treatment?.deliveryMode ?? "onsite"} required>
+          <option value="onsite">På plats</option>
+          <option value="remote">Distans · digitalt möte</option>
+        </select>
+      </Field>
       <label className="form-check">
         <input
           type="checkbox"

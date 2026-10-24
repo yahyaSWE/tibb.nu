@@ -8,18 +8,19 @@ import type { AnamnesDraftControls } from '../src/components/anamnes/use-anamnes
 
 registerHooks({load(url,context,nextLoad){if(url.endsWith('.css'))return {format:'module',source:'export default new Proxy({}, {get:(_,key)=>String(key)});',shortCircuit:true};return nextLoad(url,context);}});
 const controls=():AnamnesDraftControls=>({ready:true,enabled:false,available:null,expiresAt:null,saving:false,message:'',enable:()=>{},clear:async()=>true,resume:()=>null});
-test('AI start hides the simple flow and the removed paragraph while preserving explicit consent and provider details',async()=>{
+test('AI start has no separate checkbox and keeps the start action explained inside the provider details',async()=>{
   const {AnamnesStartControls}=await import('../src/components/anamnes/start-controls');
-  const props={aiAvailable:true,loading:false,providerLabel:'fixture-provider (fixture-model)',privacyNotice:'Synthetic provider information.',accepted:false,onAccepted:()=>{},onStart:()=>{}};
+  const props={aiAvailable:true,loading:false,providerLabel:'fixture-provider (fixture-model)',privacyNotice:'Synthetic provider information.',onStart:()=>{}};
   const html=renderToStaticMarkup(createElement(AnamnesStartControls,props));
-  assert.doesNotMatch(html,/Starta simpel frågeställning|anamnes-ai-start-info/);assert.match(html,/type="checkbox"/);assert.doesNotMatch(html,/checked=""/);
-  assert.match(html,/<button[^>]+disabled=""[^>]*>Börja frågorna/);assert.match(html,/<details[^>]*><summary>Mer om AI och dina svar<\/summary>/);
+  assert.doesNotMatch(html,/Starta simpel frågeställning|anamnes-ai-start-info|type="checkbox"/);
+  assert.match(html,/<button[^>]*>Börja frågorna/);assert.doesNotMatch(html,/<button[^>]+disabled=/);
+  assert.match(html,/<details[^>]*><summary>Mer om AI och dina svar<\/summary><p>Genom att välja ”Börja frågorna” samtycker du/);
   assert.match(html,/fixture-provider/);assert.match(html,/Synthetic provider information/);
-  const enabled=renderToStaticMarkup(createElement(AnamnesStartControls,{...props,accepted:true}));assert.doesNotMatch(enabled,/<button[^>]+disabled=/);
+  const loading=renderToStaticMarkup(createElement(AnamnesStartControls,{...props,loading:true}));assert.match(loading,/<button[^>]+disabled=/);
 });
 test('the simple start appears only when AI is unavailable, and loading does not flash that choice',async()=>{
   const {AnamnesStartControls}=await import('../src/components/anamnes/start-controls');
-  const props={aiAvailable:false,loading:false,providerLabel:'',privacyNotice:'',accepted:false,onAccepted:()=>{},onStart:()=>{}};
+  const props={aiAvailable:false,loading:false,providerLabel:'',privacyNotice:'',onStart:()=>{}};
   assert.match(renderToStaticMarkup(createElement(AnamnesStartControls,props)),/Starta simpel frågeställning/);
   const loading=renderToStaticMarkup(createElement(AnamnesStartControls,{...props,loading:true}));assert.doesNotMatch(loading,/Starta simpel/);assert.match(loading,/disabled=""/);
 });

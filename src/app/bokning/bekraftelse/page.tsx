@@ -8,6 +8,8 @@ import { getBookingTerms } from "@/lib/business-settings";
 import { TextContent } from "@/components/learning/cards";
 import { cancellationText } from "@/lib/business-config";
 import { getBookingEmailStatus } from "@/lib/email-outbox";
+import { BookingVisitDetails } from "@/components/booking-visit-details";
+import { BookingPreparation } from "@/components/booking-preparation";
 
 export const metadata = {
   ...PRIVATE_METADATA,
@@ -93,13 +95,9 @@ export default async function ConfirmationPage({
                     : "Inväntar bekräftelse"}
             </dd>
           </div>
-          <div>
-            <dt>Plats</dt>
-            <dd>
-              {settings.address || settings.location || "Kontakta mottagningen"}
-            </dd>
-          </div>
+          <BookingVisitDetails booking={booking} location={settings.address || settings.location} />
         </dl>
+        {!pending && !cancelled && <BookingPreparation start={booking.start} />}
         <p className="booking-reference">
           Bokningsreferens: {booking.reference}
         </p>

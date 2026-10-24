@@ -35,6 +35,7 @@ export default async function TreatmentsPage({
                   <tr>
                     <th>Behandling</th>
                     <th>Längd</th>
+                    <th>Besöksform</th>
                     <th>Pris</th>
                     <th>Status</th>
                     <th>
@@ -49,6 +50,7 @@ export default async function TreatmentsPage({
                         <strong>{t.name}</strong>
                       </td>
                       <td>{t.durationMinutes} min</td>
+                      <td>{t.deliveryMode === "remote" ? "Distans" : "På plats"}</td>
                       <td>{kronor(t.priceOre)}</td>
                       <td>
                         <span

@@ -191,6 +191,7 @@ export async function saveTreatmentAction(form: FormData): Promise<void> {
         durationMinutes: Number(field(form, "durationMinutes")),
         price: field(form, "price"),
         active: field(form, "active") === "on",
+        deliveryMode: field(form, "deliveryMode") as "onsite" | "remote",
       }),
   );
 }
@@ -354,6 +355,12 @@ export async function updateBookingAction(form: FormData): Promise<void> {
       field(form, "status"),
       field(form, "paymentStatus"),
     );
+  });
+}
+export async function saveBookingMeetingLinkAction(form: FormData): Promise<void> {
+  const user = await requireAdmin();
+  await formAction(form, "/admin/bokningar", async () => {
+    await admin.saveBookingMeetingLink(user.id, idField(form), field(form, "meetingUrl"));
   });
 }
 export async function saveSettingsAction(form: FormData): Promise<void> {

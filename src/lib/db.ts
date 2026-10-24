@@ -61,6 +61,7 @@ function treatment(row: Row): Treatment {
     durationMinutes: integer(row.duration_minutes),
     priceOre: integer(row.price_ore),
     active: !!row.active,
+    deliveryMode: row.delivery_mode === "remote" ? "remote" : "onsite",
   };
 }
 function practitioner(row: Row): Practitioner {
@@ -146,6 +147,8 @@ function booking(row: Row): Booking {
     treatmentId: integer(row.treatment_id),
     slotId: integer(row.slot_id),
     treatmentName: str(row.treatment_name),
+    deliveryMode: row.delivery_mode === "remote" ? "remote" : "onsite",
+    meetingUrl: str(row.meeting_url),
     practitionerId: integer(row.practitioner_id),
     practitionerName: str(row.practitioner_name),
     durationMinutes: integer(row.duration_minutes),
@@ -642,7 +645,7 @@ export async function reserveBooking(input: {
     await expireBookings();
     const row = await getDb()
       .prepare(
-        "SELECT s.*,t.name,t.description,t.active,t.duration_minutes,t.price_ore,p.name AS practitioner_name,p.active AS practitioner_active FROM slots s JOIN treatments t ON t.id=s.treatment_id JOIN practitioners p ON p.id=s.practitioner_id WHERE s.id=?",
+        "SELECT s.*,t.name,t.description,t.active,t.duration_minutes,t.price_ore,t.delivery_mode,p.name AS practitioner_name,p.active AS practitioner_active FROM slots s JOIN treatments t ON t.id=s.treatment_id JOIN practitioners p ON p.id=s.practitioner_id WHERE s.id=?",
       )
       .get(input.slotId);
     if (
@@ -692,7 +695,7 @@ export async function reserveBooking(input: {
         : null;
     await getDb()
       .prepare(
-        "INSERT INTO bookings(reference,treatment_id,practitioner_id,practitioner_name,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO bookings(reference,treatment_id,practitioner_id,practitioner_name,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at,delivery_mode) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .run(
         reference,
@@ -712,6 +715,7 @@ export async function reserveBooking(input: {
         input.paymentMethod,
         expires,
         now,
+        str(row.delivery_mode),
       );
     const result = (await getBookingByReference(reference))!;
     const { recordBookingTermsSnapshot } = await import("./business-settings");

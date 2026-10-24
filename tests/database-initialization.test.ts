@@ -218,6 +218,8 @@ test("an existing unversioned database upgrades missing columns without reseedin
       ...bookingBefore,
       practitioner_id: 1,
       practitioner_name: "Tibb.nu",
+      delivery_mode: "onsite",
+      meeting_url: "",
     });
     assert.deepEqual((await client.execute("SELECT * FROM slots")).rows[0], {
       id: 31,

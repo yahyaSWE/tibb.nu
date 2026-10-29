@@ -42,6 +42,12 @@ Samma serverstyrda `ANAMNES_AI_*`-konfiguration används, med befintliga granskn
 
 OpenRouter anropas via den konfigurerade Responses-endpointen med `store:false`, strikt schema och medium reasoning i testläget. Interna resonemangsblock används inte som synligt svar. Endast ett avslutat assistentmeddelande med ett giltigt svarskontrakt accepteras. Transport-, schema- och budgetfel ger ett tydligt tekniskt fel med bibehållna testfält. Det är inte ett kliniskt avslut och systemet byter inte tyst till regelmodell.
 
+### Felsökning av AI-testet
+
+Admin får en fast `LAB_*`-felkod som skiljer åt HTTP-avslag, anslutningsfel, timeout, ofullständiga svar, avböjande svar och ogiltigt JSON/svarskontrakt. Vid HTTP-avslag visas statusen i koden, exempelvis `LAB_UPSTREAM_HTTP_402` för betalning/kreditgräns och `LAB_UPSTREAM_HTTP_429` för leverantörens anropsgräns. Kontrollera även API-nyckelns egen gräns; ett påfyllt kontosaldo visar inte i sig vilken gräns nyckeln har. Modell-/formatavslag och behörighetsfel har egna instruktioner. Ett tekniskt fel innebär ingen färdig bedömning och fälten behålls för ett nytt försök.
+
+Serverloggen använder endast händelsen `anamnes_lab_ai_unavailable`, en fast felkategori, eventuell HTTP-status och vid schemafel högst tre fördefinierade kontraktsfält/feltyper. Samma fältkontroll kan visas i admin. Den innehåller inga formulärsvar, råa leverantörsfel, modellutdata eller nycklar. Ingen automatisk omkörning görs som kan dra ytterligare krediter. Ett fullständigt JSON-objekt inuti ett kodblock accepteras som formatvariation; extra text, okända ID:n, extra nycklar och avbrutna svar avvisas fortfarande.
+
 Ingen extern AI används i automatiska tester. Backendtester använder en isolerad SQLite-databas och en mockad leverantör; lokal webbläsarverifiering ska använda samma isolerade testmiljö.
 
 ## Teknisk verifiering 2026-10-29

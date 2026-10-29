@@ -22,7 +22,7 @@ function SubmitBooking() {
   return (
     <button type="submit" disabled={pending} className="button button-primary">
       {pending ? "Din bokning behandlas…" : "Bekräfta bokning"}
-      <ArrowRight size={17} />
+      <ArrowRight size={17} aria-hidden="true" />
     </button>
   );
 }
@@ -63,6 +63,7 @@ export function BookingForm({
     (s) => s.treatmentId === treatmentId && s.practitionerId === practitionerId,
   );
   const chosenSlot = treatmentSlots.find((s) => s.id === slotId);
+  const currentStep = chosenSlot ? 3 : practitioner ? 2 : treatment ? 1 : 0;
   if (!treatments.length)
     return (
       <div className="empty-state">
@@ -85,20 +86,15 @@ export function BookingForm({
   return (
     <div className="booking-layout">
       <div>
-        <div className="booking-steps" aria-label="Bokningens steg">
-          <span className="current">
-            <b>1</b> Behandling
-          </span>
-          <span className={treatment ? "current" : ""}>
-            <b>2</b> Behandlare
-          </span>
-          <span className={practitioner ? "current" : ""}>
-            <b>3</b> Tid
-          </span>
-          <span className={chosenSlot ? "current" : ""}>
-            <b>4</b> Dina uppgifter
-          </span>
-        </div>
+        <nav className="booking-steps" aria-label="Bokningens steg">
+          <ol>
+            {["Behandling", "Behandlare", "Tid", "Dina uppgifter"].map((label, index) => (
+              <li key={label} className={index < currentStep ? "complete" : undefined} aria-current={index === currentStep ? "step" : undefined}>
+                <b aria-hidden="true">{index + 1}</b><span>{label}</span>
+              </li>
+            ))}
+          </ol>
+        </nav>
         <form className="booking-form" action={createBookingAction}>
           <fieldset>
             <legend>Välj behandling</legend>
@@ -121,7 +117,7 @@ export function BookingForm({
                   <p>{t.description}</p>
                   {t.deliveryMode === "remote" && <p className="treatment-delivery"><Video size={15} aria-hidden="true" />Distans · digitalt möte</p>}
                   <span className="treatment-option-meta">
-                    <Clock3 size={13} />
+                    <Clock3 size={16} aria-hidden="true" />
                     {t.durationMinutes} minuter
                     <strong>{formatMoney(t.priceOre)}</strong>
                   </span>
@@ -184,7 +180,7 @@ export function BookingForm({
           </fieldset>
           <fieldset>
             <legend>Hitta en ledig tid</legend>
-            <p className="muted" style={{ fontSize: 11, marginBottom: 18 }}>
+            <p className="booking-timezone">
               Alla tider visas i svensk tid (Europe/Stockholm).
             </p>
             {treatmentSlots.length ? (
@@ -310,7 +306,7 @@ export function BookingForm({
                 </span>
               </label>
               {payment && <SubmitBooking />}
-              <p className="muted" style={{ fontSize: 10, marginTop: 13 }}>
+              <p className="booking-payment-note">
                 {payment === "stripe"
                   ? "Du går vidare till Stripe för att slutföra din betalning."
                   : "Din tid bekräftas när bokningen har registrerats."}

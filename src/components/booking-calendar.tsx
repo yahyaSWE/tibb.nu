@@ -152,7 +152,7 @@ export function BookingCalendar({
                 disabled={!count}
                 aria-pressed={activeDate === date}
                 aria-controls={timesId}
-                aria-label={`${dateLabel(date)}, ${count ? `${count} lediga tider` : "inga lediga tider"}`}
+                aria-label={`${dateLabel(date)}, ${count === 1 ? "1 ledig tid" : count ? `${count} lediga tider` : "inga lediga tider"}`}
                 onClick={() => {
                   setSelectedDate(date);
                   onSelect(undefined);
@@ -190,10 +190,10 @@ export function BookingCalendar({
       >
         {activeDate ? (
           <>
-            <p className="eyebrow">VÄLJ KLOCKSLAG</p>
-            <h4>{dateLabel(activeDate)}</h4>
+            <h4>Välj klockslag</h4>
+            <p className="calendar-selected-date">{dateLabel(activeDate)}</p>
             <p className="calendar-times-count">
-              {daySlots.length} lediga tider · svensk tid
+              {daySlots.length === 1 ? "1 ledig tid" : `${daySlots.length} lediga tider`} · svensk tid
             </p>
             <div className="slot-options">
               {daySlots.map((slot) => (

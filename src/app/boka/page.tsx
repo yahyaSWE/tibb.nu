@@ -5,6 +5,7 @@ import { createPageMetadata } from "@/lib/seo";
 import { BookingForm } from "@/components/booking-form";
 import { getBusinessSettings } from "@/lib/business-settings";
 import { cancellationText } from "@/lib/business-config";
+import "./booking.css";
 
 export const metadata = createPageMetadata({
   title: "Behandlingar och bokning",
@@ -35,7 +36,7 @@ export default async function BookingPage({
       practitionerIds.has(s.practitionerId),
   );
   return (
-    <section className="section container">
+    <section className="section container booking-page">
       <div className="page-heading booking-heading">
         <h1>
           Boka en <em>behandling</em>

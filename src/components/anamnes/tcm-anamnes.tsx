@@ -413,8 +413,8 @@ export default function TcmAnamnes() {
         </form>
       </section>}
       {(stage === "questions" || stage === "followup" || stage === "interview") && currentQuestion && <section aria-busy={busy}>
-        <p className={styles.questionSection}>{stage === "followup" ? "Fördjupning · " : ""}{currentQuestion.section}</p>
         <h2 ref={headingRef} tabIndex={-1} id="anamnes-question" className={styles.heading}>{currentQuestion.prompt}</h2>
+        <p className={styles.questionSection}>{stage === "followup" ? "Fördjupning · " : ""}{currentQuestion.section}</p>
         {currentQuestion.help && <p id="anamnes-question-help" className={styles.lead}>{currentQuestion.help}</p>}
         {stage === "followup" && <p className={styles.smallNote}>Frågan hjälper till att skilja överlappande mönster åt. Du kan välja att inte svara.</p>}
         {stage === "interview" && <p className={styles.smallNote}>{localInterview ? "Frågorna väljs utifrån dina formulärsvar. Din egen beskrivning fyller inte i några symtom automatiskt." : "Frågorna anpassas efter din beskrivning och dina bekräftade svar. Texten fyller inte automatiskt i några symtom."} Du kan välja ”Vet inte”, gå tillbaka eller avsluta med det underlag som finns.</p>}

@@ -1,3 +1,4 @@
+import { DifferentialReportView } from './differential-report';
 import { questionById } from "@/lib/anamnes/questions";
 import type { AnswerMap, ConsultationDetails, Evidence, PatternFinding, QuestionId, Report } from "@/lib/anamnes/types";
 import { consultationDetailRows, hasAiConsultationDetails } from "@/lib/anamnes/consultation";
@@ -27,6 +28,7 @@ function PatternCard({ finding, label }: { finding: PatternFinding; label: strin
 }
 
 export function AnamnesReport({ report, answers, medicationNames = "", consultation, showAnswers = true, beforeAnalysis }: { report: Report; answers: AnswerMap; medicationNames?: string; consultation?: ConsultationDetails; showAnswers?: boolean; beforeAnalysis?: ReactNode }) {
+  if(report.differential)return <DifferentialReportView report={report} beforeAnalysis={beforeAnalysis} classes={styles}>{showAnswers&&<AnamnesAnswers answers={answers} medicationNames={medicationNames} consultation={consultation}/>}</DifferentialReportView>;
   const { analysis, safety } = report;
   const candidates = analysis.status === "insufficient" ? [] : analysis.primary ? [analysis.primary, ...analysis.secondary] : analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const blocked = safety.blocksFormulas;

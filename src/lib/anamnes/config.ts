@@ -32,7 +32,7 @@ export function anamnesAiConfig() {
   // Updated vocabulary, composite criteria and report fields require a fresh
   // session choice. Pre-upgrade in-flight receipts fail closed; stored original
   // reports are still read from their encrypted snapshots, never recomputed.
-  return { available, provider, providerLabel, model, apiKey, privacyNotice, endpoint, consentVersion: consentVersion("ai-v8-confirmed-observations-differential", provider, endpoint, model, privacyNotice) };
+  return { available, provider, providerLabel, model, apiKey, privacyNotice, endpoint, consentVersion: consentVersion("ai-v9-adaptive-differential", provider, endpoint, model, privacyNotice) };
 }
 function configuredCompatibleEndpoint(): string | null {
   try {

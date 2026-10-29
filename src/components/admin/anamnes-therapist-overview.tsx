@@ -1,4 +1,5 @@
 import { questionById } from "@/lib/anamnes/questions";
+import { DifferentialReportView } from '@/components/anamnes/differential-report';
 import { consultationDetailRows } from "@/lib/anamnes/consultation";
 import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
 import { emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type FormulaRecord, type PatternFinding, type QuestionId, type Report, type ReferenceSource } from "@/lib/anamnes/types";
@@ -82,7 +83,7 @@ export function AnamnesTherapistOverview({ report, answers, narrative = "", medi
   };
   const hypotheses = report.safety.level === "emergency" || report.analysis.status === "insufficient" ? [] : report.analysis.primary ? [report.analysis.primary, ...report.analysis.secondary] : report.analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const unknownIds = [...questionById.keys()].filter(id => answers[id] === "unknown" || answers[id] === "prefer_not");
-  const missingIds = [...new Set([...report.safety.missingQuestionIds, ...report.analysis.missingQuestionIds, ...report.followUpQuestionIds, ...hypotheses.flatMap(finding => finding.missingQuestionIds)])].filter(id => !Object.hasOwn(answers, id));
+  const missingIds = [...new Set([...report.safety.missingQuestionIds, ...report.analysis.missingQuestionIds, ...report.followUpQuestionIds, ...(report.differential?.findings.flatMap(f=>f.missingQuestionIds)??hypotheses.flatMap(finding => finding.missingQuestionIds))])].filter(id => !Object.hasOwn(answers, id));
   const allContradictions = [...new Set(report.analysis.conflicts)];
   const safetyDetailNeedsClarification = !!consultation.medicationDetails && answers.medication !== "yes" || !!consultation.conditionDetails && answers.chronicDisease !== "yes" && answers.liverKidney !== "yes" || !!consultation.allergyDetails && answers.allergy !== "yes";
   return <section className="panel anamnes-therapist-overview" aria-labelledby="anamnes-therapist-overview-title">
@@ -114,11 +115,11 @@ export function AnamnesTherapistOverview({ report, answers, narrative = "", medi
         <p className="muted">”Vet inte”, avböjda och obesvarade frågor är inte nekande svar. Egna tung- och pulsobservationer dokumenteras i din separata bedömning.</p>
       </article>
     </div>
-    <section className="anamnes-therapist-differential" aria-labelledby="anamnes-therapist-differential-title"><h3 id="anamnes-therapist-differential-title">Maskinens preliminära differentiering</h3>
+    {report.differential?<section className="anamnes-therapist-differential"><h3>Maskinens preliminära differentiering</h3><DifferentialReportView report={report}/></section>:<section className="anamnes-therapist-differential" aria-labelledby="anamnes-therapist-differential-title"><h3 id="anamnes-therapist-differential-title">Maskinens preliminära differentiering</h3>
       <p className="muted">Förslag att pröva vid konsultation. Detta är inte din självständiga bedömning; modellens interna poäng är inte sannolikheter.</p>
       {hypotheses.length ? <div className="anamnes-therapist-hypotheses">{hypotheses.map(finding => <Hypothesis key={finding.id} finding={finding} primary={report.analysis.primary?.id === finding.id} />)}</div> : <p className="notice">{report.safety.level === "emergency" ? "Prioritera de akuta varningsuppgifterna. Ingen mönsterhypotes visas här." : "Ingen tillräckligt tydlig huvudförklaring har valts i den sparade rapporten. Fullständiga regeljämförelser finns i granskningsunderlaget."}</p>}
       {!report.safety.blocksFormulas && report.formulaReferencesEnabled && <div className="anamnes-therapist-formulas"><h4>Formelreferenser att utvärdera</h4>{report.formulaStatus === "matched" && report.formulaMatches.length ? <ul>{report.formulaMatches.slice(0, 3).map(formula => <li key={formula.formulaId}><strong>{formula.name}</strong>{(formula.classicalName || formula.pinyin) && <span> · {formula.classicalName || formula.pinyin}</span>}{formula.partial && <span> · Delvis överensstämmelse</span>}{formula.limitation && <p>{formula.limitation}</p>}{formula.requiresVerification && <p className="anamnes-therapist-attention">Produktuppgifter behöver verifieras. Kontrollera leverantörens kontrollpunkter i formelkatalogen.</p>}<details><summary>Matchningsmotivering och säkerhet</summary><p>{formula.explanation}</p><h5>Talar för</h5>{formula.supporting.length ? <ul>{formula.supporting.map((item, index) => <li key={index}>{item.label}</li>)}</ul> : <p>Inga bekräftade stödjande svar.</p>}<h5>Talar emot</h5>{formula.opposing.length ? <ul>{formula.opposing.map((item, index) => <li key={index}>{item.label}</li>)}</ul> : <p>Inga registrerade motfynd. Det bekräftar inte referensens lämplighet.</p>}{formula.missingQuestionIds.length > 0 && <><h5>Saknade uppgifter</h5><QuestionList ids={formula.missingQuestionIds} answers={answers} /></>}<h5>Försiktighet</h5><ul>{formula.safetyNotes.map((note, index) => <li key={index}>{note}</li>)}</ul></details></li>)}</ul> : <p>{report.formulaStatus === "no_match" ? "Ingen aktiv formel passar tillräckligt väl till underlaget." : "Underlaget räcker inte till en formeljämförelse."}</p>}<p className="muted">Klassiska referenser, ingen ordination. Faktiskt innehåll, interaktioner och individuell lämplighet behöver kontrolleras.</p></div>}
       {catalogStock && <AnamnesCatalogStockList stock={catalogStock} formulaNames={Object.fromEntries(report.formulaMatches.map(formula => [formula.formulaId, formula.name]))} />}
-    </section>
+    </section>}
   </section>;
 }

@@ -3,14 +3,14 @@ import { getInitialQuestions, isPublicQuestion, questionById, validateAnswers } 
 import { AnswerMapSchema, ConsultationDetailsSchema, MedicationNamesSchema, NarrativeSchema, QuestionIdSchema } from './types';
 
 export const draftLifetimeMs=24*60*60*1000;
-const publicIds=z.array(QuestionIdSchema).max(80).refine(ids=>new Set(ids).size===ids.length&&ids.every(id=>{const question=questionById.get(id);return question&&isPublicQuestion(question);}), 'Utkastet innehåller ogiltiga frågor.');
+const publicIds=z.array(QuestionIdSchema).max(120).refine(ids=>new Set(ids).size===ids.length&&ids.every(id=>{const question=questionById.get(id);return question&&isPublicQuestion(question);}), 'Utkastet innehåller ogiltiga frågor.');
 const draftAnswers=z.unknown().superRefine((value,context)=>{try{validateAnswers(value);}catch{context.addIssue({code:'custom',message:'Utkastets svar kunde inte läsas.'});}}).pipe(AnswerMapSchema);
 /** Deliberately excludes contact data, provider consent, send consent, catalog,
  * model proposals, reports and signed receipts. A draft grants no authority. */
 export const AnamnesDraftSchema=z.object({
   version:z.literal(1),answers:draftAnswers,narrative:NarrativeSchema,medicationNames:MedicationNamesSchema,consultation:ConsultationDetailsSchema,
   flow:z.enum(['ai','rules']),position:z.object({stage:z.enum(['intro','safety','questions','followup','interview','report']),
-    questionId:QuestionIdSchema.refine(id=>{const question=questionById.get(id);return question&&isPublicQuestion(question);}).nullable(),index:z.number().int().min(0).max(80),history:publicIds,followups:publicIds,
+    questionId:QuestionIdSchema.refine(id=>{const question=questionById.get(id);return question&&isPublicQuestion(question);}).nullable(),index:z.number().int().min(0).max(120),history:publicIds,followups:publicIds,
     round:z.number().int().min(0).max(1000)}).strict(),
 }).strict();
 export type AnamnesDraft=z.infer<typeof AnamnesDraftSchema>;

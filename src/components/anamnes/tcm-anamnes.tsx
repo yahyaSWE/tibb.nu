@@ -20,6 +20,7 @@ import { ObservationReview } from './observation-review';
 import { useAnamnesDraft } from './use-anamnes-draft';
 import { AnamnesDraftPanel } from './draft-panel';
 import { AnamnesStartControls } from './start-controls';
+import { buildVisitorDifferential } from '@/lib/anamnes/public-differential';
 import { draftResumeCursor, type AnamnesDraft } from '@/lib/anamnes/draft';
 import styles from "./tcm-anamnes.module.css";
 
@@ -93,7 +94,7 @@ export default function TcmAnamnes() {
   const questionNote = currentQuestion && currentQuestion.id !== "pulse" ? consultation.questionNotes[currentQuestion.id] ?? "" : "";
   const questionNoteLimit = Math.max(0, Math.min(400, 6000 - Object.entries(consultation.questionNotes).reduce((total, [id, value]) => total + (id === currentQuestion?.id ? 0 : value?.length ?? 0), 0)));
   const aiChoiceAvailable = !aiSessionUnavailable && catalogState === "ready" && config.analysisMode === "ai" && config.ai.available && !!config.ai.consentVersion;
-  const completionQuestions = useMemo(() => report ? getInterviewCompletionQuestionIds(answers, report.analysis) : [], [answers, report]);
+  const completionQuestions = useMemo(() => report?.differential?[...new Set(report.differential.findings.flatMap(f=>f.missingQuestionIds))].filter(id=>!Object.hasOwn(answers,id)):report?getInterviewCompletionQuestionIds(answers, report.analysis):[], [answers, report]);
   const drafts=useAnamnesDraft({version:1,answers,narrative,medicationNames,consultation,flow:interviewActive&&!localInterview?'ai':'rules',position:{
     stage:stage==='observations'?'safety':stage,questionId:['questions','followup','interview'].includes(stage)?currentQuestion?.id??null:null,
     index,history:(stage==='questions'?currentQuestions:interviewHistory).map(question=>question.id),followups:followups.map(question=>question.id),round:interviewRound}},!!submission);
@@ -178,7 +179,7 @@ export default function TcmAnamnes() {
     if (useAi && !narrative.trim()) { setError("Beskriv först vad du söker hjälp för, så att AI kan anpassa frågorna. Du kan också starta utan AI."); return; }
     // Only the start-button action records the current choice; loading the page does not.
     setAiConsentVersion(useAi ? config.ai.consentVersion! : null);
-    setInterviewActive(useAi); setLocalInterview(false); setReviewingAnswers(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setReport(null); setFollowups([]); setIndex(0); setStage("safety"); clearStatus();
+    setInterviewActive(true); setLocalInterview(!useAi); setReviewingAnswers(false); setSessionNotice(""); setInterviewHistory([]); setInterviewRound(0); setReport(null); setFollowups([]); setIndex(0); setStage("safety"); clearStatus();
   }
   function restoreDraft(draft:AnamnesDraft,useAi:boolean){
     request.current?.abort();sequence.current++;setBusy(false);setExtractionReady(false);setExtracted([]);clearStatus();
@@ -212,12 +213,12 @@ export default function TcmAnamnes() {
     if (safety.level === "emergency") { setReport(buildReport(answers, [], { narrative: narrative.trim(), consultation })); setStage("report"); clearStatus(); return; }
     clearStatus(); setIndex(0);
     if (reviewingAnswers) {
-      setInterviewActive(false); setLocalInterview(true);
-      setStage("questions");
+      setInterviewActive(true); setLocalInterview(true);
+      void advanceInterview();
       setSessionNotice("Du granskar och kan ändra dina tidigare svar. När du är klar skapas ett uppdaterat lokalt underlag.");
       return;
     }
-    if(interviewActive&&localInterview){continueLocally(buildReport(answers,config.formulas,{narrative:narrative.trim(),consultation}),false);return;}
+    if(interviewActive&&localInterview){void advanceInterview();return;}
     if (interviewActive && canAnalyzePatterns(safety)) {
       if (interviewHistory.length) setStage("interview");
       else void prepareObservations();
@@ -227,21 +228,21 @@ export default function TcmAnamnes() {
       continueLocally(buildReport(answers, config.formulas, { narrative: narrative.trim(), consultation }), false);
     }
   }
-  function showInterviewStep(nextReport: Report, ids: readonly QuestionId[], complete: boolean, reason: "continue" | "enough" | "exhausted" | "limit" | "fallback" | "safety", nextReceipt?: AnalysisReceipt, stopped = false) {
+  function showInterviewStep(nextReport: Report, ids: readonly QuestionId[], complete: boolean, reason: "continue" | "enough" | "exhausted" | "limit" | "fallback" | "safety", nextReceipt?: AnalysisReceipt, stopped = false,prompts:Partial<Record<QuestionId,string>>={}) {
     setReport(nextReport); setReceipt(nextReceipt ?? null);
     if (complete) {
       if (stopped) setNotice("Du har valt att avsluta samtalet. Rapporten sammanfattar svaren hittills och visar vilka uppgifter som fortfarande är osäkra.");
       else if (reason === "exhausted" || reason === "limit") setNotice("De relevanta frågorna i formuläret är genomgångna. Rapporten visar vad som fortfarande behöver klargöras tillsammans med behandlaren.");
       setStage("report"); return;
     }
-    const nextQuestions = ids.map(id => questionById.get(id)).filter((question): question is Question => !!question && isPublicQuestion(question) && !Object.hasOwn(answers, question.id) && !interviewHistory.some(prior => prior.id === question.id));
-    if (!nextQuestions.length) { setReport(finalizeInterviewReport(nextReport, answers)); setReceipt(null); setStage("report"); return; }
+    const nextQuestions = ids.map(id => {const question=questionById.get(id);return question?{...question,prompt:prompts[id]??question.prompt}:undefined;}).filter((question): question is Question => !!question && isPublicQuestion(question) && !Object.hasOwn(answers, question.id) && !interviewHistory.some(prior => prior.id === question.id));
+    if (!nextQuestions.length) { setReport(nextReport.differential?nextReport:finalizeInterviewReport(nextReport, answers)); setReceipt(null); setStage("report"); return; }
     setInterviewHistory(previous => [...previous, ...nextQuestions]); setIndex(interviewHistory.length); setInterviewRound(previous => previous + 1); setStage("interview");
   }
-  function continueLocally(nextReport: Report, finish: boolean) {
-    const ids = [...new Set([...getInterviewCompletionQuestionIds(answers, nextReport.analysis),...getFormulaComparisonQuestionIds(answers,nextReport.analysis,config.formulas)])].slice(0, 3);
-    const complete = finish || ids.length === 0;
-    showInterviewStep(complete ? finalizeInterviewReport(nextReport, answers) : nextReport, ids, complete, ids.length === 0 ? "exhausted" : "continue", undefined, finish);
+  function continueLocally(_nextReport: Report, finish: boolean,catalog=config.formulas) {
+    const {report:nextReport,result}=buildVisitorDifferential({answers,narrative:narrative.trim(),consultation},catalog,null,'local',finish);
+    const ids=nextReport.followUpQuestionIds,complete=finish||result.status!=='continue';
+    showInterviewStep(nextReport,ids,complete,ids.length===0?'exhausted':'continue',undefined,finish);
   }
   function complementReport() {
     const questions = completionQuestions.map(id => questionById.get(id)).filter((question): question is Question => !!question);
@@ -262,19 +263,19 @@ export default function TcmAnamnes() {
       if (run !== sequence.current) return;
       setConfig(latest); setCatalogState("ready");
       const local = buildReport(answers, latest.formulas, { narrative: narrative.trim(), consultation });
-      if (localInterview) { continueLocally(local, finish); return; }
+      if (localInterview) { continueLocally(local, finish,latest.formulas); return; }
       if (!canAnalyzePatterns(local.safety)) {
         if (answers.focus === "pain" && ["unknown", "prefer_not"].includes(answers.jointWarmth ?? "")) { setReport(finalizeInterviewReport(local, answers)); setStage("report"); setNotice("Uppgiften om en röd, varm eller svullen led är osäker. Underlaget sammanfattas för individuell bedömning; inga formelreferenser visas."); }
-        else if (!finish && local.safety.level !== "emergency") { setLocalInterview(true); setAiConsentVersion(null); setSessionNotice("Med dessa säkerhetsuppgifter används lokala frågor. Din beskrivning finns kvar för behandlaren och skickas inte till AI."); continueLocally(local, false); }
+        else if (!finish && local.safety.level !== "emergency") { setLocalInterview(true); setAiConsentVersion(null); setSessionNotice("Med dessa säkerhetsuppgifter används lokala frågor. Din beskrivning finns kvar för behandlaren och skickas inte till AI."); continueLocally(local, false,latest.formulas); }
         else { setReport(finalizeInterviewReport(local, answers)); setStage("report"); }
         return;
       }
       if (latest.analysisMode !== "ai" || !latest.ai.available || !aiConsentVersion || aiConsentVersion !== latest.ai.consentVersion) {
         setAiConsentVersion(null); setLocalInterview(true); setSessionNotice("AI-samtalet är inte tillgängligt med det aktuella valet. Du fortsätter med lokala följdfrågor och behåller dina tidigare svar.");
-        continueLocally(local, finish);
+        continueLocally(local, finish,latest.formulas);
         return;
       }
-      const response = await fetch("/api/anamnes/interview", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]), body: JSON.stringify({ answers, narrative: narrative.trim(), consultation, aiConsent: true, aiConsentVersion, round: interviewRound, finalize: finish, formulaReferencesEnabled: true }) });
+      const response = await fetch("/api/anamnes/interview", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(55000)]), body: JSON.stringify({ answers, narrative: narrative.trim(), consultation, aiConsent: true, aiConsentVersion, round: interviewRound, finalize: finish, formulaReferencesEnabled: true }) });
       if (!response.ok) throw new Error("Samtalet kunde inte fortsätta.");
       const value = InterviewResponseSchema.parse(await response.json());
       if (run !== sequence.current) return;
@@ -282,12 +283,12 @@ export default function TcmAnamnes() {
         setAiSessionUnavailable(true);
         setAiConsentVersion(null); setLocalInterview(true); setSessionNotice("AI kunde inte användas. Du fortsätter med lokala följdfrågor och behåller dina tidigare svar. Rapporten bygger på poängmodellen.");
       }
-      showInterviewStep(value.report, value.questionIds, value.complete || finish, value.reason, value.receipt, finish);
+      showInterviewStep(value.report, value.questionIds, value.complete || finish, value.reason, value.receipt, finish,value.questionPrompts);
     } catch {
       if (controller.signal.aborted || run !== sequence.current) return;
       setAiSessionUnavailable(true);
       setCatalogState("unavailable"); setAiConsentVersion(null); setLocalInterview(true); setSessionNotice("Anslutningen kunde inte användas. Du kan fortsätta lokalt med dina tidigare svar. Formelreferenser visas först när den aktuella katalogen har kunnat kontrolleras.");
-      continueLocally(buildReport(answers, [], { narrative: narrative.trim(), consultation }), finish);
+      continueLocally(buildReport(answers, [], { narrative: narrative.trim(), consultation }), finish,[]);
     } finally { if (run === sequence.current) { setBusy(false); request.current = null; } }
   }
   async function calculate(final: boolean) {
@@ -312,7 +313,7 @@ export default function TcmAnamnes() {
         setCatalogState("unavailable"); setConfig(initialConfig);
         setNotice("Formelkatalogen kunde inte kontrolleras. Du får en mönsteranalys utan formelreferenser. Försök igen senare för att jämföra sortimentet.");
       }
-      let result = buildReport(answers, activeCatalog, { narrative: narrative.trim(), consultation });
+      let result = buildVisitorDifferential({answers,narrative:narrative.trim(),consultation},activeCatalog,null,'local',true).report;
       let nextReceipt: AnalysisReceipt | null = null;
       const mayUseAi = catalogVerified && activeConfig.analysisMode === "ai" && !!aiConsentVersion && activeConfig.ai.available && aiConsentVersion === activeConfig.ai.consentVersion && canAnalyzePatterns(result.safety);
       if (mayUseAi) {
@@ -396,7 +397,7 @@ export default function TcmAnamnes() {
       {stage !== "intro" && stage !== "report" && report?.safety.level !== "emergency" && <div className={styles.questionProgress}><div><span>{stage === "safety" ? `${answeredSafetyCount} av ${safetyQuestionIds.length} trygghetsfrågor besvarade` : `Fråga ${index + 1}${stage === "interview" ? " · anpassas efter dina svar" : ""}`}</span></div>{stage !== "safety" && <p className={styles.modeStatus} role="status"><strong>{interviewActive && !localInterview ? "AI-anpassade frågor" : "Lokala frågor"}</strong>{sessionNotice ? <span>{sessionNotice}</span> : <span>{interviewActive && !localInterview ? "Din beskrivning och dina bekräftade svar styr vilka frågor som kommer härnäst." : "Dina valda svar används i poängmodellen. Beskrivningen och dina förtydliganden finns kvar för behandlaren."}</span>}</p>}</div>}
       {stage === "intro" && <section>
         <h2 ref={headingRef} tabIndex={-1} className={styles.heading}>{config.analysisMode === "ai" ? "Börja med din berättelse." : "Dina svar först. Mönster och referenser därefter."}</h2>
-        <p className={styles.lead}>Beskriv dina symtom och vad du upplever med egna ord, utan västerländska diagnosnamn. Sedan följer trygghetsfrågor och frågor som anpassas efter dina svar. Räkna med ungefär 5–10 minuter.</p>
+        <p className={styles.lead}>Beskriv dina symtom och vad du upplever med egna ord, utan västerländska diagnosnamn. Sedan följer trygghetsfrågor och frågor som anpassas efter dina svar. Du kan pausa och fortsätta senare.</p>
         {narrativeEditor()}
         <ConsultationDetailsFields value={consultation} disabled={busy} onChange={updateConsultation} />
         {catalogState === "unavailable" && <p className={styles.warning}>Den aktuella formelkatalogen kunde inte laddas. Du kan fortsätta med frågorna och få en mönsteranalys; ingen inaktuell katalog används som reserv.</p>}

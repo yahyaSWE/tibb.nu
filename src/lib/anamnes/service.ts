@@ -9,13 +9,14 @@ import { getAnamnesConfigStatus } from "./config";
 import { getAnamnesAnalysisMode } from "./settings";
 import { hasAiConsultationDetails, normalizeConsultationDetails } from "./consultation";
 import { finalizeInterviewReport, getFormulaComparisonQuestionIds, getInterviewCompletionQuestionIds, getInterviewDecision, getInterviewFallbackQuestions, interviewHasCompletedFocusQuestions, interviewHasEnoughAnswers, mandatoryInterviewQuestions, sanitizeInterviewQuestionIds } from "./interview";
+export { analyzeDifferential as analyzeAnamnes, interviewDifferential as interviewAnamnes } from './differential-service';
 
 export async function getPublicAnamnesCatalog() {
   const status = getAnamnesConfigStatus();
   const analysisMode = await getAnamnesAnalysisMode();
   return { formulas: await publicFormulaCatalog(), analysisMode, ai: { available: analysisMode === "ai" && status.ai.available, consentVersion: status.ai.consentVersion, providerLabel: status.ai.providerLabel, privacyNotice: status.ai.privacyNotice }, submissions: { available: status.submissions.available, consentVersion: status.submissions.consentVersion, retentionDays: status.submissions.retentionDays, notice: status.submissions.notice }, referencesEnabled: true as const };
 }
-export async function analyzeAnamnes(input: unknown) {
+export async function analyzeLegacyAnamnes(input: unknown) {
   const answers = validateAnswers(input && typeof input === "object" ? (input as Record<string, unknown>).answers : undefined);
   const value = IntakeRequestSchema.parse(input);
   const consultation = normalizeConsultationDetails(value.consultation, answers);
@@ -41,7 +42,7 @@ export async function extractAnamnesObservations(input:unknown) {
   return {observations:proposal?validateExtractedObservations(proposal,answers,value.narrative,consultation):[],available:!!proposal};
 }
 
-export async function interviewAnamnes(input: unknown): Promise<InterviewResponse> {
+export async function interviewLegacyAnamnes(input: unknown): Promise<InterviewResponse> {
   // Validate own enumerable keys before Zod can strip dangerous unknown keys.
   // A crafted AnswerMap must not slip past the public question boundary.
   const answers = validateAnswers(input && typeof input === "object" ? (input as Record<string, unknown>).answers : undefined);

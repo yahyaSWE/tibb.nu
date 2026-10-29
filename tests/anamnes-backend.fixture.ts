@@ -7,7 +7,9 @@ import { ConsultationDetailsSchema, FormulaRecordSchema, emptyConsultationDetail
 import { getInitialQuestions, isPublicQuestion, questionBank } from "../src/lib/anamnes/questions";
 import { getSafetyAssessment, analyzePatterns } from "../src/lib/anamnes/engine";
 import { getFormulaCatalog, saveFormulaCatalogEntry, deleteFormulaCatalogEntry, publicFormulaCatalog } from "../src/lib/anamnes/catalog";
-import { analyzeAnamnes, interviewAnamnes, extractAnamnesObservations, getPublicAnamnesCatalog } from "../src/lib/anamnes/service";
+// Keep the prior wire contract as a regression comparison. The official public
+// endpoint and new contract are covered by anamnes-differential-backend tests.
+import { analyzeLegacyAnamnes as analyzeAnamnes, interviewLegacyAnamnes as interviewAnamnes, extractAnamnesObservations, getPublicAnamnesCatalog } from "../src/lib/anamnes/service";
 import { anamnesAiConfig, anamnesSubmissionConsentVersion, getAnamnesConfigStatus } from "../src/lib/anamnes/config";
 import { submitAnamnes, therapistAccess, listAnamnesCases, getAnamnesCase, reviewAnamnesCase, deleteAnamnesCase } from "../src/lib/anamnes/cases";
 import { assertAnamnesOrigin, anamnesRequestJson, enforceAnamnesRateLimit, anamnesResponseError } from "../src/lib/anamnes/http";
@@ -902,7 +904,7 @@ test("new unsigned partial submissions never regain hypotheses or formula matche
   assert.equal(record!.report.analysis.primary, null);
   assert.deepEqual(record!.report.formulaMatches, []);
   assert.equal(record!.report.formulaStatus, "insufficient");
-  assert.ok(record!.report.analysis.patterns.length > 0);
+  assert.ok((record!.report.differential?.findings.length??record!.report.analysis.patterns.length)>0);
   assert.equal(requests, 0);
 });
 

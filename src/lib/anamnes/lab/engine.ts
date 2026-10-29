@@ -8,8 +8,8 @@ export const LabEntrySchema = z.object({ topicId: z.string().min(1).max(70), val
 const SafetySchema = z.object({ adult: z.enum(['yes','no','unknown','prefer_not']), pregnancy: z.enum(['yes','no','unknown','prefer_not']),
   medication: z.enum(['yes','no','unknown','prefer_not']), chronicDisease: z.enum(['yes','no','unknown','prefer_not']), liverKidney: z.enum(['yes','no','unknown','prefer_not']),
   allergy: z.enum(['yes','no','unknown','prefer_not']), emergency: z.enum(['yes','no','unknown','prefer_not']), clinicalRedFlags: z.enum(['yes','no','unknown','prefer_not']) }).strict();
-export const LabCaseSchema = z.object({ narrative: NarrativeSchema.min(1), context: NarrativeSchema, safety: SafetySchema,
-  entries: z.array(LabEntrySchema).max(labTopics.length), finalize: z.boolean(), fictional: z.literal(true), aiConsent: z.boolean(), consentVersion: z.string().max(128).nullable() }).strict().superRefine((value, ctx) => {
+export const DifferentialCaseSchema = z.object({ narrative: NarrativeSchema, context: z.string().max(16000), safety: SafetySchema,
+  entries: z.array(LabEntrySchema).max(labTopics.length), finalize: z.boolean(), aiConsent: z.boolean(), consentVersion: z.string().max(128).nullable() }).strict().superRefine((value, ctx) => {
   const seen = new Set<string>();
   for (const [index, entry] of value.entries.entries()) {
     const topic = labTopicById.get(entry.topicId);
@@ -18,6 +18,8 @@ export const LabCaseSchema = z.object({ narrative: NarrativeSchema.min(1), conte
     seen.add(entry.topicId);
   }
 });
+export const LabCaseSchema=DifferentialCaseSchema.safeExtend({narrative:NarrativeSchema.min(1),context:NarrativeSchema,fictional:z.literal(true)});
+export type DifferentialCase=z.infer<typeof DifferentialCaseSchema>;
 export type LabCase = z.infer<typeof LabCaseSchema>;
 export type LabEntry = z.infer<typeof LabEntrySchema>;
 export const LabProposalSchema = z.object({
@@ -27,13 +29,17 @@ export const LabProposalSchema = z.object({
   disposition: z.enum(['continue','review','examination','outside_scope']),
 }).strict();
 export type LabProposal = z.infer<typeof LabProposalSchema>;
-export function labSafety(value: LabCase) {
+export function labSafety(value: DifferentialCase) {
   const order={clear:0,medication_review:1,incomplete:2,consultation:3,medical_review:4,emergency:5};
-  return [value.narrative,value.context,...value.entries.map(e=>e.note)].map(text=>getSafetyAssessment(labLegacyAnswers(value),text))
+  // Public context contains several individually bounded fields. Screen all
+  // of it, retaining overlap so a boundary cannot hide a warning phrase.
+  const context=[] as string[];
+  for(let offset=0;offset<value.context.length;offset+=3500)context.push(value.context.slice(offset,offset+4000));
+  return [value.narrative,...context,...value.entries.map(e=>e.note)].map(text=>getSafetyAssessment(labLegacyAnswers(value),text))
     .sort((a,b)=>order[b.level]-order[a.level])[0];
 }
 const unknown = new Set(['unknown', 'prefer_not']);
-export function labLegacyAnswers(value: LabCase): AnswerMap {
+export function labLegacyAnswers(value: DifferentialCase|LabCase): AnswerMap {
   const result: AnswerMap = { ...value.safety };
   for (const entry of value.entries) { const id = labTopicById.get(entry.topicId)?.legacyId; if (id) result[id] = entry.value; }
   return result;
@@ -64,20 +70,20 @@ const complaintProfiles: [RegExp, string[]][] = [
   [/host|andning|slem/iu, ['lungQiDeficiency','lungYinDeficiency','phlegmHeat','phlegmDamp']],
   [/urin|kiss|läckage/iu, ['kidneyQiDeficiency','kidneyYangDeficiency','dampHeatLower','gallbladderDampHeat']],
 ];
-export function labComplaint(value: LabCase) {
+export function labComplaint(value: DifferentialCase) {
   const text = `${value.narrative}\n${value.context}`;
   const routed = complaintProfiles.filter(([expression]) => expression.test(text)).flatMap(([, ids]) => ids);
   const hair = complaintProfiles[0][0].test(text);
   return { hair, patternIds: [...new Set(routed)], characterization: hair ? ['duration','onset','hairDistribution','scalpCondition','hairTrigger','hairFamily'] : ['duration','onset','symptomLocation','trend'] };
 }
-function topicRelevant(value: LabCase, id: string) {
+function topicRelevant(value: DifferentialCase, id: string) {
   const a = labLegacyAnswers(value);
   if (a.menstruation !== 'yes' && ['menstrualFlow','menstrualPain'].includes(id)) return false;
   if (a.pain === 'no' && ['painLocation','painCharacter','painWarmth','painMovement','weatherPain','jointWarmth','stiffness','pressureRelief','warmthRelief'].includes(id)) return false;
   if (a.sleep === 'normal' && ['sleepOnset','nightWaking','dreams'].includes(id)) return false;
   return !safetyQuestionIds.includes(id as QuestionId);
 }
-function canonicalAnswers(value: LabCase): LabEntry[] {
+function canonicalAnswers(value: DifferentialCase): LabEntry[] {
   const entries = [...value.entries];
   const answers = labLegacyAnswers(value);
   const implied: [string, string | undefined][] = [
@@ -88,7 +94,7 @@ function canonicalAnswers(value: LabCase): LabEntry[] {
   for (const [topicId, v] of implied) if (v && !entries.some(e => e.topicId === topicId)) entries.push({ topicId, value: v, note: '' });
   return entries;
 }
-export function planLabQuestions(value: LabCase, proposal: LabProposal | null = null) {
+export function planLabQuestions(value: DifferentialCase, proposal: LabProposal | null = null) {
   const entries = canonicalAnswers(value), answered = new Set(entries.map(e => e.topicId)), complaint = labComplaint(value);
   const all = labPatterns.map(p => assessLabPattern(p, entries));
   const signal = all.filter(p => p.supporting.length >= 2 && p.possible).sort((a,b) => Number(b.supported)-Number(a.supported) || b.score-a.score);
@@ -113,20 +119,24 @@ export function planLabQuestions(value: LabCase, proposal: LabProposal | null = 
     if (new Set(signatures).size > 1) item.gain += 12;
     item.targetPatternIds = candidates.filter(c => { const p=labPatternById.get(c.patternId)!;return [...p.support,...p.oppose].some(r => r.topic===item.topicId); }).map(c => c.patternId);
   }
-  const basic = ['temperature','energy','sleep','appetite','stool','thirst','sweating','emotion','pain'];
-  basic.forEach((id, index) => add(id, candidates.some(c => c.supported) ? 15-index/10 : 30-index/10, 'clarify', []));
+  // A broad survey is only a discovery fallback for an unmapped complaint.
+  // Relevant basic topics already enter through the candidates' own criteria.
+  if(!candidates.length&&!complaint.patternIds.length&&proposal?.disposition!=='review') {
+    const basic = ['temperature','energy','sleep','appetite','stool','thirst','sweating','emotion','pain'];
+    basic.forEach((id, index) => add(id, 30-index/10, 'clarify', []));
+  }
   // An AI may open a new relevant differential before a rule hypothesis exists.
   // It cannot keep adding pure confirmations after useful discrimination ends.
-  for (const q of proposal?.questions ?? []) if (!candidates.some(c => c.supported) || q.purpose !== 'clarify') add(q.topicId, q.purpose==='characterize'?150:55, q.purpose, q.targetPatternIds);
+  for (const [index,q] of (proposal?.questions ?? []).entries()) if (!candidates.some(c => c.supported) || q.purpose !== 'clarify') add(q.topicId, 150-index, q.purpose, q.targetPatternIds);
   const questions = [...ranked.values()].sort((a,b)=>b.gain-a.gain||a.topicId.localeCompare(b.topicId));
   return { candidates, all, questions, complaint, canonicalEntries: entries };
 }
 
-function catalogRule(value: LabCase, rule: EvidenceRule) {
+function catalogRule(value: DifferentialCase, rule: EvidenceRule) {
   const entries=[...canonicalAnswers(value),...Object.entries(value.safety).map(([topicId,value])=>({topicId,value,note:''}))];
   const answer=known(entries,rule.questionId);return answer!==null&&rule.values.includes(answer);
 }
-export function compareLabFormulas(value: LabCase, findings: LabFinding[], catalog: readonly FormulaRecord[]) {
+export function compareLabFormulas(value: DifferentialCase, findings: LabFinding[], catalog: readonly FormulaRecord[]) {
   const safety = labSafety(value);
   const entries=canonicalAnswers(value),allEntries=[...entries,...Object.entries(value.safety).map(([topicId,value])=>({topicId,value,note:''}))];
   if (safety.blocksFormulas) return { matches: [] as LabFormula[], excluded: [] as {id:string;name:string;reasons:string[]}[], status: 'safety_blocked' as const };
@@ -156,12 +166,26 @@ type PatternIdLike = FormulaRecord['primaryPatternIds'][number];
 export type LabFormula = { id:string;name:string;classicalName:string;referenceKind:'assortment'|'special_order';supportedPatternIds:string[];supporting:string[];opposing:string[];missing:string[];partial:boolean;score:number;productVerified:boolean;notes:string[] };
 
 export function buildLabResult(input: LabCase, catalog: readonly FormulaRecord[], proposal: LabProposal | null = null, source: 'ai'|'local' = 'local') {
-  const value=LabCaseSchema.parse(input), legacy=labLegacyAnswers(value), safety=labSafety(value);
+  const {fictional:_fictional,...value}=LabCaseSchema.parse(input);
+  return buildDifferentialResult(value,catalog,proposal,source);
+}
+export function buildDifferentialResult(input:DifferentialCase,catalog:readonly FormulaRecord[],proposal:LabProposal|null=null,source:'ai'|'local'='local') {
+  const value=DifferentialCaseSchema.parse(input), legacy=labLegacyAnswers(value), safety=labSafety(value);
   const plan=planLabQuestions(value,proposal), formulas=compareLabFormulas(value,plan.candidates,catalog);
   const safe=canAnalyzePatterns(safety);
   let questions=plan.questions;
+  const pendingCharacterization=questions.filter(q=>plan.complaint.characterization.includes(q.topicId));
+  const proposedIds=new Set(proposal?.questions.filter(q=>questions.some(next=>next.topicId===q.topicId)).map(q=>q.topicId)??[]);
+  const pendingProposal=proposedIds.size>0;
+  // An AI batch may intentionally contain only one or two useful questions.
+  // Never pad it to three with unrelated local confirmations.
+  if(pendingProposal)questions=questions.filter(q=>proposedIds.has(q.topicId)||pendingCharacterization.some(c=>c.topicId===q.topicId));
+  // A review signal may close a characterized history. It cannot manufacture
+  // a supported pattern: unresolved/unknown criteria remain explicit below.
+  const aiReview=proposal?.disposition==='review'&&!pendingCharacterization.length&&!pendingProposal;
+  if(aiReview)questions=[];
   // Product checks enter after the independent differential, never its prompt.
-  if (!questions.length && plan.candidates.some(p=>p.supported)) {
+  if (!aiReview&&!questions.length && plan.candidates.some(p=>p.supported)) {
     const ids=formulas.matches.flatMap(f=>f.missing).filter(id=>!plan.canonicalEntries.some(e=>e.topicId===id)&&topicRelevant(value,id));
     questions=[...new Set(ids)].map(topicId=>({topicId,gain:10,purpose:'clarify' as const,targetPatternIds:[]}));
   }
@@ -178,6 +202,7 @@ export function buildLabResult(input: LabCase, catalog: readonly FormulaRecord[]
   return { version:labVersion,source,status,questions:next,findings:safe?plan.candidates:[],formulas:safe?formulas:{...formulas,matches:[],status:'safety_blocked' as const},
     safety,medicalNotes,baseline:buildReport(legacy,catalog,{narrative:value.narrative}),unavailableMethods:['Puls och palpation','Behandlarens egen inspektion, lyssnande och undersökning'],
     unresolved:plan.candidates.flatMap(f=>f.missingCore.map(topicId=>({patternId:f.patternId,topicId}))),
+    completionReason:aiReview?'ai_review' as const:'question_plan' as const,
     contextUsed:{narrative:!!value.narrative,complement:!!value.context,notes:value.entries.filter(e=>e.note).length,answers:value.entries.length},
   };
 }

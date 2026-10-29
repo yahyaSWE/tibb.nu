@@ -12,6 +12,7 @@ export default async function AnamnesQualityPage(){
   const actor=await requireAdmin();if(!therapistAccess(actor))notFound();
   const comparison=compareQualityCases(qualityCases,await listQualityReviews(actor));
   return <><AdminHeading title="Kvalitetsfall för anamnesen" description="Fiktiva tekniska fall som du granskar själv. Inga patientuppgifter eller externa AI-anrop används."/><AnamnesAdminNav current="quality" therapist/>
+    <p className="notice">Den här jämförelsen avser den tidigare regelmotorn. Den nya ordinarie frågemotorn granskas separat i <Link href="/admin/anamnes/modelltest">Modelltest</Link>. Siffrorna här anger inte den nya AI-modellens träffsäkerhet.</p>
     <section className="panel"><h2>{comparison.reviewed} av {comparison.total} fall granskade</h2><p>Endast dina godkända, versionsbundna bedömningar räknas som facit. De konstruerade fallen är inte ett mått på klinisk precision och bygger delvis på befintliga regler.</p><p>Bedöm gärna svaren själv innan du öppnar motorns resultat. Mönsterkriterierna och deras konstruerade mål är inte oberoende expertbevis.</p>
     <div className="table-wrap"><table className="admin-table"><thead><tr><th>Mått i lokal simulering</th><th>Tidigare motor</th><th>Adaptivt frågeval</th></tr></thead><tbody>
       <tr><td>Median symtomfrågor</td><td>{comparison.baseline.medianSymptomQuestions}</td><td>{comparison.adaptive.medianSymptomQuestions}</td></tr>

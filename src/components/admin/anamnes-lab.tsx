@@ -53,7 +53,7 @@ export function AnamnesLab({ai}:Props) {
   const profiles=labPatterns.filter(p=>`${p.name} ${p.family} ${p.id}`.toLocaleLowerCase('sv-SE').includes(filter.toLocaleLowerCase('sv-SE')));
   return <div className={styles.lab}>
     <section className={styles.intro} aria-labelledby="lab-intro"><p className={styles.eyebrow}>Separat testmodell · {labVersion}</p><h2 id="lab-intro">Pröva en hypotesstyrd anamnes</h2>
-      <p>Testa följdfrågor, konkurrerande TCM-mönster och referenser ur din aktiva formelkatalog. Besökarnas befintliga anamnes byts inte ut.</p>
+      <p>Testa samma frågemotor som används i besökarnas anamnes: följdfrågor, konkurrerande TCM-mönster och referenser ur din aktiva formelkatalog. Här används endast fiktiva fall.</p>
       <p><strong>Endast fiktiva fall.</strong> Ingen klinisk validering eller fastställd diagnos. Testuppgifterna hålls i sidans minne och sparas inte som patientärenden.</p>
       <details><summary>Plan och bokunderlag</summary><ol><li>Kartlägg huvudbesvär och sammanhang.</li><li>Pröva flera mönster med stöd, motfynd och saknade kärnfynd.</li><li>Ställ särskiljande följdfrågor; avsluta med osäkerhet när undersökning krävs.</li><li>Jämför därefter den aktiva formelkatalogen.</li><li>Jämför med dagens modell och granska resultatet själv.</li></ol>
         <p>Vald granskningsreferens: <a href={labBook.url} target="_blank" rel="noreferrer">{labBook.title}, tredje upplagan ({labBook.year})</a>.</p><p><strong>{labBook.status}</strong> Artiklar av Maciocia anges separat och är inte samma källa som boken. Inga bokdefinitioner eller påhittade sidnummer har importerats.</p>

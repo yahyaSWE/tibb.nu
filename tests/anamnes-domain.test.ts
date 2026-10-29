@@ -13,8 +13,8 @@ const standardAnswers: AnswerMap = {
 const answers = (overrides: AnswerMap = {}): AnswerMap => ({...standardAnswers,...overrides});
 const qiBlood = answers({focus:'energy',energy:'low',pallor:'yes',dizziness:'yes',weakVoice:'yes',tongueColor:'pale',exertion:'tired'});
 
-test('expanded bank uses 60–80 unique structured questions, neutral omissions and professional-only pulse', () => {
-  assert.ok(questionBank.length >= 60 && questionBank.length <= 80);
+test('expanded bank includes the adaptive topics, neutral omissions and professional-only pulse', () => {
+  assert.ok(questionBank.length >= 100 && questionBank.length <= 120);
   assert.equal(questionBank.length,new Set(questionBank.map(question => question.id)).size);
   for (const question of questionBank) {
     assert.ok(question.options.some(option => option.value === 'unknown'));

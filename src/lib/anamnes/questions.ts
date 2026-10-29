@@ -1,3 +1,4 @@
+import { extraQuestions } from './extended-vocabulary';
 import { z } from 'zod';
 import { AnswerMapSchema, type AnswerMap, type FormulaRecord, type PatternAnalysis, type Question, type QuestionId } from './types';
 import { questionCovered, questionRelevant } from './answer-context';
@@ -89,6 +90,7 @@ export const questionBank: readonly Question[] = [
   q('tongueTeeth','Frivilliga tungobservationer','Har du lagt märke till tandavtryck längs tungans kanter?'),
   q('tongueMoisture','Frivilliga tungobservationer','Hur upplever du tungans fuktighet?',[['dry','Torr'],['wet','Påtagligt våt'],['normal','Ingen tydlig avvikelse']]),
   q('pulse','Behandlarobservation','Vilken pulskvalitet har behandlaren dokumenterat?',[['weak','Svag'],['wiry','Strängformig'],['rapid','Snabb'],['slow','Långsam'],['slippery','Halkande'],['thin','Tunn'],['normal','Ingen tydlig avvikelse']], 'Endast för behörig behandlares komplettering. Besökaren ska inte själv bedöma sin puls.', true),
+  ...extraQuestions,
 ];
 export const questionById = new Map<QuestionId, Question>(questionBank.map(question => [question.id, question]));
 export const isPublicQuestion = (question: Question) => !question.professionalOnly && !question.retired;

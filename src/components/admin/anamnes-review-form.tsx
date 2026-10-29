@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Field } from "./common";
 import { SubmitButton } from "./submit-button";
 import { reviewAnamnesAction, deleteAnamnesAction } from "@/lib/anamnes/admin-actions";
-import { patternCatalog } from "@/lib/anamnes/patterns";
-import type { FormulaRecord, PatternId } from "@/lib/anamnes/types";
+import { labPatterns as patternCatalog } from "@/lib/anamnes/lab/library";
+import type { FormulaRecord } from "@/lib/anamnes/types";
+type PatternId=string;
 
 type ReviewSelection = { selectedPrimaryPatternId: PatternId | null; selectedSecondaryPatternIds: PatternId[]; selectedFormulaId: string | null };
 export function AnamnesReviewForm({ id, revision, formulaOptions = [], initialSelection }: { id: string; revision: number; formulaOptions?: Pick<FormulaRecord, "id" | "name" | "pinyin" | "active">[]; initialSelection?: Partial<ReviewSelection> }) {

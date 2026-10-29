@@ -2,7 +2,7 @@ import { patternCatalog } from '../patterns';
 import { questionBank, isPublicQuestion } from '../questions';
 import type { EvidenceRule, PatternId, QuestionId } from '../types';
 
-export const labVersion = 'differential-lab-2026-10-v1';
+export const labVersion = 'differential-2026-10-v2';
 export const labBook = {
   title: 'The Practice of Chinese Medicine', edition: 3, year: '2021/2022', isbn: '9780702079207',
   url: 'https://evolve.elsevier.com/cs/product/9780702079207?role=student',
@@ -16,42 +16,7 @@ export const labSources = [
 ];
 export type LabRule = { topic: string; values: string[]; weight: number };
 export type LabTopic = { id: string; prompt: string; options: { value: string; label: string }[]; legacyId: QuestionId | null };
-const unsure = [{ value: 'unknown', label: 'Vet inte' }, { value: 'prefer_not', label: 'Vill inte svara' }];
-const topic = (id: string, prompt: string, options: [string, string][] = []): LabTopic => ({ id, prompt, legacyId: null,
-  options: [...(options.length ? options.map(([value, label]) => ({ value, label })) : [{ value: 'yes', label: 'Ja' }, { value: 'no', label: 'Nej' }]), ...unsure] });
-export const labTopics: LabTopic[] = [
-  ...questionBank.filter(isPublicQuestion).map(q => ({ id: q.id, prompt: q.prompt, options: q.options, legacyId: q.id })),
-  topic('hairDistribution', 'Hur ser håravfallet främst ut?', [['diffuse', 'Tunnare eller mer håravfall över större delen av huvudet'], ['patches', 'Tydligt avgränsade kala fläckar'], ['hairline', 'Främst hårfäste, tinningar eller hjässa'], ['breakage', 'Håret går främst av'], ['other', 'Annat eller svårt att beskriva']]),
-  topic('scalpCondition', 'Har du klåda, fjällning, rodnad eller ömhet i hårbotten?', [['inflamed', 'Rodnad eller ömhet'], ['oily_flaky', 'Fet hårbotten med klåda eller fjällning'], ['dry_flaky', 'Torr hårbotten med klåda eller fjällning'], ['normal', 'Inga sådana besvär']]),
-  topic('hairTrigger', 'Började håravfallet efter någon tydlig förändring?', [['illness', 'Efter sjukdom'], ['birth', 'Efter förlossning'], ['stress', 'Efter en belastande period'], ['diet_weight', 'Efter ändrad kost eller viktnedgång'], ['medication', 'Efter ett nytt eller ändrat läkemedel'], ['none', 'Ingen tydlig förändring']]),
-  topic('hairFamily', 'Finns ett liknande mönster av håravfall i din familj?'),
-  topic('hairRegrowth', 'Har du märkt återväxt där du har tappat hår?'),
-  topic('earlyGrey', 'Har du upplevt tydligt tidigt grånande jämfört med din familj?'),
-  topic('memoryChange', 'Har du långvarigt märkt försämrat minne eller koncentration?'),
-  topic('teethWeakness', 'Har du problem med lösa tänder som har bedömts av tandvården?'),
-  topic('reproductiveChange', 'Finns en långvarig förändring av reproduktiv funktion som du vill ta upp?'),
-  topic('numbnessCramps', 'Har du återkommande domningar, stickningar eller muskelkramper?'),
-  topic('nightUrination', 'Behöver du återkommande gå upp flera gånger på natten för att urinera?'),
-  topic('urineLeakage', 'Har du återkommande urinläckage eller efterdropp?'),
-  topic('morningDiarrhea', 'Har du återkommande lös avföring tidigt på morgonen?'),
-  topic('coldLimbs', 'Är händer eller fötter ofta tydligt kalla?'),
-  topic('warmthRelief', 'Lindras de aktuella besvären av värme?'),
-  topic('pressureRelief', 'Lindras de aktuella besvären av lätt tryck?'),
-  topic('hungerPain', 'Kommer magbesvären när magen är tom och lindras av lite mat?'),
-  topic('bitterTaste', 'Har du återkommande bitter smak i munnen?'),
-  topic('stickyMouth', 'Har du ofta en kladdig känsla i munnen?'),
-  topic('bleedingTendency', 'Har du återkommande oförklarliga blödningar som behöver tas upp?'),
-  topic('drySkin', 'Har du långvarigt torr hud utan tydlig lokal förklaring?'),
-  topic('lowGradeWarmth', 'Känner du återkommande lätt värme utan tydliga svettningar eller törst?'),
-  topic('voiceHoarse', 'Har du långvarig heshet eller torr röst?'),
-  topic('headPressure', 'Känns huvudet tungt eller grumligt?'),
-  topic('headStress', 'Ökar huvudbesvären tydligt vid känslomässig belastning?'),
-  topic('chestOppression', 'Har du en återkommande tryckande känsla över bröstet som behöver förtydligas?'),
-  topic('alternatingChillsHeat', 'Växlar du tydligt mellan frossa och värmekänsla?'),
-  topic('jointMigration', 'Flyttar ledvärken mellan olika leder?'),
-  topic('jointFixed', 'Sitter ledvärken oftast kvar i samma område?'),
-  topic('symptomLocation', 'Var sitter huvudbesvären främst? Beskriv gärna mer i kompletteringen.', [['head','Huvud, ansikte eller hårbotten'],['chest','Bröst eller andning'],['abdomen','Mage eller buk'],['back_joints','Rygg, muskler eller leder'],['general','Hela kroppen eller flera områden'],['other','Annat område']]),
-];
+export const labTopics: LabTopic[] = questionBank.filter(isPublicQuestion).map(q => ({ id:q.id,prompt:q.prompt,options:q.options,legacyId:q.id }));
 export const labTopicById = new Map(labTopics.map(q => [q.id, q]));
 const r = (topic: string, values: string | string[] = 'yes', weight = 3): LabRule => ({ topic, values: Array.isArray(values) ? values : [values], weight });
 const adapt = (rule: EvidenceRule): LabRule => r(rule.questionId, rule.values, rule.weight);

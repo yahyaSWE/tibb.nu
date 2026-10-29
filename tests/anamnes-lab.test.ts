@@ -61,7 +61,7 @@ test('all fictional sample interviews terminate without repeating a topic or for
   for(const example of labExamples){const value=sample([...example.entries],example.narrative);value.context=example.context;const seen=new Set(value.entries.map(e=>e.topicId));
     for(let round=0;round<=labTopics.length;round++){
       const result=buildLabResult(value,[]);
-      if(result.status!=='continue'){assert.ok(['needs_examination','outside_scope','ready_for_review'].includes(result.status));break;}
+      if(result.status!=='continue'){assert.ok(['needs_examination','outside_scope','ready_for_review','safety_stop'].includes(result.status));break;}
       assert.ok(result.questions.length>0);assert.ok(round<labTopics.length);
       for(const q of result.questions){assert.equal(seen.has(q.topicId),false,`${example.id}/${q.topicId}`);seen.add(q.topicId);value.entries.push(entry(q.topicId,'unknown'));}
     }
@@ -87,6 +87,27 @@ test('model confidence never skips missing discriminators or fabricates a finish
 test('a need for examination can end questioning without manufacturing a diagnosis',()=>{
   const result=buildLabResult(sample(),[],{patternIds:['kidneyEssenceDeficiency'],questions:[],disposition:'examination'},'ai');
   assert.equal(result.status,'needs_examination');assert.equal(result.questions.length,0);assert.ok(result.findings.every(f=>!f.supported));assert.equal(result.formulas.matches.length,0);
+});
+
+const characterizedHair=[entry('duration','months'),entry('onset','gradual'),entry('hairDistribution','diffuse'),entry('scalpCondition','normal'),entry('hairTrigger','none'),entry('hairFamily','no')];
+test('a characterized AI review does not exhaust unrelated standard questions or invent support',()=>{
+  const value=sample(characterizedHair),proposal={patternIds:['kidneyEssenceDeficiency'],questions:[],disposition:'review'} as const;
+  const result=buildLabResult(value,[],LabProposalSchema.parse(proposal),'ai');
+  assert.equal(result.status,'needs_examination');assert.equal(result.questions.length,0);assert.equal(result.completionReason,'ai_review');
+  assert.ok(result.findings.every(f=>!f.supported));assert.ok(result.unresolved.length>0);assert.equal(result.formulas.matches.length,0);
+  assert.ok(!planLabQuestions(value).questions.some(q=>q.topicId==='pain'));
+});
+test('supported AI review stops for therapist review while retaining unresolved alternatives',()=>{
+  const value=sample([...characterizedHair,entry('earlyGrey','yes'),entry('memoryChange','yes'),entry('tinnitus','yes')]);
+  const result=buildLabResult(value,[],{patternIds:['kidneyEssenceDeficiency'],questions:[],disposition:'review'},'ai');
+  assert.equal(result.status,'ready_for_review');assert.equal(result.questions.length,0);assert.ok(result.findings.some(f=>f.patternId==='kidneyEssenceDeficiency'&&f.supported));
+  assert.equal(result.formulas.matches.length,0);
+});
+test('fresh explicit discriminators remain available and take priority over broad local supporting topics',()=>{
+  const value=sample(characterizedHair);
+  const result=buildLabResult(value,[],{patternIds:['kidneyYangDeficiency'],questions:[{topicId:'coldLimbs',prompt:'Är dina händer eller fötter ofta kalla?',purpose:'differentiate',targetPatternIds:['kidneyYangDeficiency']}],disposition:'review'},'ai');
+  assert.equal(result.status,'continue');assert.equal(result.questions[0].topicId,'coldLimbs');assert.equal(result.questions.length,1);
+  assert.ok(result.questions.every(q=>!characterizedHair.some(e=>e.topicId===q.topicId)));
 });
 test('answered AI topics cannot repeat and an unsafe generated question uses the neutral template',()=>{
   const result=buildLabResult(sample([entry('onset','gradual')]),[],{patternIds:[],questions:[{topicId:'duration',prompt:'Ska du ta 5 mg tabletter?',purpose:'characterize',targetPatternIds:[]},{topicId:'onset',prompt:'Hur började besvären?',purpose:'characterize',targetPatternIds:[]}],disposition:'continue'},'ai');

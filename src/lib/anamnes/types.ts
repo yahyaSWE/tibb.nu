@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { extraQuestionIds, extraPatternIds } from './extended-vocabulary';
 
 // IDs are the only medical vocabulary the model may return. Public prose comes
 // from the reviewed-in-code question/pattern catalog, never from model output.
@@ -12,6 +13,7 @@ export const questionIds = [
   'nightSweats','hotPalms','dryMouth','tinnitus','backWeakness','urination','edema','heaviness',
   'painLocation','painCharacter','painWarmth','painMovement','weatherPain','jointWarmth','stiffness',
   'tongueColor','tongueShape','tongueCoating','tongueCracks','tongueTeeth','tongueMoisture','pulse','heatTiming','currentInfection',
+  ...extraQuestionIds,
 ] as const;
 export const QuestionIdSchema = z.enum(questionIds);
 export type QuestionId = z.infer<typeof QuestionIdSchema>;
@@ -25,6 +27,7 @@ export const patternIds = [
 ] as const;
 export const PatternIdSchema = z.enum(patternIds);
 export type PatternId = z.infer<typeof PatternIdSchema>;
+export const DifferentialPatternIdSchema=z.enum([...patternIds,...extraPatternIds]);
 export const AnswerMapSchema = z.partialRecord(QuestionIdSchema, z.string().min(1).max(60));
 export type AnswerMap = z.infer<typeof AnswerMapSchema>;
 export interface Question {
@@ -104,8 +107,16 @@ export const FormulaMatchSchema = z.object({
   referenceKind:z.enum(['assortment','special_order']).default('assortment'),
 }).strict();
 export type FormulaMatch = z.infer<typeof FormulaMatchSchema>;
+export const DifferentialSnapshotSchema=z.object({
+  version:z.string().max(80),status:z.enum(['continue','ready_for_review','needs_examination','outside_scope','user_stopped','safety_stop']),
+  completionReason:z.enum(['ai_review','question_plan']),
+  findings:z.array(z.object({id:DifferentialPatternIdSchema,name:z.string().max(200),supported:z.boolean(),
+    supporting:z.array(EvidenceSchema).max(60),opposing:z.array(EvidenceSchema).max(60),missingQuestionIds:z.array(QuestionIdSchema).max(120)}).strict()).max(8),
+  medicalNotes:z.array(z.string().max(1000)).max(20),
+}).strict();
 export const ReportSchema = z.object({
   version: z.literal(2), analysis: PatternAnalysisSchema, safety: SafetyAssessmentSchema, formulaMatches: z.array(FormulaMatchSchema).max(3),
+  differential:DifferentialSnapshotSchema.optional(),
   formulaExclusions: z.array(z.object({ formulaId: z.string().max(80), name: z.string().max(160), reasons: z.array(z.string().max(1000)).min(1).max(40) }).strict()).max(200).default([]),
   formulaStatus: z.enum(['matched','no_match','safety_blocked','insufficient','disabled']), formulaReferencesEnabled: z.boolean(), source: z.enum(['rules','ai']), followUpQuestionIds: z.array(QuestionIdSchema).max(5),
 }).strict();
@@ -155,6 +166,7 @@ export const AiInterviewSchema = z.object({ patternIds: z.array(PatternIdSchema)
 export type AiInterview = z.infer<typeof AiInterviewSchema>;
 export const InterviewResponseSchema = z.object({
   report: ReportSchema, questionIds: z.array(QuestionIdSchema).max(3), complete: z.boolean(), reason: z.enum(['continue','enough','exhausted','limit','fallback','safety']),
+  questionPrompts:z.partialRecord(QuestionIdSchema,z.string().min(5).max(260)).optional(),
   receipt: z.object({ expiresAt: z.iso.datetime(), signature: z.string().regex(/^[a-f0-9]{64}$/), aiConsentVersion: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
 }).strict();
 export type InterviewResponse = z.infer<typeof InterviewResponseSchema>;

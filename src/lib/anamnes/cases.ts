@@ -5,12 +5,11 @@ import { getDb, transaction } from "../database";
 import type { User } from "../types";
 import { anamnesAiConfig, anamnesRetentionDays, anamnesSubmissionsAvailable, anamnesSubmissionConsentVersion } from "./config";
 import { AnamnesError } from "./http";
-import { AnswerMapSchema, ConsultationDetailsSchema, MedicationNamesSchema, NarrativeSchema, PatternIdSchema, ReportSchema, emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type Report } from "./types";
+import { AnswerMapSchema, ConsultationDetailsSchema, MedicationNamesSchema, NarrativeSchema, DifferentialPatternIdSchema as PatternIdSchema, ReportSchema, emptyConsultationDetails, type AnswerMap, type ConsultationDetails, type Report } from "./types";
+import { buildVisitorDifferential } from './public-differential';
 import { validateAnswers } from "./questions";
-import { buildReport } from "./engine";
 import { getFormulaCatalogEntry, publicFormulaCatalog } from "./catalog";
 import { AnalysisReceiptSchema, verifyAnalysisReceipt } from "./ai";
-import { finalizeInterviewReport } from "./interview";
 import { normalizeConsultationDetails } from "./consultation";
 import { IntakeContactSchema as ContactSchema } from "../intake-contact";
 import { encryptIntake as encrypt, decryptIntake as decrypt } from "./secure-storage";
@@ -52,7 +51,7 @@ export async function submitAnamnes(input: unknown): Promise<{ reference: string
   // A partial unsigned intake must not become a stronger hypothesis merely
   // because the server recomputes it for storage. Signed originals and already
   // stored historical cases retain their original reports unchanged.
-  const report = value.report ?? ReportSchema.parse(finalizeInterviewReport(buildReport(answers, await publicFormulaCatalog(), { narrative: value.narrative, consultation: value.consultation, formulaReferencesEnabled: value.formulaReferencesEnabled }), answers));
+  const report = value.report ?? buildVisitorDifferential({...value,answers},await publicFormulaCatalog(),null,'local',true).report;
   const id = randomUUID();
   const createdAt = new Date().toISOString();
   const retentionDays = anamnesRetentionDays();

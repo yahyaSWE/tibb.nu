@@ -1,6 +1,6 @@
 # Differentialmodell: separat testläge
 
-Öppna **Admin → Anamnes → Modelltest**, `/admin/anamnes/modelltest`. Kräver admininloggning. Testet ändrar inte det publika formuläret, analysinställningen, AI-kvitton eller patientärenden. Endast fiktiva fall. Ingen testdata skrivs till ärendetabellerna; svar och granskningsanteckning finns i sidans minne tills du exporterar dem eller lämnar sidan.
+Öppna **Admin → Anamnes → Modelltest**, `/admin/anamnes/modelltest`. Kräver admininloggning. Samma frågemotor används nu i besökarnas ordinarie anamnes; se [publiceringsbeskrivningen](anamnes-public-differential.md). Ett adminexperiment ändrar inte den publika analysinställningen, AI-kvitton eller patientärenden. Endast fiktiva fall i modelltestet. Ingen testdata skrivs till ärendetabellerna; svar och granskningsanteckning finns i sidans minne tills du exporterar dem eller lämnar sidan.
 
 ## Genomför ett test
 

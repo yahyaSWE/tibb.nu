@@ -7,9 +7,17 @@ import { AnamnesTherapistOverview } from "../src/components/admin/anamnes-therap
 import { buildReport } from "../src/lib/anamnes/engine";
 import { formulaSeed } from "../src/lib/anamnes/catalog-seed";
 import { emptyConsultationDetails, type AnswerMap } from "../src/lib/anamnes/types";
+import { buildVisitorDifferential } from '../src/lib/anamnes/public-differential';
 
 const safety: AnswerMap = { adult: "yes", pregnancy: "no", medication: "no", chronicDisease: "no", liverKidney: "no", allergy: "no", emergency: "no", clinicalRedFlags: "no" };
 const energy: AnswerMap = { ...safety, focus: "energy", duration: "months", trend: "stable", priorAssessment: "yes", energy: "low", pallor: "yes", dizziness: "yes", weakVoice: "yes", exertion: "tired", tongueColor: "pale" };
+
+test('therapist overview renders the extended original assessment instead of an empty legacy headline',()=>{
+  const answers:AnswerMap={...safety,duration:'months',onset:'gradual',hairDistribution:'diffuse',scalpCondition:'normal',hairTrigger:'none',hairFamily:'no',earlyGrey:'yes',memoryChange:'yes',tinnitus:'yes'};
+  const {report}=buildVisitorDifferential({answers,narrative:'Fiktivt håravfall.',consultation:emptyConsultationDetails()},[],{patternIds:['kidneyEssenceDeficiency'],questions:[],disposition:'review'},'ai');
+  const html=renderToStaticMarkup(createElement(AnamnesTherapistOverview,{report,answers,narrative:'Fiktivt håravfall <script>ej kod</script>'}));
+  assert.match(html,/Njure-Jing/);assert.match(html,/Underbyggt enligt modellens regler/);assert.doesNotMatch(html,/<script>|klinisk precision [0-9]/);
+});
 
 test("therapist overview separates own history and goals from tentative machine evidence", () => {
   const consultation = { ...emptyConsultationDetails(), locations: "Syntetisk plats", intensity: 0, frequency: "daily" as const, dailyImpact: "Syntetisk påverkan", goal: "Ett påhittat mål", previousCare: "Tidigare påhittad utredning", lifestyle: "Syntetisk vardag" };

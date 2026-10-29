@@ -23,6 +23,19 @@ export function formatAnamnesSummary(report: Report, answers: AnswerMap, narrati
   lines.push("", "SÄKERHET", ...report.safety.flags);
   if (report.safety.level === "emergency") {
     lines.push("Avbryt och sök vård. Ring 112 vid ett akut nödläge.");
+  } else if(report.differential) {
+    lines.push('', 'MODELL', report.differential.version, '', 'PRELIMINÄRA TCM-MÖNSTER');
+    if(!report.differential.findings.some(f=>f.supported))lines.push('Ingen tillräckligt underbyggd huvudförklaring. Terapeutens bedömning behövs.');
+    for(const finding of report.differential.findings)lines.push(`${finding.name} – ${finding.supported?'underbyggt enligt modellens regler':'öppen hypotes'}`,
+      `För: ${finding.supporting.map(e=>e.label).join('; ')||'Underlag saknas'}`,`Emot: ${finding.opposing.map(e=>e.label).join('; ')||'Inga motfynd har fångats'}`,
+      `Behöver klargöras: ${finding.missingQuestionIds.map(id=>questionById.get(id)?.prompt).join('; ')||'Inga ytterligare kärnfrågor anges av modellen'}`);
+    lines.push(...report.differential.medicalNotes,'','FORMELREFERENSER');
+    if(!report.formulaMatches.length)lines.push(report.formulaStatus==='no_match'?'Ingen aktiv katalogformel passar tillräckligt väl.':'Ingen formelreferens kan väljas från detta underlag.');
+    for(const [i,formula] of report.formulaMatches.entries())lines.push(`${i+1}. ${formula.name}${formula.referenceKind==='special_order'?' – specialbeställningsreferens':''}${formula.partial?' – delvis överensstämmelse':''}`,
+      `För: ${formula.supporting.map(e=>e.label).join('; ')||'Underlag saknas'}`,`Emot: ${formula.opposing.map(e=>e.label).join('; ')||'Inga motfynd har fångats'}`,
+      `Behöver klargöras: ${formula.missingQuestionIds.map(id=>questionById.get(id)?.prompt).join('; ')||'Inga ytterligare katalogvillkor anges'}`,formula.limitation,...formula.verificationNotes,...formula.safetyNotes);
+    for(const excluded of report.formulaExclusions)lines.push(`UTESLUTEN REFERENS: ${excluded.name}`,...excluded.reasons);
+    lines.push('Terapeuten behöver bekräfta mönsterbedömningen och kontrollera innehåll, interaktioner och kontraindikationer före eventuellt örtval.');
   } else {
     const explanation = explainAnamnesReport(report, answers);
     lines.push("", "PRELIMINÄR TCM-INRIKTNING", explanation.direction.heading, explanation.direction.body,

@@ -5,16 +5,61 @@
   --home-sage: #e4ebdf;
   --home-cream: #f8f5ee;
   --home-peach: #e8bea1;
-}
-
-.home-page {
+  --home-visit-space: 48px;
+  --home-visit-gap: 32px;
+  --home-type-body: 1rem;
+  --home-type-lead: 1.125rem;
+  --home-type-action: 0.875rem;
+  --home-type-meta: 0.75rem;
+  --home-type-section: clamp(2.25rem, 3.75vw, 3.0625rem);
+  --home-type-card: clamp(1.75rem, 2.6vw, 2.125rem);
+  font-size: var(--home-type-body);
+  line-height: 1.7;
   --green: var(--home-forest);
   --deep: var(--home-deep);
   --ink: #294336;
-  --muted: #61705f;
+  --muted: #556450;
   --line: #d4dfcc;
-  --olive: #587453;
+  --olive: #50694a;
   background: var(--home-cream);
+}
+
+.home-page :is(h1, h2, h3) {
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.home-page p {
+  text-wrap: pretty;
+}
+
+.home-page .text-link {
+  min-height: 44px;
+  max-width: 100%;
+  font-size: var(--home-type-action);
+  line-height: 1.5;
+}
+
+.home-page a.text-link:is(:hover, :focus-visible) {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+
+.home-page :is(.path-card, .home-course, .home-article):focus-visible {
+  outline: 3px solid var(--home-forest);
+  outline-offset: 6px;
+}
+
+.home-page .path-card:is(:hover, :focus-visible) .path-card-bottom,
+.home-page :is(.home-course, .home-article):is(:hover, :focus-visible) .text-link {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+
+.home-page .eyebrow,
+.home-page .badge {
+  font-size: var(--home-type-meta);
+  line-height: 1.5;
 }
 
 .home-page .home-hero-section :focus-visible,
@@ -49,15 +94,17 @@
 .home-page .hero-copy h1 {
   margin-top: 0;
   color: var(--home-cream);
-  font-size: clamp(54px, 5.65vw, 80px);
-  line-height: 1.02;
-  letter-spacing: -1.9px;
+  font-size: clamp(3rem, 5.65vw, 5rem);
+  line-height: 1.06;
+  letter-spacing: -0.025em;
   max-width: 580px;
 }
 
 .home-page .hero-intro {
   color: #edf0e5;
-  font-size: 17px;
+  font-size: var(--home-type-lead);
+  font-weight: 450;
+  letter-spacing: 0.005em;
   line-height: 1.7;
   max-width: 400px;
   margin-top: 27px;
@@ -65,13 +112,16 @@
 
 .home-page .hero-description {
   color: #d1ddcf;
-  font-size: 14px;
-  line-height: 1.85;
+  font-size: var(--home-type-body);
+  font-weight: 450;
+  line-height: 1.75;
+  letter-spacing: 0.005em;
   max-width: 390px;
   margin-top: 15px;
 }
 
 .home-page .hero-actions {
+  flex-wrap: wrap;
   gap: 26px;
   margin-top: 32px;
 }
@@ -81,7 +131,8 @@
   background: var(--home-peach);
   color: var(--home-deep);
   border-radius: 50px;
-  font-size: 13px;
+  font-size: var(--home-type-action);
+  line-height: 1.5;
   padding: 15px 23px;
   min-height: 51px;
 }
@@ -93,7 +144,6 @@
 
 .home-page .hero-actions .text-link {
   color: var(--home-cream);
-  font-size: 13px;
 }
 
 .home-page .hero-image-stage {
@@ -147,16 +197,56 @@
   object-position: 65% 50%;
 }
 
+.home-page .home-visit-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: var(--home-visit-space);
+  padding-block: var(--home-visit-space);
+  border-bottom: 1px solid var(--line);
+}
+
+.home-page .home-visit-section > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.home-page .home-visit-section h2 {
+  color: var(--ink);
+  font-size: 2.25rem;
+  line-height: 1.15;
+}
+
+.home-page .home-visit-section p {
+  max-width: 56ch;
+  font-size: var(--home-type-body);
+  line-height: 1.75;
+}
+
+.home-page .home-visit-section .text-link {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+
+.home-page .home-visit-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px var(--home-visit-gap);
+}
+
 .home-page .paths-section {
-  padding-block: 76px 84px;
+  padding-block: var(--home-visit-space) 84px;
 }
 
 .home-page .section-heading h2 {
-  font-size: clamp(38px, 3.75vw, 49px);
+  font-size: var(--home-type-section);
+  line-height: 1.12;
 }
 
 .home-page .section-heading > p {
-  font-size: 14px;
+  font-size: var(--home-type-body);
 }
 
 .home-page .path-card {
@@ -166,6 +256,7 @@
   border-radius: 22px;
   padding: 32px 30px 25px;
   background: var(--home-sage);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .home-page .path-card:nth-child(1) {
@@ -178,14 +269,8 @@
 }
 
 .home-page .path-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 30px #29433610;
-}
-
-.home-page .path-number {
-  font-family: var(--serif);
-  font-size: 25px;
-  color: #799177;
+  transform: none;
+  box-shadow: none;
 }
 
 .home-page .path-icon {
@@ -197,29 +282,27 @@
 }
 
 .home-page .path-card h3 {
-  font-size: 33px;
+  font-size: var(--home-type-card);
+  line-height: 1.15;
 }
 
 .home-page .path-card > p {
-  font-size: 13px;
-  line-height: 1.85;
+  font-size: var(--home-type-body);
+  line-height: 1.7;
   min-height: 72px;
   margin-bottom: 25px;
 }
 
 .home-page .path-card-bottom {
   color: var(--home-forest);
-  font-size: 11px;
+  font-size: var(--home-type-action);
+  line-height: 1.5;
   margin-top: auto;
 }
 
 .home-page .path-card:nth-child(1) > p,
 .home-page .path-card:nth-child(1) .path-card-bottom {
   color: #e5ede0;
-}
-
-.home-page .path-card:nth-child(1) .path-number {
-  color: #c1d2b6;
 }
 
 .home-page .path-card:nth-child(1) .path-icon {
@@ -242,26 +325,25 @@
 }
 
 .home-page .philosophy-inner h2 {
-  font-size: clamp(37px, 3.8vw, 51px);
+  font-size: var(--home-type-section);
 }
 
 .home-page .philosophy-inner h2 em {
   color: #e8cfb4;
 }
 
-.home-page .philosophy-section .eyebrow {
-  color: #d8e2cd;
-}
-
 .home-page .philosophy-copy > p {
   color: #e1e9dc;
-  font-size: 14px;
-  max-width: 420px;
+  font-size: var(--home-type-body);
+  font-weight: 450;
+  line-height: 1.75;
+  letter-spacing: 0.005em;
+  max-width: 56ch;
 }
 
 .home-page .philosophy-copy .text-link {
   color: var(--home-peach);
-  font-size: 13px;
+  font-size: var(--home-type-action);
 }
 
 .home-page .botanical-motif {
@@ -270,15 +352,26 @@
   opacity: 0.13;
 }
 
-.home-page .home-learning-section .empty-state {
-  background: var(--home-sage);
-  border: 0;
-  border-radius: 22px;
-  padding: 38px 24px;
+.home-page .home-content-empty {
+  padding-block: 32px;
 }
 
-.home-page .home-learning-section .empty-state h3 {
-  font-size: 32px;
+.home-page .home-content-note {
+  display: grid;
+  gap: 12px;
+}
+
+.home-page .home-content-empty h2 {
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.home-page .home-content-empty .section-heading {
+  margin-bottom: 12px;
+}
+
+.home-page .home-content-empty .section-heading h2 {
+  margin-top: 0;
 }
 
 .home-page .home-course {
@@ -287,15 +380,53 @@
   background: #fffdf7;
 }
 
+.home-page .home-course-copy,
+.home-page .home-article {
+  min-width: 0;
+}
+
+.home-page .home-course h3,
+.home-page .home-article h3 {
+  font-size: var(--home-type-card);
+  line-height: 1.15;
+}
+
+.home-page .home-course p,
+.home-page .home-article > p {
+  font-size: var(--home-type-body);
+  line-height: 1.7;
+  max-width: 65ch;
+}
+
+.home-page .home-course .text-link,
+.home-page .home-article .text-link {
+  font-size: var(--home-type-action);
+}
+
+.home-page .home-course-art {
+  color: var(--muted);
+}
+
+.home-page .course-tone-1 .home-course-art {
+  color: #665b43;
+}
+
+.home-page .home-course-art .eyebrow {
+  font-size: var(--home-type-meta);
+  letter-spacing: 0.08em;
+}
+
+.home-page .course-art-bottom {
+  font-size: var(--home-type-meta);
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-wrap: balance;
+}
+
 .home-page .articles-section {
   background: var(--home-sage);
   border: 0;
-}
-
-.home-page .articles-section .empty-state {
-  background: #f8f5eea3;
-  border: 0;
-  border-radius: 18px;
 }
 
 .home-page .visit-cta {
@@ -304,20 +435,29 @@
   color: var(--home-cream);
   border-radius: 28px;
   padding: 43px 48px;
-  margin-block: 70px;
-}
-
-.home-page .visit-cta .eyebrow {
-  color: #d3dec6;
+  margin-block: 48px;
 }
 
 .home-page .visit-cta h2 {
-  font-size: 48px;
+  font-size: var(--home-type-section);
+  line-height: 1.12;
+  margin-top: 0;
 }
 
 .home-page .visit-cta p {
   color: #dce5d6;
-  font-size: 13px;
+  font-size: var(--home-type-body);
+  font-weight: 450;
+  line-height: 1.75;
+  letter-spacing: 0.005em;
+  max-width: 56ch;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .home-page .path-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px #29433610;
+  }
 }
 
 @media (max-width: 1000px) {
@@ -328,7 +468,7 @@
   }
 
   .home-page .hero-copy h1 {
-    font-size: clamp(48px, 6vw, 63px);
+    font-size: clamp(3rem, 6vw, 3.9375rem);
   }
 
   .home-page .hero-image-wrap {
@@ -343,28 +483,21 @@
     padding: 28px 24px 23px;
   }
 
-  .home-page .path-card h3 {
-    font-size: 29px;
-  }
 }
 
 @media (max-width: 850px) {
+  .home-page .home-visit-section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--home-visit-gap);
+  }
+
   .home-page .home-hero {
     min-height: 540px;
     padding-block: 40px 60px;
   }
 
   .home-page .hero-copy h1 {
-    font-size: 49px;
-    letter-spacing: -1.4px;
-  }
-
-  .home-page .hero-intro {
-    font-size: 15px;
-  }
-
-  .home-page .hero-description {
-    font-size: 13px;
+    font-size: clamp(2.75rem, 6vw, 3.125rem);
   }
 
   .home-page .hero-actions {
@@ -384,16 +517,17 @@
     padding: 25px 21px;
   }
 
-  .home-page .path-card h3 {
-    font-size: 28px;
-  }
-
   .home-page .visit-cta {
     padding: 36px 32px;
   }
 }
 
 @media (max-width: 650px) {
+  .home-page {
+    --home-visit-space: 40px;
+    --home-visit-gap: 24px;
+    --home-type-card: 2rem;
+  }
 
   .home-page .home-hero {
     grid-template-columns: 1fr;
@@ -403,19 +537,16 @@
   }
 
   .home-page .hero-copy h1 {
-    font-size: clamp(43px, 11.6vw, 62px);
+    font-size: clamp(2.75rem, 11.6vw, 3.875rem);
     max-width: 440px;
-    line-height: 1.04;
   }
 
   .home-page .hero-intro {
-    font-size: 15px;
     margin-top: 22px;
     max-width: 340px;
   }
 
   .home-page .hero-description {
-    font-size: 13px;
     max-width: 340px;
   }
 
@@ -427,11 +558,6 @@
 
   .home-page .hero-actions .button {
     padding: 13px 18px;
-    font-size: 12px;
-  }
-
-  .home-page .hero-actions .text-link {
-    font-size: 12px;
   }
 
   .home-page .hero-image-stage {
@@ -459,7 +585,7 @@
   }
 
   .home-page .paths-section {
-    padding-block: 50px 55px;
+    padding-block: var(--home-visit-space) 55px;
   }
 
   .home-page .paths-grid {
@@ -469,10 +595,6 @@
   .home-page .path-card {
     border-radius: 20px;
     padding: 27px;
-  }
-
-  .home-page .path-card h3 {
-    font-size: 33px;
   }
 
   .home-page .path-card > p {
@@ -485,16 +607,21 @@
     gap: 27px;
   }
 
-  .home-page .philosophy-inner h2 {
-    font-size: 39px;
+  .home-page .home-course {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .home-page .section-heading h2 {
-    font-size: 38px;
+  .home-page .home-course-art {
+    min-height: 180px;
+    gap: 16px;
   }
 
   .home-page .section {
     padding-block: 52px;
+  }
+
+  .home-page .home-content-empty {
+    padding-block: 32px;
   }
 
   .home-page .visit-cta {
@@ -504,13 +631,8 @@
     gap: 24px;
   }
 
-  .home-page .visit-cta h2 {
-    font-size: 40px;
-  }
-
   .home-page .visit-cta .button {
     align-self: flex-start;
-    font-size: 12px;
     padding-inline: 20px;
   }
 

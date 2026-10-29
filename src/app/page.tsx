@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
-  CalendarDays,
   Leaf,
   MoveUpRight,
   Sprout,
@@ -55,8 +54,8 @@ export default async function HomePage() {
               <Link href="/boka" className="button button-primary">
                 Boka en behandling <ArrowUpRight size={18} />
               </Link>
-              <Link href="/kurser" className="text-link">
-                Utforska våra kurser <ArrowRight size={17} />
+              <Link href={courses.length ? "/kurser" : "/om"} className="text-link">
+                {courses.length ? "Utforska våra kurser" : "Läs mer om Tibb.nu"} <ArrowRight size={17} />
               </Link>
             </div>
           </div>
@@ -74,6 +73,36 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+      <section
+        className="home-visit-section container"
+        aria-labelledby="home-practitioner-title home-visit-title"
+      >
+        <div className="home-practitioner">
+          <h2 id="home-practitioner-title">Johan Yahya Blomdahl</h2>
+          <p>
+            Utbildad akupunktör och terapeut inom islamisk medicin.
+            Verksam i Jönköping.
+          </p>
+          <Link href="/om" className="text-link">
+            Bakgrund och utbildningar <ArrowRight size={18} />
+          </Link>
+        </div>
+        <div className="home-visit-details">
+          <h2 id="home-visit-title">Inför ditt besök</h2>
+          <p>
+            Välj behandling och behandlare, sedan ett ledigt datum och en tid.
+            Pris och behandlingens längd visas innan du bekräftar bokningen.
+          </p>
+          <div className="home-visit-links">
+            <Link href="/vanliga-fragor" className="text-link">
+              Vanliga frågor <ArrowRight size={18} />
+            </Link>
+            <Link href="/kontakt" className="text-link">
+              Kontakta oss <ArrowRight size={18} />
+            </Link>
+          </div>
+        </div>
+      </section>
       <section className="section container paths-section">
         <div className="section-heading">
           <div>
@@ -82,7 +111,6 @@ export default async function HomePage() {
         </div>
         <div className="paths-grid">
           <Link href="/boka" className="path-card">
-            <span className="path-number">01</span>
             <span className="path-icon">
               <Leaf size={26} strokeWidth={1.2} />
             </span>
@@ -99,7 +127,6 @@ export default async function HomePage() {
             </span>
           </Link>
           <Link href="/kurser" className="path-card">
-            <span className="path-number">02</span>
             <span className="path-icon">
               <BookOpen size={26} strokeWidth={1.2} />
             </span>
@@ -109,22 +136,21 @@ export default async function HomePage() {
               reflektioner och material i elevportalen.
             </p>
             <span className="path-card-bottom">
-              Upptäck våra kurser
+              {courses.length ? "Upptäck våra kurser" : "Nya kurser är på väg"}
               <MoveUpRight size={20} />
             </span>
           </Link>
           <Link href="/artiklar" className="path-card">
-            <span className="path-number">03</span>
             <span className="path-icon">
               <Sprout size={26} strokeWidth={1.2} />
             </span>
             <h3>Kunskap & inspiration</h3>
             <p>
-              Perspektiv på tradition, vardag och eftertanke. Ta del av våra
-              senaste artiklar.
+              Perspektiv på tradition, vardag och eftertanke.
+              {articles.length > 0 && " Ta del av våra senaste artiklar."}
             </p>
             <span className="path-card-bottom">
-              Läs och reflektera
+              {articles.length ? "Läs och reflektera" : "Artiklar är på väg"}
               <MoveUpRight size={20} />
             </span>
           </Link>
@@ -164,15 +190,17 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-      <section className="section container home-learning-section">
-        <div className="section-heading">
-          <div>
-            <h2>Lärande som får växa.</h2>
+      <section className={`section container home-learning-section${courses.length ? "" : " home-content-empty"}`}>
+        {courses.length > 0 && (
+          <div className="section-heading">
+            <div>
+              <h2>Lärande som får växa</h2>
+            </div>
+            <Link href="/kurser" className="text-link">
+              Alla kurser <ArrowRight size={18} />
+            </Link>
           </div>
-          <Link href="/kurser" className="text-link">
-            Alla kurser <ArrowRight size={18} />
-          </Link>
-        </div>
+        )}
         {courses.length ? (
           <div className="home-courses-grid">
             {courses.map((course, index) => (
@@ -204,22 +232,23 @@ export default async function HomePage() {
             ))}
           </div>
         ) : (
-          <div className="empty-state">
-            <BookOpen />
-            <h3>Nya kurser är på väg.</h3>
+          <div className="home-content-note">
+            <h2>Nya kurser är på väg</h2>
             <p>Här hittar du kurserna när de är publicerade.</p>
           </div>
         )}
       </section>
-      <section className="articles-section section">
+      <section className={`articles-section section${articles.length ? "" : " home-content-empty"}`}>
         <div className="container">
           <div className="section-heading">
             <div>
-              <h2>Från vår kunskapsbank.</h2>
+              <h2>Från vår kunskapsbank</h2>
             </div>
-            <Link href="/artiklar" className="text-link">
-              Alla artiklar <ArrowRight size={18} />
-            </Link>
+            {articles.length > 0 && (
+              <Link href="/artiklar" className="text-link">
+                Alla artiklar <ArrowRight size={18} />
+              </Link>
+            )}
           </div>
           <div className="home-articles-grid">
             {articles.map((article, index) => (
@@ -239,7 +268,6 @@ export default async function HomePage() {
                     )}
                   </span>
                 </div>
-                <span className="eyebrow">{"Kunskap & reflektion"}</span>
                 <h3>{article.title}</h3>
                 <p>{article.excerpt}</p>
                 <span className="text-link">
@@ -249,26 +277,17 @@ export default async function HomePage() {
             ))}
           </div>
           {!articles.length && (
-            <p className="empty-state">Artiklar publiceras här inom kort.</p>
+            <p>Artiklar publiceras här inom kort.</p>
           )}
         </div>
       </section>
-      <section className="section container">
-        <div className="section-heading">
-          <div><h2>Inför ditt besök</h2></div>
-          <Link href="/vanliga-fragor" className="text-link">Vanliga frågor <ArrowRight size={18} /></Link>
-        </div>
-        <p>Välj behandling och behandlare, sedan ett ledigt datum och en tid. Pris och behandlingens längd visas innan du bekräftar bokningen.</p>
-        <p>Läs om <Link href="/om">Johan Yahya Blomdahls bakgrund och utbildningar</Link> eller <Link href="/kontakt">kontakta oss</Link> om du har frågor inför ditt besök i Jönköping.</p>
-      </section>
       <section className="visit-cta container">
         <div>
-          <span className="eyebrow">ETT FÖRSTA STEG</span>
           <h2>Boka behandling</h2>
           <p>Se våra behandlingar och hitta en tid för ett personligt möte.</p>
         </div>
         <Link href="/boka" className="button button-primary">
-          <CalendarDays size={18} /> Hitta din tid <ArrowUpRight size={18} />
+          Boka en behandling <ArrowUpRight size={18} />
         </Link>
       </section>
     </div>

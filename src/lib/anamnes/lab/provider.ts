@@ -23,6 +23,10 @@ Prioritera högst tre nästa frågor som kan ändra differentialen. questionPlan
 Ingen klinisk frågegräns eller omgångsräknare finns. Välj review endast när relevanta skillnader är genomgångna, examination när mer chatt inte kan ersätta undersökning, outside_scope om biblioteket saknar relevanta profiler. Tvinga inte fram ett mönster. Puls, palpation, medicinska prover och behandlarens egen undersökning kan inte fabriceras. Inga doser, ordinationer, läkemedelsändringar, produkter, köp, länkar eller örtformler får föreslås. Sortimentet tillförs först efter oberoende mönsteranalys. Följ JSON-schemat exakt.`;
 
 const Envelope=z.object({status:z.literal('completed'),output:z.array(z.object({type:z.string(),role:z.string().optional(),content:z.array(z.object({type:z.string(),text:z.string().optional()}).passthrough()).optional()}).passthrough()).max(20)}).passthrough();
+// Some compatible gateways do not enforce maxItems. Validate every proposed
+// question against the same known vocabulary before selecting a small batch.
+// The outbound schema and the public contract still request at most three.
+const WireProposal=LabProposalSchema.extend({questions:z.array(LabProposalSchema.shape.questions.element).max(labTopics.length)});
 type LabFailureCode='upstream_http'|'timeout'|'network'|'invalid_response'|'incomplete_response'|'refusal'|'missing_output'|'invalid_json'|'invalid_schema';
 type ContractIssue={field:string;issue:string};
 function contractIssues(error:z.ZodError):ContractIssue[] {
@@ -95,9 +99,13 @@ export async function requestLabProposal(value:LabCase) {
     const fenced=/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(text);
     let parsed:unknown;
     try {parsed=JSON.parse(fenced?fenced[1]:text);}catch{labFailure('invalid_json');}
-    const proposal=LabProposalSchema.safeParse(parsed);
+    const proposal=WireProposal.safeParse(parsed);
     if(!proposal.success)labFailure('invalid_schema',undefined,contractIssues(proposal.error));
-    return proposal.data;
+    const seen=new Set<string>();
+    return LabProposalSchema.parse({...proposal.data,questions:proposal.data.questions.filter(q=>{
+      if(seen.has(q.topicId))return false;
+      seen.add(q.topicId);return true;
+    }).slice(0,3)});
   } catch(error) {
     if(error instanceof AnamnesError)throw error;
     if(error instanceof Error&&['TimeoutError','AbortError'].includes(error.name))labFailure('timeout');

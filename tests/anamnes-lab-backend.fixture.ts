@@ -65,7 +65,7 @@ test('complete fenced JSON is accepted, but invalid contracts and unfinished out
     [envelope({...valid,dose:'secret-do-not-leak'}),'INVALID_SCHEMA'],
     [envelope({...valid,patternIds:['invented']}),'INVALID_SCHEMA'],
     [envelope({...valid,questions:[{...valid.questions[0],topicId:'pulse'}]}),'INVALID_SCHEMA'],
-    [envelope({...valid,questions:Array(4).fill(valid.questions[0])}),'INVALID_SCHEMA'],
+    [envelope({...valid,questions:[...Array(3).fill(valid.questions[0]),{...valid.questions[0],topicId:'invented-secret-do-not-leak'}]}),'INVALID_SCHEMA'],
     [{status:'completed',output:[{type:'message',role:'assistant',content:[{type:'refusal',text:'secret-do-not-leak'}]}]},'REFUSAL'],
     [{status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'Here is secret-do-not-leak '+JSON.stringify(valid)}]}]},'INVALID_JSON'],
     [{status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'```json\n'+JSON.stringify(valid).slice(0,-1)+'\n```'}]}]},'INVALID_JSON'],
@@ -74,6 +74,19 @@ test('complete fenced JSON is accepted, but invalid contracts and unfinished out
     globalThis.fetch=async()=>Response.json(reply);
     await assert.rejects(requestLabProposal(value()),e=>e instanceof Error&&!/secret-do-not-leak|fixture-secret/.test(e.message)&&e.message.includes(`LAB_${code}`));
   }
+});
+test('excess valid questions are validated before selecting three unique topics; outbound cap stays three',async()=>{
+  const questions=['duration','onset','hairDistribution','earlyGrey'].map(topicId=>({...valid.questions[0],topicId}));
+  globalThis.fetch=async(_url,init)=>{
+    const request=JSON.parse(String(init?.body));
+    assert.equal(request.text.format.schema.properties.questions.maxItems,3);
+    return Response.json(envelope({...valid,questions:[questions[0],...questions]}));
+  };
+  assert.deepEqual((await requestLabProposal(value())).questions,questions.slice(0,3));
+  globalThis.fetch=async()=>Response.json(envelope({...valid,questions:[...questions,{...questions[0],dose:'secret-do-not-leak'}]}));
+  await assert.rejects(requestLabProposal(value()),/LAB_INVALID_SCHEMA/);
+  globalThis.fetch=async()=>Response.json(envelope({...valid,questions:Array(1000).fill(questions[0])}));
+  await assert.rejects(requestLabProposal(value()),/LAB_INVALID_RESPONSE|LAB_INVALID_SCHEMA/);
 });
 test('HTTP failures identify actionable categories without echoing upstream bodies or retrying',async()=>{
   for(const status of [400,401,402,403,404,422,429,500,502,503]){

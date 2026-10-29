@@ -48,6 +48,10 @@ Admin får en fast `LAB_*`-felkod som skiljer åt HTTP-avslag, anslutningsfel, t
 
 Serverloggen använder endast händelsen `anamnes_lab_ai_unavailable`, en fast felkategori, eventuell HTTP-status och vid schemafel högst tre fördefinierade kontraktsfält/feltyper. Samma fältkontroll kan visas i admin. Den innehåller inga formulärsvar, råa leverantörsfel, modellutdata eller nycklar. Ingen automatisk omkörning görs som kan dra ytterligare krediter. Ett fullständigt JSON-objekt inuti ett kodblock accepteras som formatvariation; extra text, okända ID:n, extra nycklar och avbrutna svar avvisas fortfarande.
 
+En kompatibel leverantör kan returnera fler än tre frågor trots schemats `maxItems:3`. Inkommande frågor valideras därför i en begränsad lista innan högst tre unika frågor väljs i modellens ordning. Även förslag efter den tredje platsen måste ha giltiga ämnen, målprofiler och fält. En okänd fråga eller otillåten extra nyckel får inte gömmas genom att listan kapas före valideringen. Detta ändrar endast antalet frågor som tas emot tekniskt; tre frågor visas fortfarande per omgång.
+
+Vid separat felsökning i produktion 2026-10-29 startade ett helt fiktivt hårfall korrekt med Claude Sonnet 5. Nästa omgång fick ett slutfört HTTP 200-svar hos OpenRouter men avvisades lokalt. Den nya diagnostiken identifierade `questions/too_big`, alltså fler än tre föreslagna frågor. Regressionstestet återskapar denna formatavvikelse och kontrollerar även att okända ämnen och extra fält efter tredje frågan fortfarande avvisas. Detta är teknisk felsökning, ingen klinisk validering. Ingen I/O-loggning aktiverades hos leverantören.
+
 Ingen extern AI används i automatiska tester. Backendtester använder en isolerad SQLite-databas och en mockad leverantör; lokal webbläsarverifiering ska använda samma isolerade testmiljö.
 
 ## Teknisk verifiering 2026-10-29

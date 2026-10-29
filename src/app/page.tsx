@@ -74,36 +74,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-      <section
-        className="home-visit-section container"
-        aria-labelledby="home-practitioner-title home-visit-title"
-      >
-        <div className="home-practitioner">
-          <h2 id="home-practitioner-title">Johan Yahya Blomdahl</h2>
-          <p>
-            Utbildad akupunktör och terapeut inom islamisk medicin.
-            Verksam i Jönköping.
-          </p>
-          <Link href="/om" className="text-link">
-            Bakgrund och utbildningar <ArrowRight size={18} />
-          </Link>
-        </div>
-        <div className="home-visit-details">
-          <h2 id="home-visit-title">Inför ditt besök</h2>
-          <p>
-            Välj behandling och behandlare, sedan ett ledigt datum och en tid.
-            Pris och behandlingens längd visas innan du bekräftar bokningen.
-          </p>
-          <div className="home-visit-links">
-            <Link href="/vanliga-fragor" className="text-link">
-              Vanliga frågor <ArrowRight size={18} />
-            </Link>
-            <Link href="/kontakt" className="text-link">
-              Kontakta oss <ArrowRight size={18} />
-            </Link>
-          </div>
-        </div>
-      </section>
       <section className="section container paths-section">
         <div className="section-heading">
           <div>
@@ -282,6 +252,14 @@ export default async function HomePage() {
             <p className="empty-state">Artiklar publiceras här inom kort.</p>
           )}
         </div>
+      </section>
+      <section className="section container">
+        <div className="section-heading">
+          <div><h2>Inför ditt besök</h2></div>
+          <Link href="/vanliga-fragor" className="text-link">Vanliga frågor <ArrowRight size={18} /></Link>
+        </div>
+        <p>Välj behandling och behandlare, sedan ett ledigt datum och en tid. Pris och behandlingens längd visas innan du bekräftar bokningen.</p>
+        <p>Läs om <Link href="/om">Johan Yahya Blomdahls bakgrund och utbildningar</Link> eller <Link href="/kontakt">kontakta oss</Link> om du har frågor inför ditt besök i Jönköping.</p>
       </section>
       <section className="visit-cta container">
         <div>

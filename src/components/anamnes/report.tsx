@@ -3,6 +3,7 @@ import type { AnswerMap, ConsultationDetails, Evidence, PatternFinding, Question
 import { consultationDetailRows, hasAiConsultationDetails } from "@/lib/anamnes/consultation";
 import { explainAnamnesReport } from "@/lib/anamnes/report-explanation";
 import { canAnalyzePatterns, medicationReviewNotice } from "@/lib/anamnes/engine";
+import type { ReactNode } from "react";
 import styles from "./tcm-anamnes.module.css";
 
 function EvidenceList({ evidence, empty }: { evidence: Evidence[]; empty: string }) {
@@ -25,7 +26,7 @@ function PatternCard({ finding, label }: { finding: PatternFinding; label: strin
   </article>;
 }
 
-export function AnamnesReport({ report, answers, medicationNames = "", consultation, showAnswers = true }: { report: Report; answers: AnswerMap; medicationNames?: string; consultation?: ConsultationDetails; showAnswers?: boolean }) {
+export function AnamnesReport({ report, answers, medicationNames = "", consultation, showAnswers = true, beforeAnalysis }: { report: Report; answers: AnswerMap; medicationNames?: string; consultation?: ConsultationDetails; showAnswers?: boolean; beforeAnalysis?: ReactNode }) {
   const { analysis, safety } = report;
   const candidates = analysis.status === "insufficient" ? [] : analysis.primary ? [analysis.primary, ...analysis.secondary] : analysis.patterns.filter(pattern => pattern.qualified).slice(0, 3);
   const blocked = safety.blocksFormulas;
@@ -49,6 +50,7 @@ export function AnamnesReport({ report, answers, medicationNames = "", consultat
     </div>}
 
     {safety.level !== "emergency" && <>
+      {beforeAnalysis}
       {canAnalyzePatterns(safety) && <section className={styles.directionCard} aria-labelledby="anamnes-direction-title">
         <h3 id="anamnes-direction-title">{explanation.direction.heading}</h3>
         {explanation.direction.status !== "preliminary" && <p>{explanation.direction.body}</p>}

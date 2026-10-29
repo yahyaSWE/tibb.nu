@@ -93,21 +93,22 @@ export default async function PrivacyPage() {
         server och kopplas inte till ditt elevkonto. Du kan ta bort dem genom att rensa
         webbplatsens data i webbläsaren. När du gör om testet ersätts tidigare svar.
       </p>
-      <h2>Frivilligt lokalt utkast till anamnesen</h2>
+      <h2>Automatiskt lokalt utkast till anamnesen</h2>
       <p>
-        I anamnesen kan du själv välja ”Spara mitt utkast på den här enheten”.
+        Dina framsteg i anamnesen sparas automatiskt i den här webbläsaren.
         Berättelsen, kompletteringar, läkemedelsnamn, formulärsvar och platsen i
-        frågeflödet sparas då krypterat i webbläsarens lokala lagring. Det här är
+        frågeflödet sparas krypterat i webbläsarens lokala lagring. Det här är
         hälsouppgifter. Andra som använder samma webbläsarprofil kan också välja
-        att återuppta utkastet. Använd därför sparandet på din egen enhet.
+        att återuppta utkastet.
       </p>
       <p>
         Utkastet kan återupptas i 24 timmar efter senaste sparningen. Utgångna
         utkast spärras och rensas när sidan öppnas igen, eller när tidsgränsen
         nås medan sidan är öppen. Du kan när som helst radera det via formuläret
         eller genom att rensa webbplatsens data. ”Rensa svar och börja om” tar
-        också bort utkastet. När sparandet är aktivt rensar ett mottaget inskick
-        till behandlaren det aktuella lokala utkastet.
+        också bort utkastet. Efter radering börjar sparandet igen när du ändrar
+        svaren. Ett mottaget inskick till behandlaren rensar det aktuella lokala
+        utkastet och avslutar sparandet för den inskickade anamnesen.
       </p>
       <p>
         Utkastet skickas inte till oss och kopplas inte till ett konto.

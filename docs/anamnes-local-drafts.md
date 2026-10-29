@@ -1,6 +1,6 @@
-# Frivilliga lokala utkast
+# Automatiska lokala utkast
 
-Besökaren kan välja ”Spara mitt utkast på den här enheten”. Valet är från början avstängt. Ett sparat utkast ger vid återkomst en knapp för att fortsätta på den tidigare frågan. Svaret på frågan och tidigare svar återställs; kommande frågor prövas på nytt mot aktuella regler.
+Berättelse och svar sparas automatiskt i webbläsaren efter en ändring. Ingen kryssruta eller aktivering krävs. Ett sparat utkast ger vid återkomst en knapp för att fortsätta på den tidigare frågan. Svaret på frågan och tidigare svar återställs; kommande frågor prövas på nytt mot aktuella regler. Ett väntande utkast skrivs inte över av det tomma startformuläret.
 
 ## Vad sparas?
 
@@ -14,9 +14,9 @@ På resultatsidan återställs svaren och en uttryckligen ny regelrapport beräk
 
 ## Lagring och återupptagning
 
-Utkastet krypteras med AES-GCM och en icke-exporterbar CryptoKey och lagras i IndexedDB. Nyckeln finns i samma webbläsarprofil för att återkomst utan lösenord ska fungera. Det är inte ett skydd mot någon som använder samma profil eller kan köra kod med webbplatsens ursprung. Detta framgår av informationen vid det frivilliga valet. Ingen okrypterad reservlagring används.
+Utkastet krypteras med AES-GCM och en icke-exporterbar CryptoKey och lagras i IndexedDB. Nyckeln finns i samma webbläsarprofil för att återkomst utan lösenord ska fungera. Det är inte ett skydd mot någon som använder samma profil eller kan köra kod med webbplatsens ursprung. Detta framgår under informationen om sparandet. Ingen okrypterad reservlagring används.
 
-Ett utkast kan återupptas under 24 timmar efter senaste lyckade sparningen. Utgångstid ingår i autentiserad krypteringsdata. Utgångna eller skadade poster läses inte. De rensas nästa gång sidan öppnas, eller vid tidsgränsen medan sidan är öppen; en stängd webbläsare kan inte köra en rensning i bakgrunden. Besökaren kan radera via formuläret, ”Rensa svar och börja om” eller webbläsarens webbplatsdata. Bekräftad inskickning till behandlaren rensar det aktuella lokala utkastet när sparandet är aktivt.
+Ett utkast kan återupptas under 24 timmar efter senaste lyckade sparningen. Utgångstid ingår i autentiserad krypteringsdata. Utgångna eller skadade poster läses inte. De rensas nästa gång sidan öppnas, eller vid tidsgränsen medan sidan är öppen; en stängd webbläsare kan inte köra en rensning i bakgrunden. Besökaren kan radera via formuläret, ”Rensa svar och börja om” eller webbläsarens webbplatsdata. Radering återskapar inte samma öppna svar automatiskt; en ny ändring återupptar sparandet. Bekräftad inskickning till behandlaren rensar det aktuella lokala utkastet och stoppar vidare sparning av den inskickade anamnesen.
 
 Sparning sker efter kort fördröjning och försöker även slutföras när sidan döljs. Status visas under sparningen. En webbläsare som avbryts innan en sparning hunnit slutföras kan förlora den sista ändringen. Formuläret fungerar vidare i minnet om privat läge, lagringskvot, saknad kryptografi eller annat lagringsfel hindrar utkast. Inga leverantörsnycklar, svar eller detaljerade fel loggas.
 

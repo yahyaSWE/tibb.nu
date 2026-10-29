@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
-import { ArrowLeft, ArrowRight, Check, Clipboard, Leaf, LockKeyhole, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clipboard, RotateCcw, Sparkles } from "lucide-react";
 import { buildReport, canAnalyzePatterns, getSafetyAssessment, safetyQuestionIds } from "@/lib/anamnes/engine";
 import { getInitialQuestions, getFollowupQuestions, isPublicQuestion, questionBank, questionById } from "@/lib/anamnes/questions";
 import { FormulaRecordSchema, ReportSchema, InterviewResponseSchema, NarrativeSchema, MedicationNamesSchema, ConsultationDetailsSchema, emptyConsultationDetails, type ConsultationDetails, type AnswerMap, type FormulaRecord, type Question, type QuestionId, type Report } from "@/lib/anamnes/types";
@@ -11,7 +11,8 @@ import { finalizeInterviewReport, getInterviewCompletionQuestionIds, getFormulaC
 import { formatAnamnesSummary } from "@/lib/anamnes/summary";
 import { consultationDetailsText, hasConsultationDetails } from "@/lib/anamnes/consultation";
 import { AnamnesReport } from "./report";
-import { IntakeContactFields } from "@/components/intake/contact-fields";
+import { IntakeContactSchema } from "@/lib/intake-contact";
+import { AnamnesSubmissionPanel } from "./submission-panel";
 import { SafetyQuestions } from "./safety-questions";
 import { ConsultationDetailsFields } from "./consultation-details-fields";
 import { AiExtractionSchema, confirmObservations, removeConfirmedObservation, type ExtractionObservation, type ObservationDecision } from '@/lib/anamnes/observations';
@@ -72,6 +73,7 @@ export default function TcmAnamnes() {
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [submission, setSubmission] = useState<{ reference: string; expiresAt: string } | null>(null);
+  const [submissionError, setSubmissionError] = useState("");
   const [sendConsentVersion, setSendConsentVersion] = useState<string | null>(null);
   const [contact, setContact] = useState({ name: "", email: "", phone: "" });
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -94,7 +96,7 @@ export default function TcmAnamnes() {
   const completionQuestions = useMemo(() => report ? getInterviewCompletionQuestionIds(answers, report.analysis) : [], [answers, report]);
   const drafts=useAnamnesDraft({version:1,answers,narrative,medicationNames,consultation,flow:interviewActive&&!localInterview?'ai':'rules',position:{
     stage:stage==='observations'?'safety':stage,questionId:['questions','followup','interview'].includes(stage)?currentQuestion?.id??null:null,
-    index,history:(stage==='questions'?currentQuestions:interviewHistory).map(question=>question.id),followups:followups.map(question=>question.id),round:interviewRound}});
+    index,history:(stage==='questions'?currentQuestions:interviewHistory).map(question=>question.id),followups:followups.map(question=>question.id),round:interviewRound}},!!submission);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -113,7 +115,7 @@ export default function TcmAnamnes() {
     if (extractionReady && !busy) { setExtractionReady(false); void advanceInterview(); }
   }, [extractionReady, busy]);
 
-  function clearStatus() { setError(""); setNotice(""); setCopied(false); setSubmission(null); setSendConsentVersion(null); setReceipt(null); }
+  function clearStatus() { setError(""); setNotice(""); setCopied(false); setSubmission(null); setSubmissionError(""); setSendConsentVersion(null); setReceipt(null); }
   function updateConsultation(patch: Partial<ConsultationDetails>) {
     const changedSources=['locations','dailyImpact','goal','previousCare','lifestyle'].filter(key=>Object.hasOwn(patch,key));
     const changedNotes=patch.questionNotes?Object.keys({...consultation.questionNotes,...patch.questionNotes}).filter(id=>consultation.questionNotes[id as keyof ConsultationDetails["questionNotes"]]!==patch.questionNotes?.[id as keyof ConsultationDetails["questionNotes"]]):[];
@@ -368,16 +370,18 @@ export default function TcmAnamnes() {
   async function sendToTherapist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || submission) return;
-    if (!validateConsultation()) return;
-    if (!config.submissions.available || !sendConsentVersion || sendConsentVersion !== config.submissions.consentVersion) { setError("Läs informationen och välj uttryckligen att skicka anamnesen till behandlaren."); return; }
+    if (!validateConsultation()) { setSubmissionError("Kompletteringarna behöver kontrolleras. Stäng rutan och gå igenom uppgifterna innan du skickar."); return; }
+    const parsedContact = IntakeContactSchema.safeParse(contact);
+    if (!parsedContact.success) { setSubmissionError("Kontrollera ditt namn och din e-postadress och försök igen."); return; }
+    if (!config.submissions.available || !sendConsentVersion || sendConsentVersion !== config.submissions.consentVersion) { setSubmissionError("Läs informationen och markera att du vill skicka anamnesen till behandlaren."); return; }
     const run = ++sequence.current; const controller = new AbortController(); request.current = controller;
-    setBusy(true); setError("");
+    setBusy(true); setSubmissionError(""); setError("");
     try {
-      const response = await fetch("/api/anamnes/submit", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]), body: JSON.stringify({ answers, narrative: narrative.trim(), medicationNames: answers.medication === "yes" ? medicationNames.trim() : "", consultation, formulaReferencesEnabled: true, sendConsent: true, submissionConsentVersion: sendConsentVersion, contact, ...(report?.source === "ai" && receipt ? { report, receipt } : {}) }) });
+      const response = await fetch("/api/anamnes/submit", { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]), body: JSON.stringify({ answers, narrative: narrative.trim(), medicationNames: answers.medication === "yes" ? medicationNames.trim() : "", consultation, formulaReferencesEnabled: true, sendConsent: true, submissionConsentVersion: sendConsentVersion, contact: parsedContact.data, ...(report?.source === "ai" && receipt ? { report, receipt } : {}) }) });
       if (!response.ok) throw new Error(response.status === 409 ? "Rapportens eller samtyckets giltighet behöver förnyas. Gå igenom svaren och skapa en ny rapport innan du skickar, eller ta med den kopierade sammanfattningen till konsultationen." : "Inskickningen kunde inte bekräftas. Kontrollera informationen och försök igen, eller ta med den kopierade sammanfattningen till konsultationen.");
       const result = z.object({ reference: z.string().uuid(), expiresAt: z.string().datetime() }).parse(await response.json());
-      if (run === sequence.current) { setSubmission(result); setSendConsentVersion(null); if(drafts.enabled)void drafts.clear(); }
-    } catch (failure) { if (run === sequence.current && !controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Anamnesen kunde inte skickas."); }
+      if (run === sequence.current) { setSubmission(result); setSendConsentVersion(null); void drafts.clear(); }
+    } catch (failure) { if (run === sequence.current && !controller.signal.aborted) setSubmissionError(failure instanceof Error ? failure.message : "Anamnesen kunde inte skickas. Dina svar finns kvar; försök igen."); }
     finally { if (run === sequence.current) { setBusy(false); request.current = null; } }
   }
   function narrativeEditor() {
@@ -386,17 +390,15 @@ export default function TcmAnamnes() {
   const draftPanel = report?.safety.level !== "emergency" ? <AnamnesDraftPanel controls={drafts} aiAvailable={aiChoiceAvailable} busy={busy||catalogState==="loading"} onResume={restoreDraft}/> : null;
 
   return <div className={styles.shell}>
-    <div className={styles.topbar}><span><Leaf size={18} aria-hidden="true" />Tibb.nu · Strukturerad TCM-anamnes</span><span><LockKeyhole size={14} aria-hidden="true" />Du styr hur svaren används</span></div>
     <div className={styles.body}>
-      {stage !== "intro" && draftPanel}
-      {report?.safety.level !== "emergency" && <nav className={styles.phaseProgress} aria-label="Anamnesens steg"><ol>{["Din berättelse", "Trygghetsfrågor", "Följdfrågor", "Ditt underlag"].map((label, step) => <li key={label} className={step <= phase ? styles.phaseReached : undefined} aria-current={step === phase ? "step" : undefined}><span aria-hidden="true">{step + 1}</span>{label}</li>)}</ol></nav>}
+      {stage !== "intro" && stage !== "report" && draftPanel}
+      {report?.safety.level !== "emergency" && <nav className={styles.phaseProgress} aria-label="Anamnesens steg"><ol>{["Din berättelse", "Trygghetsfrågor", "Följdfrågor", submission ? "Inskickat" : config.submissions.available ? "Granska & skicka" : "Ditt underlag"].map((label, step) => <li key={step} className={step <= phase ? styles.phaseReached : undefined} aria-current={step === phase ? "step" : undefined}><span aria-hidden="true">{step + 1}</span>{label}</li>)}</ol></nav>}
       {stage !== "intro" && stage !== "report" && report?.safety.level !== "emergency" && <div className={styles.questionProgress}><div><span>{stage === "safety" ? `${answeredSafetyCount} av ${safetyQuestionIds.length} trygghetsfrågor besvarade` : `Fråga ${index + 1}${stage === "interview" ? " · anpassas efter dina svar" : ""}`}</span></div>{stage !== "safety" && <p className={styles.modeStatus} role="status"><strong>{interviewActive && !localInterview ? "AI-anpassade frågor" : "Lokala frågor"}</strong>{sessionNotice ? <span>{sessionNotice}</span> : <span>{interviewActive && !localInterview ? "Din beskrivning och dina bekräftade svar styr vilka frågor som kommer härnäst." : "Dina valda svar används i poängmodellen. Beskrivningen och dina förtydliganden finns kvar för behandlaren."}</span>}</p>}</div>}
       {stage === "intro" && <section>
         <h2 ref={headingRef} tabIndex={-1} className={styles.heading}>{config.analysisMode === "ai" ? "Börja med din berättelse." : "Dina svar först. Mönster och referenser därefter."}</h2>
-        <p className={styles.lead}>Berätta vad du vill ha hjälp med. Sedan följer trygghetsfrågor och frågor om dina besvär. Räkna med ungefär 5–10 minuter; antalet frågor anpassas efter svaren.</p>
+        <p className={styles.lead}>Beskriv dina symtom och vad du upplever med egna ord, utan västerländska diagnosnamn. Sedan följer trygghetsfrågor och frågor som anpassas efter dina svar. Räkna med ungefär 5–10 minuter.</p>
         {narrativeEditor()}
         <ConsultationDetailsFields value={consultation} disabled={busy} onChange={updateConsultation} />
-        <div className={styles.features}><div><span className={styles.featureIcon}><Check size={21} aria-hidden="true" /></span><strong>Frågor efter dina svar</strong><p>Följdfrågor tills relevanta uppgifter är genomgångna.</p></div><div><span className={styles.featureIcon}><LockKeyhole size={21} aria-hidden="true" /></span><strong>Spara om du vill</strong><p>Fortsätt senare med ett frivilligt utkast på din enhet.</p></div><div><span className={styles.featureIcon}><ShieldCheck size={21} aria-hidden="true" /></span><strong>Individuell bedömning</strong><p>Formelreferenser inför en konsultation.</p></div></div>
         {catalogState === "unavailable" && <p className={styles.warning}>Den aktuella formelkatalogen kunde inte laddas. Du kan fortsätta med frågorna och få en mönsteranalys; ingen inaktuell katalog används som reserv.</p>}
         <AnamnesStartControls aiAvailable={aiChoiceAvailable} loading={catalogState==='loading'} providerLabel={config.ai.providerLabel} privacyNotice={config.ai.privacyNotice} onStart={start}>{draftPanel}</AnamnesStartControls>
       </section>}
@@ -423,22 +425,23 @@ export default function TcmAnamnes() {
         {interviewActive && <div className={styles.editActions}><button type="button" disabled={busy} onClick={() => void advanceInterview(true)}>Avsluta och visa underlaget nu</button></div>}
         <details className={styles.reportDetails}><summary>Din beskrivning – komplettera vid behov</summary>{narrativeEditor()}<ConsultationDetailsFields value={consultation} disabled={busy} onChange={updateConsultation} /></details>
       </section>}
-      {stage === "report" && report && <section>
-        <h2 ref={headingRef} tabIndex={-1} className={styles.heading}>{report.safety.level === "emergency" ? answers.emergency === "yes" ? "Avbryt formuläret och sök vård" : "Varningsuppgifter i beskrivningen" : "Ditt resultat"}</h2>
+      {stage === "report" && report && <section className={!submission && config.submissions.available && report.safety.level !== "emergency" ? styles.reportAwaitingSend : undefined}>
+        <h2 ref={headingRef} tabIndex={-1} className={styles.heading}>{report.safety.level === "emergency" ? answers.emergency === "yes" ? "Avbryt formuläret och sök vård" : "Varningsuppgifter i beskrivningen" : submission ? "Din anamnes är skickad" : "Din anamnes är klar"}</h2>
         {report.safety.level === "emergency" ? <><div className={styles.alert} role="alert"><strong>Uppgifterna behöver förtydligas innan anamnesen fortsätter.</strong>{report.safety.flags.map((flag, index) => <p key={index}>{flag}</p>)}<p>Ring 112 vid ett akut nödläge. Fortsätt inte formuläret för att försöka förklara akuta symtom med TCM.</p></div><a href="tel:112" className={styles.primary}>Ring 112 vid nödläge</a>{answers.emergency !== "yes" && <div className={styles.editActions}><button type="button" onClick={() => { setStage("intro"); setReport(null); clearStatus(); }}>Gå tillbaka och förtydliga beskrivningen</button></div>}</> : <>
-          {notice && <p className={styles.notice} role="status">{notice}</p>}
-          {sessionNotice && <p className={styles.notice} role="status">{sessionNotice}</p>}
-          <AnamnesReport report={report} answers={answers} medicationNames={medicationNames} consultation={consultation} />
+          <AnamnesReport report={report} answers={answers} medicationNames={medicationNames} consultation={consultation} beforeAnalysis={
+            <AnamnesSubmissionPanel config={config.submissions} contact={contact} onContactChange={setContact}
+              accepted={!!config.submissions.consentVersion && sendConsentVersion === config.submissions.consentVersion}
+              onAccepted={accepted => setSendConsentVersion(accepted ? config.submissions.consentVersion! : null)}
+              onSubmit={sendToTherapist} busy={busy} error={submissionError} submission={submission} source={report.source} hasReceipt={!!receipt} onCopy={copySummary} copied={copied}
+              preview={<>{narrative.trim() && <><h4>Din egen beskrivning</h4><p>{narrative.trim()}</p></>}{hasConsultationDetails(consultation) && <><h4>Dina kompletteringar</h4><p>{consultationDetailsText(consultation)}</p></>}{answers.medication === "yes" && medicationNames.trim() && <><h4>Läkemedel och kosttillskott</h4><p>{medicationNames.trim()}</p></>}<p>Även dina {Object.keys(answers).length} valda svar och rapporten följer med. Du kan granska dem i underlaget på resultatsidan.</p></>}
+            />
+          } />
+          {(notice || sessionNotice) && <details className={styles.reportDetails}><summary>Om frågeflödet och analysen</summary>{notice && <p>{notice}</p>}{sessionNotice && <p>{sessionNotice}</p>}</details>}
           {narrative.trim() && <details className={styles.reportDetails}><summary>Din egen beskrivning</summary><p className={styles.narrativeText}>{narrative.trim()}</p></details>}
           {hasConsultationDetails(consultation) && <details className={styles.reportDetails}><summary>Dina kompletteringar inför samtalet</summary><p className={styles.narrativeText}>{consultationDetailsText(consultation)}</p></details>}
           {completionQuestions.length > 0 && <div className={styles.completionPanel}><p>Vill du förtydliga resultatet? Dina tidigare svar finns kvar.</p><button type="button" className={styles.secondary} disabled={busy} onClick={complementReport}>Komplettera underlaget<ArrowRight size={16} aria-hidden="true" /></button></div>}
           <details className={styles.summaryPanel}><summary>Kopiera eller granska sammanfattningen</summary><label className={styles.summaryLabel} htmlFor="anamnes-summary">Din sammanfattning</label><textarea id="anamnes-summary" className={styles.summaryText} readOnly value={summary} rows={12} spellCheck={false} /><div className={styles.actions}><button type="button" className={styles.secondary} onClick={copySummary}><Clipboard size={16} aria-hidden="true" />{copied ? "Kopierad" : "Kopiera sammanfattning"}</button></div>{copied && <p className={styles.copyStatus} role="status">Sammanfattningen kopierades. Den innehåller hälsouppgifter; välj själv hur du delar den.</p>}</details>
-          <section className={`${styles.submissionPanel} ${styles.handoffPanel}`} aria-labelledby="anamnes-send-title"><h3 id="anamnes-send-title">Skicka underlaget inför ditt besök</h3>
-          {config.submissions.available && config.submissions.consentVersion ? <><p>Det är frivilligt. Beskrivningen, dina svar, kompletteringar och kontaktuppgifter skickas först när du väljer ”Skicka till behandlaren”. Behandlaren kan sedan läsa dem inför samtalet.</p><details className={styles.reportDetails}><summary>Granska vad du skickar</summary>{narrative.trim() && <><h4>Din egen beskrivning</h4><p className={styles.narrativeText}>{narrative.trim()}</p></>}{hasConsultationDetails(consultation) && <><h4>Dina kompletteringar</h4><p className={styles.narrativeText}>{consultationDetailsText(consultation)}</p></>}{answers.medication === "yes" && medicationNames.trim() && <><h4>Läkemedel och kosttillskott</h4><p className={styles.narrativeText}>{medicationNames.trim()}</p></>}<p>Även dina {Object.keys(answers).length} valda svar och rapporten följer med. Du kan granska dem ovan eller öppna den fullständiga sammanfattningen.</p></details><details className={styles.reportDetails}><summary>Om inskickningen och lagringen</summary><p>{config.submissions.notice}</p><p>Underlaget lagras krypterat i högst {config.submissions.retentionDays} dagar och kan läsas av behörig behandlare.</p><p>{report.source === "ai" && receipt ? "Den AI-assisterade originalrapporten följer med utan ett nytt AI-anrop." : report.source === "ai" ? "AI-rapporten saknar ett giltigt sparningsunderlag. Vid inskickning skapas därför en regelbaserad rapport från dina svar." : "En regelbaserad rapport skapas från dina svar med den aktuella katalogen."}</p></details>{submission ? <div className={styles.notice} role="status"><strong>Underlaget har tagits emot.</strong><p>Din referens: <code>{submission.reference}</code></p><p>Behandlaren kan läsa det till {new Intl.DateTimeFormat("sv-SE", { dateStyle: "long", timeZone: "Europe/Stockholm" }).format(new Date(submission.expiresAt))}. Boka sedan en konsultation nedan om du inte redan har en tid.</p><p className={styles.smallNote}>Spara referensen om du behöver kontakta oss om underlaget.</p></div> : <form onSubmit={sendToTherapist} className={styles.contactForm}>
-            <IntakeContactFields prefix="anamnes-contact" value={contact} onChange={setContact} disabled={busy}/>
-            <label className={`${styles.option} ${styles.checkbox}`}><input type="checkbox" required checked={sendConsentVersion === config.submissions.consentVersion} onChange={event => setSendConsentVersion(event.target.checked ? config.submissions.consentVersion! : null)} disabled={busy} /><span>Jag har läst informationen och väljer att skicka min beskrivning, mina svar, kompletteringar och kontaktuppgifter till Tibb.nu för att förbereda en konsultation.</span></label><button type="submit" className={styles.primary} disabled={busy || !sendConsentVersion}>{busy ? "Skickar underlaget…" : "Skicka till behandlaren"}</button>
-          </form>}</> : <><p>Digital inskickning är inte tillgänglig just nu. Kopiera sammanfattningen och ta med den till din konsultation.</p><button type="button" className={styles.secondary} onClick={copySummary}><Clipboard size={16} aria-hidden="true" />{copied ? "Sammanfattningen är kopierad" : "Kopiera underlaget"}</button></>}
-          </section>
+          {!submission && draftPanel && <details className={styles.reportDetails}><summary>Om ditt sparade utkast</summary>{draftPanel}</details>}
           <div className={styles.consultation}><Sparkles size={24} aria-hidden="true" /><div><h3>Boka ditt samtal</h3><p>{submission ? "Ditt underlag är skickat. Välj en tid för individuell bedömning." : "Bokningen skickar inte din anamnes automatiskt. Skicka den separat ovan eller ta med din sammanfattning."}</p><Link href="/boka" className={styles.primary} prefetch={false}>Boka konsultation<ArrowRight size={16} aria-hidden="true" /></Link></div></div>
           <div className={styles.editActions}><button type="button" disabled={busy} onClick={() => { setAiConsentVersion(null); setInterviewActive(false); setReviewingAnswers(true); setStage("safety"); setIndex(0); clearStatus(); }}>Gå igenom och ändra svar</button><button type="button" disabled={busy} onClick={() => { setStage("intro"); clearStatus(); }}>Ändra beskrivning och analysinställningar</button></div>
         </>}

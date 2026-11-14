@@ -56,7 +56,7 @@ export async function createCheckout(booking: Booking) {
       success_url: `${base}/bokning/bekraftelse?ref=${encodeURIComponent(booking.reference)}`,
       cancel_url: `${base}/api/stripe/cancel?ref=${encodeURIComponent(booking.reference)}`,
     },
-    { idempotencyKey: `booking-${booking.reference}` },
+    { idempotencyKey: `booking-${booking.reference}`, timeout: 10000, maxNetworkRetries: 1 },
   );
   if (!session.url)
     throw new DomainError("Det gick inte att öppna betalningen.");

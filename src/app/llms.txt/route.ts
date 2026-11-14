@@ -77,5 +77,12 @@ export async function GET(): Promise<Response> {
   }
   const plans=await getPublicPlans();
   if(plans.length){lines.push("","## Medlemskap","",`- [Medlemskap](${absoluteUrl("/medlemskap")})`);for(const plan of plans)if(/^[a-z0-9][a-z0-9-]*$/.test(plan.slug))lines.push(`- [${label(plan.name)}](${absoluteUrl(`/medlemskap/${plan.slug}`)})`);lines.push("","Gruppinlägg, dokument och elevuppgifter är privata och ingår inte i denna innehållskarta.");}
+  if (process.env.MCP_BOOKING_ENABLED !== "0") {
+    lines.push("", "## Bokning med AI-agent", "",
+      `MCP-endpoint (Streamable HTTP): ${absoluteUrl("/api/mcp")}`,
+      "Verktyg: list_treatments, get_available_slots, create_booking_checkout, get_booking_status.",
+      "Kundens uttryckliga godkännande krävs före reservation. Kunden betalar själv via Stripe Checkout.",
+      "Bokningstoken och bekräftelselänkar är privata. Skicka inga kortuppgifter eller hälsouppgifter till verktygen.");
+  }
   return new Response(lines.join("\n"), { headers });
 }

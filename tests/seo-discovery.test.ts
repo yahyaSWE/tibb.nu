@@ -15,6 +15,7 @@ type Snapshot = {
 };
 type DiscoveryResults = {
   production: Snapshot;
+  mcpDisabled: Snapshot;
   unpublished: Snapshot;
   preview: Snapshot;
   local: Snapshot;
@@ -28,7 +29,7 @@ let results: DiscoveryResults;
 
 before(async () => {
   const env = { ...process.env };
-  for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL", "APP_URL", "SITE_URL", "VERCEL_ENV"]) delete env[key];
+  for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL", "APP_URL", "SITE_URL", "VERCEL_ENV", "MCP_BOOKING_ENABLED"]) delete env[key];
   env.TIBB_DATABASE_PATH = join(directory, "discovery.sqlite");
   env.SITE_URL = "https://tibbnu.vercel.app";
   env.VERCEL_ENV = "production";
@@ -87,6 +88,9 @@ before(async () => {
           }};
         }
         const production = await snapshot();
+        process.env.MCP_BOOKING_ENABLED = '0';
+        const mcpDisabled = await snapshot();
+        delete process.env.MCP_BOOKING_ENABLED;
         await db.prepare('UPDATE articles SET published=0 WHERE id=1000').run();
         await db.prepare('UPDATE courses SET published=0 WHERE id=1000').run();
         const unpublished = await snapshot();
@@ -99,7 +103,7 @@ before(async () => {
         process.env.VERCEL_ENV = 'production';
         process.env.VERCEL = '1';
         const installation = await snapshot();
-        console.log(JSON.stringify({ production, unpublished, preview, local, installation, pages: PUBLIC_PAGES.map(page => page.path) }));
+        console.log(JSON.stringify({ production, mcpDisabled, unpublished, preview, local, installation, pages: PUBLIC_PAGES.map(page => page.path) }));
       } finally { await db.close(); }
     })().catch(error => { console.error(error); process.exitCode = 1; });
   `;
@@ -175,7 +179,13 @@ test("the optional text map contains public links and a truthful selftest bounda
   assert.ok(map.text.includes("Offentlig \\[artikel\\] Ny rad"));
   assert.match(map.text, /inte ett medicinskt diagnostiskt verktyg/);
   assert.match(map.text, /ingen garanti om indexering/);
-  assert.doesNotMatch(map.text, /PRIVATE_|private-admin|draft-article|private-course|Felaktig sökväg|Privat lektionsrubrik|\/api\/|\/elevportal|private\.example\.test/);
+  assert.match(map.text, /MCP-endpoint \(Streamable HTTP\): https:\/\/www\.tibb\.nu\/api\/mcp\n/);
+  assert.doesNotMatch(map.text, /PRIVATE_|private-admin|draft-article|private-course|Felaktig sökväg|Privat lektionsrubrik|\/api\/(?!mcp(?:\n|$))|\/elevportal|private\.example\.test/);
+});
+
+test("disabling MCP removes its discovery entry while preserving ordinary public links", () => {
+  assert.doesNotMatch(results.mcpDisabled.llms.text, /\/api\/|create_booking_checkout|get_booking_status/);
+  assert.match(results.mcpDisabled.llms.text, /https:\/\/www\.tibb\.nu\/boka/);
 });
 
 test("unpublishing articles and courses removes them from the next sitemap and text-map request", () => {

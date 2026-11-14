@@ -140,6 +140,10 @@ Lokalt kan Stripe CLI vidarebefordra testhändelser till `localhost:3000/api/str
 
 Kortbokningar reserveras i 35 minuter. Avbruten eller utgången betalning frigör tiden. Vid en betalning som kommer efter att reservationen har frigjorts återbetalas betalningen via Stripe. Återbetalningar för redan bekräftade besök hanteras i Stripe Dashboard; status uppdateras via webhook. API-anslutningen och betalningsflödet behöver verifieras med ditt Stripe-konto före skarp användning.
 
+## Bokning via AI-agenter och MCP
+
+AI-klienter kan ansluta till `/api/mcp` med Streamable HTTP för att hämta behandlingar och lediga tider, reservera ett kundgodkänt besök och få en Stripe-betalningslänk. Kunden betalar på Stripe-sidan; den ordinarie signerade webhooken bekräftar betalningen. Privat bokningstoken skyddar statuskontroll och återförsök. Ingen adminnyckel ska delas med klienten. Läs [installations- och klientguiden för MCP](docs/mcp-booking.md).
+
 ## Drift
 
 ```sh

@@ -293,11 +293,16 @@
   margin-bottom: 25px;
 }
 
+.home-page .home-treatment-meta {
+  margin-top: auto;
+  margin-bottom: 12px;
+}
+
 .home-page .path-card-bottom {
   color: var(--home-forest);
   font-size: var(--home-type-action);
   line-height: 1.5;
-  margin-top: auto;
+  margin-top: 0;
 }
 
 .home-page .path-card:nth-child(1) > p,
@@ -566,8 +571,12 @@
     padding: 6px 5px;
   }
 
+  .home-page .hero-still-life {
+    display: none;
+  }
+
   .home-page .hero-image-wrap {
-    height: 335px;
+    height: 260px;
     aspect-ratio: auto;
     border-radius: 210px 210px 18px 18px;
     border-width: 4px;

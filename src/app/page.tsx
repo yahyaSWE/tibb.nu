@@ -5,10 +5,10 @@ import {
   ArrowUpRight,
   BookOpen,
   Leaf,
-  MoveUpRight,
   Sprout,
 } from "lucide-react";
-import { getArticles, getCourses, getTreatments } from "@/lib/db";
+import { getArticles, getCourses, getPractitioners, getTreatments } from "@/lib/db";
+import { formatMoney } from "@/lib/time";
 import { getSiteSettings } from "@/lib/site-data";
 import { JsonLd } from "@/components/seo/json-ld";
 import { absoluteUrl, buildOrganizationSchema, createPageMetadata, organizationId, websiteId } from "@/lib/seo";
@@ -24,14 +24,18 @@ export const metadata = {
 };
 
 export default async function HomePage() {
-  const [allCourses, allArticles, treatments, settings] = await Promise.all([
+  const [allCourses, allArticles, treatments, settings, practitioners] = await Promise.all([
     getCourses({ publishedOnly: true }),
     getArticles({ publishedOnly: true }),
     getTreatments({ activeOnly: true }),
     getSiteSettings(),
+    getPractitioners({ activeOnly: true }),
   ]);
   const courses = allCourses.slice(0, 2);
   const articles = allArticles.slice(0, 3);
+  const portrait = practitioners.find((person) =>
+    person.name.trim().toLocaleLowerCase("sv") === "johan yahya blomdahl"
+  )?.photoUrl;
   return (
     <div className="home-page">
       <JsonLd id="website-data" data={[
@@ -42,28 +46,25 @@ export default async function HomePage() {
       <section className="home-hero-section">
         <div className="home-hero container">
           <div className="hero-copy">
-            <h1>Traditionell medicin och behandlingar</h1>
+            <h1>Klassisk kinesisk medicin i Jönköping</h1>
             <p className="hero-intro">
-              Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.
-            </p>
-            <p className="hero-description">
-              Behandlingar i Jönköping hos Johan Yahya Blomdahl. Här möts
-              traditionell kunskap, personliga möten och lärande.
+              Hos Johan Yahya Blomdahl möts klassisk kinesisk medicin och profetisk vägledning.
             </p>
             <div className="hero-actions">
               <Link href="/boka" className="button button-primary">
                 Boka en behandling <ArrowUpRight size={18} />
               </Link>
-              <Link href={courses.length ? "/kurser" : "/om"} className="text-link">
-                {courses.length ? "Utforska våra kurser" : "Läs mer om Tibb.nu"} <ArrowRight size={17} />
+              <Link href={treatments.length ? "#behandlingar" : "/om"} className="text-link">
+                {treatments.length ? "Se priser och längd" : "Om Johan"} <ArrowRight size={17} />
               </Link>
             </div>
           </div>
-          <div className="hero-image-stage">
+          <div className={portrait ? "hero-image-stage" : "hero-image-stage hero-still-life"}>
             <div className="hero-image-wrap">
               <Image
-                src="/images/olive-still-life.png"
-                alt="Olivkvistar i en handgjord keramikvas i varmt solljus"
+                src={portrait || "/images/olive-still-life.png"}
+                unoptimized={Boolean(portrait)}
+                alt={portrait ? "Johan Yahya Blomdahl" : ""}
                 fill
                 priority
                 sizes="(max-width: 650px) calc(100vw - 48px), (max-width: 850px) 44vw, 470px"
@@ -72,6 +73,29 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+      <section id="behandlingar" className="section container paths-section" aria-labelledby="treatments-title">
+        <div className="section-heading">
+          <h2 id="treatments-title">Behandlingar</h2>
+          {treatments.length > 3 && <Link href="/boka" className="text-link">Alla behandlingar <ArrowRight size={17} /></Link>}
+        </div>
+        {treatments.length ? (
+          <div className="paths-grid">
+            {treatments.slice(0, 3).map((treatment) => (
+              <Link key={treatment.id} href={`/boka?behandling=${treatment.id}`} className="path-card">
+                <h3>{treatment.name}</h3>
+                <p>{treatment.description}</p>
+                <strong className="home-treatment-meta">
+                  {formatMoney(treatment.priceOre)} · {treatment.durationMinutes} min
+                  {treatment.deliveryMode === "remote" && " · Distans"}
+                </strong>
+                <span className="path-card-bottom">Se lediga tider <ArrowRight size={17} /></span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p>Det finns inga behandlingar att boka just nu. <Link href="/kontakt" className="text-link">Kontakta mottagningen</Link></p>
+        )}
       </section>
       <section
         className="home-visit-section container"
@@ -90,9 +114,10 @@ export default async function HomePage() {
         <div className="home-visit-details">
           <h2 id="home-visit-title">Inför ditt besök</h2>
           <p>
-            Välj behandling och behandlare, sedan ett ledigt datum och en tid.
-            Pris och behandlingens längd visas innan du bekräftar bokningen.
+            Vid första mötet får du berätta vad som för dig hit. Skriv gärna ner
+            de frågor du vill ta upp. I bokningsbekräftelsen hittar du information om ditt besök.
           </p>
+          <p>{settings.address ? `Besöksadress: ${settings.address}` : "Mottagningen finns i Jönköping. Kontakta oss för vägbeskrivning."}</p>
           <div className="home-visit-links">
             <Link href="/vanliga-fragor" className="text-link">
               Vanliga frågor <ArrowRight size={18} />
@@ -101,59 +126,6 @@ export default async function HomePage() {
               Kontakta oss <ArrowRight size={18} />
             </Link>
           </div>
-        </div>
-      </section>
-      <section className="section container paths-section">
-        <div className="section-heading">
-          <div>
-            <h2>Våra tjänster</h2>
-          </div>
-        </div>
-        <div className="paths-grid">
-          <Link href="/boka" className="path-card">
-            <span className="path-icon">
-              <Leaf size={26} strokeWidth={1.2} />
-            </span>
-            <h3>Behandlingar</h3>
-            <p>
-              Ett möte med utrymme för dig. Läs om våra behandlingar och hitta
-              en tid som passar.
-            </p>
-            <span className="path-card-bottom">
-              {treatments.length
-                ? `${treatments.length} behandlingar att utforska`
-                : "Se tillgängliga behandlingar"}
-              <MoveUpRight size={20} />
-            </span>
-          </Link>
-          <Link href="/kurser" className="path-card">
-            <span className="path-icon">
-              <BookOpen size={26} strokeWidth={1.2} />
-            </span>
-            <h3>Kurser & lärande</h3>
-            <p>
-              Fördjupa din kunskap i din egen takt. Samla lektioner,
-              reflektioner och material i elevportalen.
-            </p>
-            <span className="path-card-bottom">
-              {courses.length ? "Upptäck våra kurser" : "Nya kurser är på väg"}
-              <MoveUpRight size={20} />
-            </span>
-          </Link>
-          <Link href="/artiklar" className="path-card">
-            <span className="path-icon">
-              <Sprout size={26} strokeWidth={1.2} />
-            </span>
-            <h3>Kunskap & inspiration</h3>
-            <p>
-              Perspektiv på tradition, vardag och eftertanke.
-              {articles.length > 0 && " Ta del av våra senaste artiklar."}
-            </p>
-            <span className="path-card-bottom">
-              {articles.length ? "Läs och reflektera" : "Artiklar är på väg"}
-              <MoveUpRight size={20} />
-            </span>
-          </Link>
         </div>
       </section>
       <section className="philosophy-section">
@@ -190,8 +162,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-      <section className={`section container home-learning-section${courses.length ? "" : " home-content-empty"}`}>
-        {courses.length > 0 && (
+      {courses.length > 0 && (
+        <section className="section container home-learning-section">
           <div className="section-heading">
             <div>
               <h2>Lärande som får växa</h2>
@@ -200,8 +172,6 @@ export default async function HomePage() {
               Alla kurser <ArrowRight size={18} />
             </Link>
           </div>
-        )}
-        {courses.length ? (
           <div className="home-courses-grid">
             {courses.map((course, index) => (
               <Link
@@ -231,56 +201,48 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-        ) : (
-          <div className="home-content-note">
-            <h2>Nya kurser är på väg</h2>
-            <p>Här hittar du kurserna när de är publicerade.</p>
-          </div>
-        )}
-      </section>
-      <section className={`articles-section section${articles.length ? "" : " home-content-empty"}`}>
-        <div className="container">
-          <div className="section-heading">
-            <div>
-              <h2>Från vår kunskapsbank</h2>
-            </div>
-            {articles.length > 0 && (
+        </section>
+      )}
+      {articles.length > 0 && (
+        <section className="articles-section section">
+          <div className="container">
+            <div className="section-heading">
+              <div>
+                <h2>Från vår kunskapsbank</h2>
+              </div>
               <Link href="/artiklar" className="text-link">
                 Alla artiklar <ArrowRight size={18} />
               </Link>
-            )}
-          </div>
-          <div className="home-articles-grid">
-            {articles.map((article, index) => (
-              <Link
-                href={`/artiklar/${article.slug}`}
-                className="home-article"
-                key={article.id}
-              >
-                <div className={`article-art article-art-${index}`}>
-                  <span>
-                    {index === 0 ? (
-                      <Leaf strokeWidth={0.8} />
-                    ) : index === 1 ? (
-                      <Sprout strokeWidth={0.8} />
-                    ) : (
-                      <BookOpen strokeWidth={0.8} />
-                    )}
+            </div>
+            <div className="home-articles-grid">
+              {articles.map((article, index) => (
+                <Link
+                  href={`/artiklar/${article.slug}`}
+                  className="home-article"
+                  key={article.id}
+                >
+                  <div className={`article-art article-art-${index}`}>
+                    <span>
+                      {index === 0 ? (
+                        <Leaf strokeWidth={0.8} />
+                      ) : index === 1 ? (
+                        <Sprout strokeWidth={0.8} />
+                      ) : (
+                        <BookOpen strokeWidth={0.8} />
+                      )}
+                    </span>
+                  </div>
+                  <h3>{article.title}</h3>
+                  <p>{article.excerpt}</p>
+                  <span className="text-link">
+                    Läs artikeln <ArrowUpRight size={16} />
                   </span>
-                </div>
-                <h3>{article.title}</h3>
-                <p>{article.excerpt}</p>
-                <span className="text-link">
-                  Läs artikeln <ArrowUpRight size={16} />
-                </span>
-              </Link>
-            ))}
+                </Link>
+              ))}
+            </div>
           </div>
-          {!articles.length && (
-            <p>Artiklar publiceras här inom kort.</p>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
       <section className="visit-cta container">
         <div>
           <h2>Boka behandling</h2>

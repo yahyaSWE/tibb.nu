@@ -1,2 +1,464 @@
-.wellness-page{padding-top:clamp(42px,7vw,90px);padding-bottom:80px}.wellness-intro{display:grid;grid-template-columns:1.4fr 1fr;gap:clamp(30px,7vw,100px);align-items:center;padding-bottom:70px}.wellness-intro h1{max-width:760px;text-wrap:balance}.wellness-intro h1 em{color:var(--olive)}.wellness-intro p{font-size:17px;max-width:58ch;margin:25px 0}.wellness-how{border-top:1px solid var(--line);padding-top:24px}.wellness-how h2{font-size:29px}.wellness-how ol{padding-left:22px;line-height:1.9;margin:18px 0}.wellness-builder{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,1fr);gap:clamp(24px,5vw,70px);scroll-margin-top:110px}.wellness-builder>div>p{margin-top:16px;max-width:65ch}.wellness-service{display:grid;grid-template-columns:1fr auto;gap:25px;border-top:1px solid var(--line);padding:30px 0;margin-top:24px}.wellness-service h3{font-size:30px;margin-bottom:12px}.wellness-service p{max-width:58ch}.wellness-unit-price{margin:16px 0 5px}.wellness-unit-price span{display:block;color:var(--muted);font-size:12px}.wellness-quantity{display:flex;flex-direction:column;gap:10px;align-items:flex-end;min-width:125px}.wellness-quantity label{font-size:12px}.wellness-quantity>div{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--ivory)}.wellness-quantity input{width:48px;min-height:44px;text-align:center;border:0;background:transparent;padding:0;appearance:textfield;font-variant-numeric:tabular-nums}.wellness-quantity input::-webkit-inner-spin-button{appearance:none}.wellness-quantity button{display:grid;place-items:center;width:38px;height:44px;border:0;background:transparent;color:var(--green)}.wellness-quantity button:hover:enabled{background:var(--sage)}.wellness-quantity button:disabled{cursor:default;opacity:.4}.wellness-quantity>span{font-variant-numeric:tabular-nums}.wellness-summary{align-self:start;position:sticky;top:110px;padding:30px;background:var(--sage);border-radius:14px}.wellness-summary h2{font-size:34px;margin-bottom:20px}.wellness-summary ul{list-style:none;padding:0}.wellness-summary li{display:flex;gap:15px;justify-content:space-between;margin:12px 0}.wellness-summary li strong{white-space:nowrap;font-variant-numeric:tabular-nums}.wellness-summary .button{width:100%;margin:22px 0 16px;white-space:normal;text-align:center}.wellness-total{display:flex;flex-direction:column;gap:5px;padding-top:22px;border-top:1px solid #b9c9b1;margin-top:22px}.wellness-total strong{font-size:32px;font-variant-numeric:tabular-nums}.wellness-total small,.wellness-summary .small{color:#42553e}.wellness-examples{padding-top:55px}.wellness-examples>div{display:grid;grid-template-columns:1fr 1fr;gap:45px}.wellness-examples article{padding-top:24px}.wellness-examples p{margin:12px 0;max-width:60ch}.wellness-faq{display:grid;grid-template-columns:1fr 1.35fr;gap:60px;border-top:1px solid var(--line);padding-top:60px;margin-top:70px}.wellness-faq h2{font-size:38px}.wellness-faq p{margin:17px 0;max-width:65ch}.wellness-faq details{padding:20px 0;border-bottom:1px solid var(--line)}.wellness-faq summary{cursor:pointer;font-size:16px;font-weight:500;min-height:24px}.wellness-page :focus-visible{outline:2px solid var(--green);outline-offset:4px}.wellness-page input{caret-color:var(--green)}.wellness-page ::selection{background:var(--sand);color:var(--deep)}
-@media(max-width:850px){.wellness-intro,.wellness-builder,.wellness-faq{grid-template-columns:1fr;gap:30px}.wellness-intro{padding-bottom:45px}.wellness-intro h1{font-size:clamp(43px,8vw,65px)}.wellness-summary{position:static}.wellness-how{padding:22px 0 0}.wellness-faq{margin-top:50px;padding-top:35px}.wellness-examples>div{grid-template-columns:1fr;gap:15px}}@media(max-width:480px){.wellness-service{grid-template-columns:1fr;gap:18px}.wellness-quantity{align-items:flex-start}.wellness-summary{padding:24px}.wellness-summary li{font-size:13px}.wellness-page{padding-top:35px}.wellness-intro p{font-size:16px}}
+.wellness-page {
+  --wellness-space: clamp(48px, 6vw, 88px);
+  padding-block: clamp(30px, 4vw, 60px) var(--wellness-space);
+}
+
+.wellness-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr);
+  align-items: center;
+  background: var(--sage);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.wellness-intro-copy {
+  padding: clamp(28px, 3.5vw, 50px) clamp(28px, 5vw, 72px);
+}
+
+.wellness-intro h1 {
+  max-width: 13ch;
+  font-size: clamp(3.35rem, 6.2vw, 5.65rem);
+  line-height: .98;
+}
+
+.wellness-intro h1 em {
+  display: block;
+  color: var(--green);
+}
+
+.wellness-intro p {
+  max-width: 47ch;
+  margin-top: 22px;
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  color: var(--ink);
+}
+
+.wellness-intro .wellness-intro-status {
+  margin-top: 12px;
+  font-size: .875rem;
+  color: var(--green);
+}
+
+.wellness-intro-image {
+  position: relative;
+  align-self: stretch;
+  min-height: 345px;
+  background: var(--sand);
+}
+
+.wellness-intro-image img {
+  object-fit: cover;
+  object-position: 63% 58%;
+}
+
+.wellness-intro-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-top: 25px;
+}
+
+.wellness-page .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  text-decoration: underline;
+  text-underline-offset: .25em;
+}
+
+.wellness-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1.72fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+  margin-top: var(--wellness-space);
+}
+
+.wellness-builder,
+.wellness-faq {
+  scroll-margin-top: 112px;
+}
+
+.wellness-services > h2,
+.wellness-faq h2,
+.wellness-examples h2 {
+  font-size: clamp(2.2rem, 4vw, 3.25rem);
+  text-wrap: balance;
+}
+
+.wellness-services > p {
+  margin: 9px 0 23px;
+  font-size: 1rem;
+}
+
+.wellness-service {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
+  gap: clamp(16px, 3vw, 40px);
+  padding-block: 25px;
+  border-top: 1px solid var(--line);
+}
+
+.wellness-service:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.wellness-service h3 {
+  font-size: clamp(1.85rem, 3vw, 2.25rem);
+  overflow-wrap: anywhere;
+}
+
+.wellness-service-copy > p {
+  max-width: 62ch;
+  margin-top: 8px;
+  font-size: .96rem;
+}
+
+.wellness-service-copy > .wellness-validity {
+  margin-top: 13px;
+  font-size: .82rem;
+  color: var(--green);
+}
+
+.wellness-service-choice {
+  min-width: 148px;
+  text-align: right;
+}
+
+.wellness-unit-price {
+  color: var(--deep);
+  font-size: .83rem;
+}
+
+.wellness-unit-price strong {
+  font-size: 1.3rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wellness-vat {
+  margin-top: 0;
+  font-size: .8rem;
+}
+
+.wellness-quantity {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  margin-top: 13px;
+}
+
+.wellness-quantity label {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--deep);
+}
+
+.wellness-quantity > div {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  border-radius: 7px;
+}
+
+.wellness-quantity input {
+  width: 44px;
+  min-height: 44px;
+  text-align: center;
+  border: 0;
+  background: transparent;
+  color: var(--deep);
+  padding: 0;
+  appearance: textfield;
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--green);
+}
+
+.wellness-quantity input::-webkit-inner-spin-button {
+  appearance: none;
+}
+
+.wellness-quantity button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--green);
+}
+
+.wellness-quantity button:hover:enabled {
+  background: var(--sage);
+}
+
+.wellness-quantity button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.wellness-summary {
+  position: sticky;
+  top: 106px;
+  min-width: 0;
+  padding: clamp(22px, 3vw, 36px);
+  border-radius: 16px;
+  background: var(--deep);
+  color: var(--paper);
+}
+
+.wellness-summary h2 {
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+}
+
+.wellness-summary p,
+.wellness-summary small,
+.wellness-total > span {
+  color: var(--sage);
+}
+
+.wellness-summary-empty {
+  margin-top: 15px;
+}
+
+.wellness-summary ul {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+
+.wellness-summary li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.wellness-summary li span {
+  overflow-wrap: anywhere;
+}
+
+.wellness-summary li strong {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.wellness-total {
+  display: grid;
+  gap: 3px;
+  margin-top: 19px;
+  padding-top: 17px;
+  border-top: 1px solid #678072;
+}
+
+.wellness-total strong {
+  font-size: clamp(2rem, 4vw, 2.7rem);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.wellness-summary .wellness-summary-action {
+  width: 100%;
+  margin-top: 21px;
+  background: var(--sage);
+  color: var(--deep);
+  border: 1px solid transparent;
+  text-align: center;
+  white-space: normal;
+}
+
+.wellness-summary .wellness-summary-action:hover:enabled,
+.wellness-summary a.wellness-summary-action:hover {
+  background: var(--paper);
+}
+
+.wellness-summary .wellness-summary-action:disabled {
+  opacity: .8;
+  background: #becdbf;
+  cursor: default;
+}
+
+.wellness-summary .wellness-summary-note {
+  margin-top: 12px;
+  font-size: .82rem;
+}
+
+.wellness-empty {
+  padding-block: 18px 8px;
+  border-top: 1px solid var(--line);
+}
+
+.wellness-examples {
+  margin-top: 42px;
+}
+
+.wellness-examples > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 40px;
+  margin-top: 20px;
+}
+
+.wellness-examples article {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.wellness-faq {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+  gap: clamp(24px, 7vw, 104px);
+  margin-top: var(--wellness-space);
+  padding-top: clamp(24px, 4vw, 55px);
+  border-top: 1px solid var(--line);
+}
+
+.wellness-faq p,
+.wellness-examples p {
+  max-width: 65ch;
+  margin-top: 12px;
+}
+
+.wellness-faq details {
+  padding-block: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wellness-faq details:first-child {
+  border-top: 1px solid var(--line);
+}
+
+.wellness-faq details p {
+  margin: 0 0 12px;
+}
+
+.wellness-faq summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.wellness-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.wellness-faq summary svg {
+  transition: rotate 180ms ease-out;
+}
+
+.wellness-faq details[open] summary svg {
+  rotate: 180deg;
+}
+
+.wellness-page :focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
+}
+
+.wellness-quantity :focus-visible {
+  outline-offset: -3px;
+}
+
+.wellness-summary :focus-visible {
+  outline-color: var(--peach);
+}
+
+.wellness-page ::selection {
+  background: var(--sand);
+  color: var(--deep);
+}
+
+@media (max-width: 900px) {
+  .wellness-intro-copy {
+    padding: clamp(24px, 4vw, 45px);
+  }
+
+  .wellness-builder,
+  .wellness-faq {
+    grid-template-columns: 1fr;
+  }
+
+  .wellness-summary {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .wellness-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .wellness-intro h1 {
+    font-size: clamp(2.85rem, 9.6vw, 4.3rem);
+  }
+
+  .wellness-intro-image {
+    min-height: 0;
+    aspect-ratio: 2.35;
+  }
+
+  .wellness-intro-image img {
+    object-position: 63% 61%;
+  }
+}
+
+@media (max-width: 480px) {
+  .wellness-intro-copy {
+    padding: 23px 21px 16px;
+  }
+
+  .wellness-intro p,
+  .wellness-intro-actions {
+    margin-top: 16px;
+  }
+
+  .wellness-intro-actions {
+    gap: 4px 14px;
+  }
+
+  .wellness-service {
+    grid-template-columns: 1fr;
+  }
+
+  .wellness-service-choice {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    column-gap: 8px;
+    align-items: end;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .wellness-vat {
+    grid-column: 1;
+  }
+
+  .wellness-quantity {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin: 0;
+  }
+
+  .wellness-examples > div {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wellness-faq summary svg {
+    transition: none;
+  }
+}

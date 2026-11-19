@@ -208,7 +208,7 @@ test("lunch and multiple breaks split the day without appointments crossing a br
   }
 });
 
-test("repeating a schedule is idempotent and another treatment cannot create overlapping availability", async () => {
+test("repeating a schedule is idempotent and an overlapping schedule can offer another treatment", async () => {
   const first = await treatment();
   const second = await treatment(30);
   const input = scheduleInput(first.id);
@@ -224,14 +224,35 @@ test("repeating a schedule is idempotent and another treatment cannot create ove
     (await getSlots()).map((slot) => slot.id),
     ids,
   );
-  await assert.rejects(
-    saveAvailabilitySchedule(admin.id, {
-      ...input,
-      treatmentId: second.id,
-    }),
-    /överlappar/,
+  const booking = await reserveBooking(bookingInput(ids[0]));
+  const alternative = await saveAvailabilitySchedule(admin.id, {
+    ...input,
+    treatmentId: second.id,
+  });
+  assert.equal(alternative.created, 6);
+  assert.equal(alternative.skipped, 0);
+  const alternatives = await getSlots({ treatmentId: second.id });
+  assert.deepEqual(
+    alternatives.map((slot) => slot.booked),
+    [true, true, false, false, false, false],
   );
-  assert.equal((await getSlots({ treatmentId: second.id })).length, 0);
+  await assert.rejects(
+    reserveBooking(bookingInput(alternatives[1].id)),
+    /hann bokas/,
+  );
+
+  const nextBooking = await reserveBooking(bookingInput(alternatives[2].id));
+  assert.equal(nextBooking.start, booking.end);
+  await updateBooking(admin.id, booking.id, "cancelled", "pending");
+  const reopened = await getSlots({ treatmentId: second.id });
+  assert.deepEqual(
+    reopened.map((slot) => slot.booked),
+    [false, false, true, false, false, false],
+  );
+  assert.equal(
+    (await reserveBooking(bookingInput(reopened[1].id))).end,
+    booking.end,
+  );
 });
 
 test("schedule dates, weekdays, times and breaks validate atomically", async () => {
@@ -700,9 +721,8 @@ test("different practitioners can offer and book the same time independently whi
   );
 });
 
-test("recurring schedules belong to their chosen practitioner and only conflict within that practitioner", async () => {
+test("recurring schedules only conflict for the same treatment and practitioner", async () => {
   const value = await treatment();
-  const alternative = await treatment(30);
   const first = await practitioner();
   const second = await practitioner();
   const input = scheduleInput(value.id);
@@ -737,8 +757,8 @@ test("recurring schedules belong to their chosen practitioner and only conflict 
   await assert.rejects(
     saveAvailabilitySchedule(admin.id, {
       ...input,
-      treatmentId: alternative.id,
       practitionerId: first.id,
+      startTime: "09:15",
     }),
     /överlappar/,
   );

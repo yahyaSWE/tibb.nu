@@ -247,38 +247,33 @@ export async function saveAvailabilitySchedule(
       throw new DomainError(
         "Schemat ger inga framtida tider. Kontrollera veckodagar, arbetstider, raster och behandlingens längd.",
       );
-    await expireBookings();
     const first = candidates[0].start;
     const last = candidates.at(-1)!.end;
-    const occupiedRows = await getDb()
+    const existingRows = await getDb()
       .prepare(
-        `SELECT start,end,treatment_id,'slot' AS kind FROM slots WHERE practitioner_id=? AND archived=0 AND start<? AND end>?
-       UNION ALL SELECT start,end,treatment_id,'booking' AS kind FROM bookings WHERE practitioner_id=? AND status IN ('pending','confirmed','completed') AND start<? AND end>?
-       UNION ALL SELECT start,end,NULL AS treatment_id,'block' AS kind FROM availability_blocks WHERE (practitioner_id IS NULL OR practitioner_id=?) AND start<? AND end>?`,
+        `SELECT start,end,'slot' AS kind FROM slots WHERE practitioner_id=? AND treatment_id=? AND archived=0 AND start<? AND end>?
+       UNION ALL SELECT start,end,'block' AS kind FROM availability_blocks WHERE (practitioner_id IS NULL OR practitioner_id=?) AND start<? AND end>?`,
       )
       .all(
         value.practitionerId,
-        last,
-        first,
-        value.practitionerId,
+        value.treatmentId,
         last,
         first,
         value.practitionerId,
         last,
         first,
       );
-    const occupied = mergeIntervals(
-      occupiedRows
-        .filter((row) => row.kind !== "block")
-        .map((row) => ({ start: String(row.start), end: String(row.end) })),
-    );
+    const existingSlots = existingRows
+      .filter((row) => row.kind === "slot")
+      .map((row) => ({ start: String(row.start), end: String(row.end) }));
+    const existingIntervals = mergeIntervals(existingSlots);
     const blockedIntervals = mergeIntervals(
-      occupiedRows
+      existingRows
         .filter((row) => row.kind === "block")
         .map((row) => ({ start: String(row.start), end: String(row.end) })),
     );
     const available = candidates.filter(
-      (candidate) => !overlaps(candidate, occupied),
+      (candidate) => !overlaps(candidate, existingIntervals),
     );
     skipped += candidates.length - available.length;
     const created = available.length;
@@ -287,13 +282,7 @@ export async function saveAvailabilitySchedule(
     ).length;
     if (!created) {
       const duplicates = new Set(
-        occupiedRows
-          .filter(
-            (row) =>
-              row.kind === "slot" &&
-              Number(row.treatment_id) === value.treatmentId,
-          )
-          .map((row) => `${row.start}/${row.end}`),
+        existingSlots.map((row) => `${row.start}/${row.end}`),
       );
       if (
         !candidates.every((candidate) =>
@@ -301,7 +290,7 @@ export async function saveAvailabilitySchedule(
         )
       )
         throw new DomainError(
-          "Schemat ger inga nya tider eftersom perioden överlappar bokningar eller andra tider.",
+          "Schemat ger inga nya tider eftersom perioden överlappar befintliga tider för samma behandling.",
         );
       const existing = await getDb()
         .prepare(

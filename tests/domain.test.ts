@@ -404,28 +404,36 @@ test("editing a lesson cannot move or overwrite a lesson in another course", asy
   );
   assert.notEqual((await getLessons(first.id))[0].title, "Tampered");
 });
-test("real separate processes cannot double-book the same slot", async () => {
+test("real separate processes cannot double-book the same or overlapping slots", async () => {
   const treatment = await activeTreatment();
-  const slotId = await saveSlot(admin.id, treatment.id, futureLocal(1));
-  const attempts = await Promise.all([worker(slotId), worker(slotId)]);
+  const alternative = await activeTreatment("Short consultation", 30);
+  const start = futureLocal(1);
+  const slotId = await saveSlot(admin.id, treatment.id, start);
+  const alternativeId = await saveSlot(
+    admin.id,
+    alternative.id,
+    start.slice(0, 11) + "10:15",
+  );
+  const attempts = await Promise.all([
+    worker(slotId),
+    worker(slotId),
+    worker(alternativeId),
+  ]);
   assert.equal(attempts.filter((result) => result.ok).length, 1);
-  assert.equal(attempts.filter((result) => !result.ok).length, 1);
-  assert.match(
-    attempts.find((result) => !result.ok)?.message || "",
-    /bokas|tillgänglig/,
+  for (const attempt of attempts.filter((result) => !result.ok))
+    assert.match(attempt.message || "", /bokas|tillgänglig/);
+  const slotIds = [slotId, alternativeId];
+  const confirmed = (await getBookings()).filter(
+    (booking) => slotIds.includes(booking.slotId) && booking.status === "confirmed",
   );
-  assert.equal(
-    (await getBookings()).filter(
-      (booking) => booking.slotId === slotId && booking.status === "confirmed",
-    ).length,
-    1,
-  );
-  assert.equal(
-    (await getSlots()).find((slot) => slot.id === slotId)?.booked,
-    true,
+  assert.equal(confirmed.length, 1);
+  const slots = await getSlots();
+  assert.deepEqual(
+    slots.filter((slot) => slotIds.includes(slot.id)).map((slot) => slot.booked),
+    [true, true],
   );
   await assert.rejects(
-    async () => await deleteSlot(admin.id, slotId),
+    deleteSlot(admin.id, confirmed[0].slotId),
     /bokad tid/,
   );
 });

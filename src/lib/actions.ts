@@ -286,7 +286,7 @@ export async function saveAvailabilityScheduleAction(
             ? ` ${result.blocked} av dem är spärrade och visas inte för kunder.`
             : "") +
           (result.skipped
-            ? ` ${result.skipped} tider hoppades över eftersom de redan finns, är bokade eller har passerat.`
+            ? ` ${result.skipped} tider hoppades över eftersom de överlappar befintliga tider för samma behandling eller har passerat.`
             : ""),
       )
     );

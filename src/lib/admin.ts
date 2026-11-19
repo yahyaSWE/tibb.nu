@@ -187,7 +187,6 @@ export async function saveSlot(
     throw new DomainError("Välj en framtida tid inom två år.");
   return await transaction(async () => {
     await assertAdmin(actorId);
-    await expireBookings();
     const treatment = await getTreatment(treatmentId);
     if (!treatment || !treatment.active)
       throw new DomainError("Välj en aktiv behandling.");
@@ -207,19 +206,14 @@ export async function saveSlot(
     )
       throw new DomainError("Tiden överlappar en spärrad period.");
     if (
-      (await getDb()
+      await getDb()
         .prepare(
-          "SELECT id FROM slots WHERE practitioner_id=? AND archived=0 AND start<? AND end>?",
+          "SELECT id FROM slots WHERE practitioner_id=? AND treatment_id=? AND archived=0 AND start<? AND end>?",
         )
-        .get(practitionerId, end, start)) ||
-      (await getDb()
-        .prepare(
-          "SELECT id FROM bookings WHERE practitioner_id=? AND status IN ('pending','confirmed','completed') AND start<? AND end>?",
-        )
-        .get(practitionerId, end, start))
+        .get(practitionerId, treatmentId, end, start)
     )
       throw new DomainError(
-        "Tiden överlappar en annan tillgänglig tid eller bokning.",
+        "Tiden överlappar en befintlig tid för samma behandling.",
       );
     return Number(
       (

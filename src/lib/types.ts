@@ -115,7 +115,7 @@ export type Booking = {
   email: string;
   phone: string;
   status: "pending" | "confirmed" | "cancelled" | "completed";
-  paymentMethod: "onsite" | "stripe";
+  paymentMethod: "onsite" | "stripe" | "kustom";
   paymentStatus: "pending" | "paid" | "refunded";
   checkoutSessionId: string | null;
   expiresAt: string | null;
@@ -168,6 +168,7 @@ export type Settings = {
   location: string;
   payOnSite: boolean;
   stripeEnabled: boolean;
+  kustomBookingEnabled: boolean;
 };
 
 export type CourseActivityKind = "quiz" | "assignment";

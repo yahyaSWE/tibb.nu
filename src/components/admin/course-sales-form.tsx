@@ -30,7 +30,7 @@ export function CourseSalesForm({ settings, groups, stripeReady }: {
         Eleven köper kursen med en engångsbetalning och får kursåtkomst utan tidsgräns.
         Du kan dessutom ge tillgång till en grupp med extra material och kurser.
       </p>
-      {!stripeReady && <p className="notice">Stripe-anslutningen behöver konfigureras innan kunder kan betala. Du kan förbereda inställningarna här.</p>}
+      {!stripeReady && <p className="notice">Betalningsanslutningen behöver konfigureras innan kunder kan betala. Du kan förbereda inställningarna här.</p>}
       <fieldset className="stack content-form-fields" disabled={form.pending}>
         <legend className="sr-only">Försäljning och grupp efter köp</legend>
         <Field label="Grupp efter köp" name="course-sales-group" help="Valfritt. Eleven läggs automatiskt i den valda gruppen efter bekräftad betalning.">
@@ -54,7 +54,7 @@ export function CourseSalesForm({ settings, groups, stripeReady }: {
         </Field>
         <label className="form-check">
           <input type="checkbox" name="enabled" checked={form.values.enabled} onChange={event => change("enabled", event.target.checked)} />
-          <span>Aktivera köp av kursen via Stripe</span>
+          <span>Aktivera köp av kursen</span>
         </label>
         <p className="small muted">Kursen behöver ett pris och vara publicerad. En grupp som ingår behöver också vara publicerad. Ange verksamhetens kontakt-e-post under Admin → Inställningar. Ändringar gäller nya köp; tidigare köp behåller sina avtalade uppgifter.</p>
       </fieldset>

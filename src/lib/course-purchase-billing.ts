@@ -5,6 +5,8 @@ import { getDb, transaction } from "./database";
 import { getCoursePurchaseOffer, hasPermanentCourseAccess, type CoursePurchaseOffer } from "./course-sales";
 import { appUrl, getStripe, stripeReady } from "./stripe";
 import { getStudentGroupAccessState } from "./student-access";
+import { kustomReady, shopPaymentProvider } from "./shop-payment-config";
+import { cancelKustomServicePayment, openKustomServicePayment } from "./kustom-service-payments";
 
 type Row = Record<string, unknown>;
 const str = (value: unknown) => String(value ?? "");
@@ -22,6 +24,7 @@ export class CoursePurchaseHttpError extends DomainError {
   constructor(message: string, readonly status: number) { super(message); }
 }
 export function coursePurchaseReady() {
+  if (shopPaymentProvider() === "kustom") return kustomReady();
   if (!stripeReady()) return false;
   try { appUrl(); return true; } catch { return false; }
 }
@@ -92,7 +95,7 @@ function assertMetadata(value: Stripe.Metadata | null | undefined, attempt: Row)
   if (Object.entries(metadata(attempt)).some(([key, expected]) => value?.[key] !== expected))
     throw new CoursePurchaseVerificationError("Course payment ownership mismatch");
 }
-async function reserveAttempt(userId: number, courseId: number, consent: CoursePurchaseConsent) {
+async function reserveAttempt(userId: number, courseId: number, consent: CoursePurchaseConsent, kustom = false) {
   return transaction(async () => {
     await verifiedStudent(userId);
     const offer = await purchasableCourse(courseId, consent);
@@ -103,6 +106,8 @@ async function reserveAttempt(userId: number, courseId: number, consent: CourseP
     let attempt = await getDb().prepare("SELECT * FROM course_purchase_attempts WHERE user_id=? AND course_id=? AND status IN ('creating','open','completed') ORDER BY created_at DESC LIMIT 1").get(userId, courseId);
     const fresh = !attempt;
     if (attempt) {
+      if (str(attempt.session_id).startsWith("kustom_") !== kustom)
+        throw new DomainError("Ett kursköp pågår i den tidigare kassan. Avbryt köpet under Mina köp innan du fortsätter.");
       if (str(attempt.course_revision) !== consent.courseRevision || str(attempt.settings_revision) !== consent.settingsRevision)
         throw new DomainError("En betalning för kursen pågår redan. Slutför den eller avbryt den under Mina köp innan du väljer det nya erbjudandet.");
       if (attempt.status === "completed") throw new DomainError("Betalningen behandlas. Kursen visas när Stripe har bekräftat den.");
@@ -111,10 +116,10 @@ async function reserveAttempt(userId: number, courseId: number, consent: CourseP
     } else {
       const timestamp = now(), attemptId = randomBytes(16).toString("hex");
       await getDb().prepare(`INSERT INTO course_purchase_attempts
-        (id,user_id,course_id,course_title,course_slug,course_revision,settings_revision,terms,price_ore,vat_percent,group_id,group_name,group_access_days,status,expires_at,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'creating',?,?,?)`)
+        (id,user_id,course_id,course_title,course_slug,course_revision,settings_revision,terms,price_ore,vat_percent,group_id,group_name,group_access_days,status,expires_at,created_at,updated_at,session_id)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'creating',?,?,?,?)`)
         .run(attemptId, userId, courseId, offer.title, offer.slug, offer.courseRevision, offer.settingsRevision, offer.terms, offer.priceOre,
-          offer.vatPercent, offer.groupId, offer.groupName, offer.groupAccessDays, new Date(Date.now() + CHECKOUT_MINUTES * 60000).toISOString(), timestamp, timestamp);
+          offer.vatPercent, offer.groupId, offer.groupName, offer.groupAccessDays, new Date(Date.now() + CHECKOUT_MINUTES * 60000).toISOString(), timestamp, timestamp, kustom ? `kustom_${attemptId}` : null);
       attempt = (await getDb().prepare("SELECT * FROM course_purchase_attempts WHERE id=?").get(attemptId))!;
     }
     const token = randomBytes(16).toString("hex");
@@ -192,6 +197,20 @@ function checkoutRedirect(value: string | null) {
   return value;
 }
 export async function createCoursePurchaseCheckout(userId: number, courseId: number, consent: CoursePurchaseConsent) {
+  if (shopPaymentProvider() === "kustom") {
+    if (!kustomReady()) throw new DomainError("Kustom Checkout är inte tillgängligt just nu.");
+    const user = await verifiedStudent(userId);
+    const { attempt, token } = await reserveAttempt(userId, courseId, consent, true);
+    try {
+      const url = await openKustomServicePayment({ reference: str(attempt.id), kind: "course", amount: num(attempt.price_ore),
+        vat: num(attempt.vat_percent), email: user.email, deadline: str(attempt.expires_at) });
+      await getDb().prepare("UPDATE course_purchase_attempts SET status='open',updated_at=? WHERE id=? AND lease_token=? AND status='creating'")
+        .run(now(), str(attempt.id), token);
+      return url;
+    } finally {
+      await getDb().prepare("UPDATE course_purchase_attempts SET lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?").run(str(attempt.id), token);
+    }
+  }
   const stripe = getStripe();
   const { attempt, token, fresh } = await reserveAttempt(userId, courseId, consent);
   let sessionId: string | undefined, checkoutRequested = false;
@@ -279,6 +298,10 @@ export async function cancelCoursePurchaseCheckout(userId: number, courseId: num
   });
   if (!attempt) return;
   try {
+    if (str(attempt.session_id).startsWith("kustom_")) {
+      await cancelKustomServicePayment(str(attempt.id));
+      return;
+    }
     const stripe = getStripe();
     let session = await attemptSession(attempt, stripe, true);
     if (session) {
@@ -312,9 +335,11 @@ export async function getUserPendingCoursePurchases(userId: number): Promise<Pen
 export type CoursePurchaseConfirmation = { courseId: number; title: string; slug: string; groupId: number | null; groupName: string | null;
   groupExpiresAt: string | null; priceOre: number; status: "paid" | "pending" | "cancelled" | "blocked"; confirmed: boolean;
   courseAvailable: boolean; groupAvailable: boolean };
+export const courseConfirmationId = /^(?:cs_[A-Za-z0-9_]{1,200}|kustom_[a-f0-9]{32})$/;
+
 export async function getCoursePurchaseConfirmation(userId: number, sessionId: string): Promise<CoursePurchaseConfirmation | null> {
   await verifiedStudent(userId);
-  if (!/^cs_[A-Za-z0-9_]{1,200}$/.test(sessionId)) return null;
+  if (!courseConfirmationId.test(sessionId)) return null;
   const row = await getDb().prepare(`SELECT a.*,c.slug AS current_slug,p.id AS purchase_id,p.revoked,p.group_expires_at,g.published AS group_published FROM course_purchase_attempts a
     JOIN courses c ON c.id=a.course_id LEFT JOIN course_purchases p ON p.attempt_id=a.id LEFT JOIN membership_groups g ON g.id=a.group_id
     WHERE a.user_id=? AND a.session_id=?`).get(userId, sessionId);
@@ -324,6 +349,26 @@ export async function getCoursePurchaseConfirmation(userId: number, sessionId: s
     groupName: row.group_name === null ? null : str(row.group_name), groupExpiresAt: row.group_expires_at ? str(row.group_expires_at) : null,
     priceOre: num(row.price_ore), status, confirmed: status === "paid", courseAvailable: await hasCourseAccess(userId, num(row.course_id)),
     groupAvailable: row.group_id !== null && !!(await getStudentGroupAccessState(userId, num(row.group_id)))?.available };
+}
+
+export async function applyKustomCourseResult(reference: string, status: "paid" | "cancelled" | "refunded", orderId: string, paidAt?: string) {
+  const attempt = await getDb().prepare("SELECT * FROM course_purchase_attempts WHERE id=? AND session_id=?").get(reference, `kustom_${reference}`);
+  if (!attempt) throw new DomainError("Kursköpet hittades inte.");
+  if (status !== "paid") {
+    await getDb().prepare("UPDATE course_purchase_attempts SET status='cancelled',updated_at=? WHERE id=? AND status!='paid'").run(now(), reference);
+    if (status === "refunded") await getDb().prepare("UPDATE course_purchases SET revoked=1,revocation_reason='refund',updated_at=? WHERE attempt_id=?").run(now(), reference);
+    return;
+  }
+  if (!paidAt || !["creating", "open", "completed"].includes(str(attempt.status))) throw new DomainError("Kursköpets debitering behöver kontrolleras.");
+  const groupExpires = attempt.group_id !== null && attempt.group_access_days !== null
+    ? new Date(Date.parse(paidAt) + num(attempt.group_access_days) * 86400000).toISOString() : null;
+  const providerReference = `kustom:${orderId}`;
+  await getDb().prepare("UPDATE course_purchase_attempts SET status='paid',updated_at=? WHERE id=?").run(now(), reference);
+  await getDb().prepare(`INSERT INTO course_purchases
+    (id,attempt_id,user_id,course_id,group_id,group_expires_at,session_id,payment_intent_id,charge_id,price_ore,vat_percent,paid_at,revoked,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,?)`).run(reference, reference, num(attempt.user_id), num(attempt.course_id),
+    attempt.group_id === null ? null : num(attempt.group_id), groupExpires, str(attempt.session_id), providerReference, providerReference,
+    num(attempt.price_ore), num(attempt.vat_percent), paidAt, now());
 }
 export type CoursePurchaseView = { id: string; courseId: number; title: string; slug: string; name: string; email: string;
   groupId: number | null; groupName: string | null; groupExpiresAt: string | null; priceOre: number; vatPercent: number;

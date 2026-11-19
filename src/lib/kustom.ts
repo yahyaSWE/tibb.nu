@@ -9,7 +9,8 @@ import { activateWellnessOrder, correctWellnessRefund } from "./wellness";
 import type { ShopOrder } from "./shop-types";
 
 const integer = z.number().int().nonnegative();
-const identifier = z.string().regex(/^[a-zA-Z0-9-]{1,255}$/);
+export const kustomIdentifier = z.string().regex(/^[a-zA-Z0-9-]{1,255}$/);
+const identifier = kustomIdentifier;
 const lineSchema = z.object({ reference: z.string(), quantity: integer, unit_price: integer, tax_rate: integer,
   total_amount: integer, total_tax_amount: integer, total_discount_amount: integer.optional() });
 const checkoutSchema = z.object({ order_id: identifier, merchant_reference1: z.string(), order_amount: integer,
@@ -19,6 +20,7 @@ const managedSchema = checkoutSchema.extend({ captured_amount: integer, refunded
   captures: z.array(z.object({ capture_id: identifier, captured_amount: integer, captured_at: z.iso.datetime({ offset: true }) })).max(100),
   refunds: z.array(z.object({ refund_id: identifier, refunded_amount: integer, refunded_at: z.string(), order_lines: z.array(lineSchema).optional() })).max(100) });
 type ManagedOrder = z.infer<typeof managedSchema>;
+export { checkoutSchema as kustomCheckoutSchema, managedSchema as kustomManagedOrderSchema, operationKey as kustomOperationKey };
 export interface KustomClient { request(path: string, method?: string, body?: object, idempotencyKey?: string): Promise<unknown> }
 export class KustomApiError extends DomainError {
   constructor(readonly status: number) { super("Kustom-anropet kunde inte verifieras. Försök med samma beställning eller kontakta verksamheten."); }

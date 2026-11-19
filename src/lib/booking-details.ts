@@ -21,7 +21,7 @@ export type BookingVisit = Pick<Booking, "deliveryMode" | "meetingUrl" | "status
 // rendered for confirmed bookings after any Stripe payment has cleared.
 export function customerMeetingUrl(booking: BookingVisit): string | null {
   if (booking.deliveryMode !== "remote" || booking.status !== "confirmed" ||
-      (booking.paymentMethod === "stripe" && booking.paymentStatus !== "paid")) return null;
+      (booking.paymentMethod !== "onsite" && booking.paymentStatus !== "paid")) return null;
   const parsed = MeetingUrlSchema.safeParse(booking.meetingUrl);
   return parsed.success && parsed.data ? parsed.data : null;
 }

@@ -34,8 +34,8 @@ export default async function BookingDetailPage({
     pending: "Väntar på utskick", sending: "Utskick pågår", sent: "Accepterat av Resend",
     failed: "Utskicket kunde inte slutföras", skipped: "Utskicket stoppades",
   };
-  const waitingForStripe =
-    booking.paymentMethod === "stripe" && booking.paymentStatus !== "paid";
+  const waitingForPayment =
+    booking.paymentMethod !== "onsite" && booking.paymentStatus !== "paid";
   return (
     <>
       <AdminHeading
@@ -106,7 +106,7 @@ export default async function BookingDetailPage({
               <dd>
                 {booking.paymentMethod === "onsite"
                   ? "Betalning vid besöket"
-                  : "Kort via Stripe"}
+                  : booking.paymentMethod === "kustom" ? "Via Kustom" : "Kort via Stripe"}
               </dd>
             </div>
             <div>
@@ -138,14 +138,14 @@ export default async function BookingDetailPage({
             <form action={updateBookingAction} className="stack">
               <ReturnTo path={`/admin/bokningar/${id}`} />
               <input type="hidden" name="id" value={booking.id} />
-              {booking.paymentMethod === "stripe" ? (
+              {booking.paymentMethod !== "onsite" ? (
                 <input
                   type="hidden"
                   name="paymentStatus"
                   value={booking.paymentStatus}
                 />
               ) : null}
-              {waitingForStripe ? (
+              {waitingForPayment ? (
                 <>
                   <div className="notice">
                     Kortbetalningen har ännu inte bekräftats. Bokningen
@@ -185,16 +185,16 @@ export default async function BookingDetailPage({
                 </Field>
               ) : (
                 <p className="muted">
-                  Stripe uppdaterar betalningsstatus automatiskt. En eventuell
-                  återbetalning hanteras i Stripe.
+                  Betalningsstatus uppdateras automatiskt. En eventuell
+                  återbetalning hanteras hos betalningsleverantören.
                 </p>
               )}
               <div>
                 <button
-                  className={`button ${waitingForStripe ? "button-secondary delete-button" : "button-primary"}`}
+                  className={`button ${waitingForPayment ? "button-secondary delete-button" : "button-primary"}`}
                   type="submit"
                 >
-                  {waitingForStripe ? "Avboka reservation" : "Spara bokning"}
+                  {waitingForPayment ? "Avboka reservation" : "Spara bokning"}
                 </button>
               </div>
             </form>

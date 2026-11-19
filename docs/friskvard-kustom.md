@@ -4,7 +4,9 @@
 
 Friskvård är en del av den befintliga butiken: samma produkt-ID, varukorg, serverberäknade priser/rabatter, ordertabell och e-postleverantör. `/friskvard` ger en mobilanpassad paketbyggare. `/admin/friskvard` hanterar tjänster, personliga klippkort, kvitton, användning, korrigeringar och redan betalda manuella köp.
 
-Ägaren har valt **Kustom Checkout i stället för Stripe för butikens nya kassa**. Kustom Hosted Payment Page används: servern skapar en Kustom Checkout-order och en HPP-session, och kunden skickas vidare till den Kustom-hostade kassan. Ingen betalinformation behöver hanteras i Tibb.nu:s frontend. Befintliga Stripe-flöden för behandlingstid, kursköp och abonnemang är separata och påverkas inte. Äldre Stripe-butiksorder och deras webhook kan fortfarande färdigbehandlas. Välj Kustom uttryckligen enligt konfigurationen nedan; befintliga installationer utan den nya inställningen behåller sin tidigare butikskassa.
+I produktionsbygget är Kustom Checkout enda betalningsvalet för nya butiksordrar, behandlingsbokningar via webben och MCP samt engångsköp av kurser. Under **Admin → Inställningar** går det att pausa Kustom för behandlingsbokningar. Inställningen är på som standard och kassan öppnar när Kustoms serverinställningar är kompletta. Ordinarie behandlingspriser är inklusive 25 % moms som standard. Kursköp använder kursens momssats. Befintliga Stripe-betalningar och pågående Stripe-abonnemang hanteras hos Stripe. Nya abonnemangsköp är stängda tills återkommande betalningar kan anslutas.
+
+Behandlingar bekräftas och kurser öppnas efter att servern verifierat hela debiteringen. Kunden namnges inte i orderraden och Kustom får som radnamn ”Behandlingsbokning” respektive ”Digital kurs”. Webhook för dessa köp är `/api/kustom/service-push`. Kör samma avstämningsjobb `/api/kustom/reconcile` även för bokningar och kurser, så att missade callbacks, passerade betalningsfrister och återbetalningar kan följas upp. Ett oklart svar när Kustom skapar ordern får inte skapa en ny debiterbar order. Kontakta verksamheten med köpets referens om en sådan betalning fastnar.
 
 ## Lokal utveckling och staging
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { accountAuthHref } from "@/lib/account-return";
-import { getCoursePurchaseConfirmation } from "@/lib/course-purchase-billing";
+import { courseConfirmationId, getCoursePurchaseConfirmation } from "@/lib/course-purchase-billing";
 import { CoursePurchaseRefreshButton } from "@/components/learning/course-purchase-controls";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { formatDateTime, formatMoney } from "@/lib/time";
@@ -14,7 +14,7 @@ export default async function CoursePurchaseConfirmationPage({ searchParams }: {
   searchParams: Promise<{ session_id?: string }>;
 }) {
   const query = await searchParams, user = await getCurrentUser();
-  const sessionId = typeof query.session_id === "string" && /^cs_[A-Za-z0-9_]{1,200}$/.test(query.session_id) ? query.session_id : null;
+  const sessionId = typeof query.session_id === "string" && courseConfirmationId.test(query.session_id) ? query.session_id : null;
   const returnTo = sessionId ? `/kurskop/bekraftelse?session_id=${encodeURIComponent(sessionId)}` : "/elevportal/kop";
   if (!user) redirect(accountAuthHref("/logga-in", returnTo));
   if (user.role === "student" && !user.emailVerifiedAt) redirect(accountAuthHref("/verifiera-epost", returnTo));
@@ -27,7 +27,7 @@ export default async function CoursePurchaseConfirmationPage({ searchParams }: {
       <p>{checkout?.confirmed ? `${checkout.title} · ${formatMoney(checkout.priceOre)}. Din kursåtkomst har ingen tidsgräns.`
         : checkout?.status === "blocked" ? "Åtkomsten från köpet har spärrats efter en återbetalning, tvist eller betalningskontroll. Kontakta oss om du har frågor."
           : checkout?.status === "cancelled" ? "Du kan gå tillbaka till kursen och försöka igen."
-            : checkout ? "Åtkomsten öppnas när Stripe har bekräftat betalningen. Det kan ta en kort stund."
+            : checkout ? "Åtkomsten öppnas när betalningen har verifierats. Det kan ta en kort stund."
               : "Se dina betalningar och köp i elevportalen."}</p>
     </header>
     {checkout && (checkout.confirmed || checkout.courseAvailable || checkout.groupAvailable) && <div className="panel stack">

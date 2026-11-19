@@ -28,6 +28,7 @@ import { COURSE_PURCHASE_SCHEMA } from "./course-purchase-schema";
 import { ANAMNES_SCHEMA } from "./anamnes/schema";
 import { MCP_BOOKING_SCHEMA } from "./mcp-schema";
 import { WELLNESS_SCHEMA } from "./wellness-schema";
+import { SERVICE_PAYMENT_SCHEMA } from "./service-payment-schema";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
@@ -167,10 +168,12 @@ export class DatabaseAdapter {
           await tx.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
         await tx.executeMultiple(ACCOUNT_EMAIL_SCHEMA);
         const visitAdditions: Record<string, Record<string, string>> = {
+          settings: { kustom_booking_enabled: "INTEGER NOT NULL DEFAULT 1 CHECK(kustom_booking_enabled IN (0,1))" },
           treatments: { delivery_mode: "TEXT NOT NULL DEFAULT 'onsite' CHECK(delivery_mode IN ('onsite','remote'))" },
           bookings: {
             delivery_mode: "TEXT NOT NULL DEFAULT 'onsite' CHECK(delivery_mode IN ('onsite','remote'))",
             meeting_url: "TEXT NOT NULL DEFAULT ''",
+            online_payment_provider: "TEXT CHECK(online_payment_provider IN ('kustom'))",
           },
         };
         for (const [table, additions] of Object.entries(visitAdditions)) {
@@ -213,6 +216,7 @@ export class DatabaseAdapter {
             await tx.execute(`ALTER TABLE shop_products ADD COLUMN ${name} ${definition}`);
         }
         await tx.executeMultiple(WELLNESS_SCHEMA);
+        await tx.executeMultiple(SERVICE_PAYMENT_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

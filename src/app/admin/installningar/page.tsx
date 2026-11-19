@@ -1,10 +1,11 @@
 import { requireAdmin } from "@/lib/auth";
-import { Check, Circle, CreditCard, Wallet } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import { getSiteSettings } from "@/lib/site-data";
 import { saveSettingsAction } from "@/lib/actions";
 import { getBusinessSettings } from "@/lib/business-settings";
 import { BusinessSettingsForm } from "@/components/admin/business-settings-form";
 import { emailConfigurationStatus } from "@/lib/email-provider";
+import { bookingVatPercent, kustomBookingReady } from "@/lib/shop-payment-config";
 import {
   AdminHeading,
   AdminNotice,
@@ -21,15 +22,8 @@ export default async function SettingsPage({
 }) {
   await requireAdmin();
   const [settings, business] = await Promise.all([getSiteSettings(), getBusinessSettings()]);
-  const stripeChecks = [
-    { label: "Stripe-anslutning", ready: !!process.env.STRIPE_SECRET_KEY },
-    {
-      label: "Verifiering av betalningshändelser",
-      ready: !!process.env.STRIPE_WEBHOOK_SECRET,
-    },
-    { label: "Hemsidans adress", ready: !!process.env.APP_URL },
-  ];
-  const stripeReady = stripeChecks.every((item) => item.ready);
+  const paymentReady = kustomBookingReady();
+  const paymentEnabled = paymentReady && settings.kustomBookingEnabled;
   const email = emailConfigurationStatus();
   return (
     <>
@@ -107,69 +101,35 @@ export default async function SettingsPage({
         <section className="panel form-panel">
           <SectionHeading
             title="Betalningar"
-            description="Aktivera de betalningssätt som dina kunder ska kunna välja."
+            description="Styr betalning för nya behandlingsbokningar på webbplatsen och via MCP."
           />
-          <div className="payment-option">
-            <Wallet size={23} aria-hidden="true" />
-            <div>
-              <h3>Betalning vid besöket</h3>
-              <p className="muted">
-                Bokningen bekräftas direkt. Markera betalningen som mottagen i
-                bokningen.
-              </p>
-              <label className="form-check">
-                <input
-                  type="checkbox"
-                  name="payOnSite"
-                  defaultChecked={settings.payOnSite}
-                />
-                <span>Tillåt betalning vid besöket</span>
-              </label>
-            </div>
-          </div>
           <div className="payment-option">
             <CreditCard size={23} aria-hidden="true" />
             <div>
               <h3>
-                Kortbetalning via Stripe{" "}
+                Kustom Checkout{" "}
                 <span
-                  className={`badge ${stripeReady ? "badge-green" : "badge-amber"}`}
+                  className={`badge ${paymentEnabled ? "badge-green" : "badge-amber"}`}
                 >
-                  {stripeReady ? "Ansluten" : "Anslutning saknas"}
+                  {paymentEnabled ? "Aktiverad" : paymentReady ? "Pausad" : "Konfiguration saknas"}
                 </span>
               </h3>
               <p className="muted">
-                Kunden betalar tryggt i Stripe. Bokningen bekräftas när
+                Kunden betalar hos Kustom. Bokningen bekräftas när
                 betalningen har verifierats.
               </p>
-              <ul className="credential-status">
-                {stripeChecks.map((item) => (
-                  <li key={item.label}>
-                    {item.ready ? (
-                      <Check size={16} aria-hidden="true" />
-                    ) : (
-                      <Circle size={16} aria-hidden="true" />
-                    )}
-                    <span>
-                      {item.label}: {item.ready ? "klar" : "saknas"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {!stripeReady ? (
+              {paymentReady ? <p className="muted">Behandlingspriserna inkluderar {bookingVatPercent()} % moms.</p> : (
                 <div className="notice">
-                  Anslut Stripe i serverns konfiguration innan du aktiverar
-                  kortbetalning. Följ betalningsguiden i projektets README.
+                  Komplettera Kustoms serverinställningar innan kassan kan öppnas.
                 </div>
-              ) : null}
+              )}
               <label className="form-check">
                 <input
                   type="checkbox"
-                  name="stripeEnabled"
-                  disabled={!stripeReady}
-                  defaultChecked={settings.stripeEnabled && stripeReady}
+                  name="kustomBookingEnabled"
+                  defaultChecked={settings.kustomBookingEnabled}
                 />
-                <span>Aktivera kortbetalning</span>
+                <span>Aktivera Kustom för behandlingsbokningar</span>
               </label>
             </div>
           </div>

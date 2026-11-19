@@ -9,6 +9,8 @@ import { cancellationText } from "./business-config";
 import { enforceRequestLimit } from "./request-rate-limit";
 import { equalSecret, randomToken, tokenHash } from "./security";
 import { appUrl, createCheckout, getStripe, stripeReady } from "./stripe";
+import { kustomBookingReady, shopPaymentProvider } from "./shop-payment-config";
+import { openKustomBooking } from "./kustom-service-payments";
 import { emailSchema, text } from "./validation";
 
 const id = z.number().int().positive();
@@ -83,15 +85,16 @@ function publicSlot(slot: Slot, treatment: Treatment, terms: Awaited<ReturnType<
 }
 
 export async function listMcpTreatments() {
+  const provider = shopPaymentProvider();
   const [treatments, practitioners, settings, terms] = await Promise.all([
     getTreatments({ activeOnly: true }), getPractitioners({ activeOnly: true }), getSettings(), publicTerms(),
   ]);
   return {
     treatments: treatments.map(publicTreatment),
     practitioners: practitioners.map(value => ({ id: value.id, name: value.name, description: value.description })),
-    onlinePaymentAvailable: settings.stripeEnabled && stripeReady(),
-    paymentMethod: "stripe", terms,
-    instructions: "Visa behandling, behandlare, besöksform, svensk lokal tid, pris och villkor för kunden före bokning. Betalning slutförs av kunden i Stripe Checkout. Skicka inga kortuppgifter eller hälsouppgifter till verktygen.",
+    onlinePaymentAvailable: provider === "kustom" ? settings.kustomBookingEnabled && kustomBookingReady() : settings.stripeEnabled && stripeReady(),
+    paymentMethod: provider, terms,
+    instructions: "Visa behandling, behandlare, besöksform, svensk lokal tid, pris och villkor för kunden före bokning. Kunden slutför betalningen via kassalänken. Skicka inga kortuppgifter eller hälsouppgifter till verktygen.",
   };
 }
 
@@ -161,7 +164,7 @@ export async function createMcpBookingCheckout(raw: unknown, headers: Headers, g
     const treatment = slot && (await getTreatments({ activeOnly: true })).find(value => value.id === slot.treatmentId);
     if (!slot || !treatment || !equalSecret(publicSlot(slot, treatment, await publicTerms()).offerVersion, input.offerVersion))
       throw new DomainError("Bokningsuppgifterna eller villkoren har ändrats. Hämta lediga tider och låt kunden godkänna det nya erbjudandet.");
-    const reserved = await reserveBooking({ ...input, paymentMethod: "stripe" });
+    const reserved = await reserveBooking({ ...input, paymentMethod: shopPaymentProvider() });
     await getDb().prepare("INSERT INTO mcp_booking_requests(token_hash,request_hash,booking_reference,access_expires_at,created_at) VALUES(?,?,?,?,?)")
       .run(key, fingerprint, reserved.reference, new Date(Date.parse(reserved.end) + 7 * 86400000).toISOString(), new Date().toISOString());
     return reserved;
@@ -169,11 +172,10 @@ export async function createMcpBookingCheckout(raw: unknown, headers: Headers, g
   if (booking.status !== "pending" || booking.paymentStatus !== "pending")
     return { ...bookingSummary(booking), checkoutUrl: null };
   try {
-    // The existing Stripe integration uses a stable idempotency key per booking.
-    // Never free the slot on an ambiguous network error: Stripe may have created
-    // the checkout already. A retry recovers it; otherwise the hold expires.
-    const session = booking.checkoutSessionId ? await gateway.retrieve(booking.checkoutSessionId) : null;
-    const checkoutUrl = session ? (session.status === "open" ? session.url : null) : await gateway.create(booking);
+    // Stripe resumes by session ID; Kustom resumes by booking reference.
+    const session = booking.paymentMethod === "stripe" && booking.checkoutSessionId ? await gateway.retrieve(booking.checkoutSessionId) : null;
+    const checkoutUrl = booking.paymentMethod === "kustom" ? await openKustomBooking(booking)
+      : session ? (session.status === "open" ? session.url : null) : await gateway.create(booking);
     await expireBookings();
     const current = (await getBookingByReference(booking.reference))!;
     return {
@@ -182,6 +184,6 @@ export async function createMcpBookingCheckout(raw: unknown, headers: Headers, g
       instructions: "Låt kunden öppna betalningslänken och betala. Bokningen är bekräftad först när status är confirmed och paymentStatus är paid. Kontrollera med get_booking_status; vänta minst 10 sekunder mellan kontroller.",
     };
   } catch {
-    throw new DomainError("Betalningslänken kunde inte hämtas. Reservationen finns kvar tills den löper ut. Försök igen med exakt samma bokningstoken och uppgifter; skapa inte en ny bokning.");
+    throw new DomainError("Betalningslänken kunde inte hämtas. Försök igen med exakt samma bokningstoken och uppgifter. Kontakta verksamheten om betalningen fortfarande behöver kontrolleras.");
   }
 }

@@ -104,7 +104,7 @@ export function CourseForm({
         <Field
           label="Pris (kr)"
           name="price"
-          help="Priset visas i kurskatalogen och används vid engångsköp när du aktiverar Stripe-försäljning längre ned i kursbyggaren."
+          help="Priset visas i kurskatalogen och används vid engångsköp när du aktiverar kursförsäljning längre ned i kursbyggaren."
         >
           <input
             id="price"

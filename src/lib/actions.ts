@@ -36,6 +36,7 @@ import {
   signupSchema,
 } from "./validation";
 import { createCheckout, getStripe } from "./stripe";
+import { cancelKustomServicePayment, openKustomBooking } from "./kustom-service-payments";
 import { enforceRequestLimit } from "./request-rate-limit";
 import { sendVerificationEmail } from "./account-email";
 import { dispatchBookingEmailOutbox } from "./email-outbox";
@@ -167,6 +168,10 @@ export async function createBookingAction(form: FormData): Promise<void> {
     await requestLimit("booking", input.email, 10);
     const booking = await reserveBooking(input);
     if (booking.status === "confirmed") after(() => dispatchBookingEmailOutbox({ bookingId: booking.id, limit: 2 }));
+    if (input.paymentMethod === "kustom") {
+      try { return await openKustomBooking(booking); }
+      catch { return `/bokning/bekraftelse?ref=${booking.reference}`; }
+    }
     if (input.paymentMethod === "stripe") {
       try {
         return await createCheckout(booking);
@@ -349,6 +354,8 @@ export async function updateBookingAction(form: FormData): Promise<void> {
   await formAction(form, "/admin/bokningar", async () => {
     const id = idField(form);
     const booking = await getBookingById(id);
+    if (booking?.paymentMethod === "kustom" && booking.status === "pending" && field(form, "status") === "cancelled")
+      await cancelKustomServicePayment(booking.reference);
     if (
       booking?.paymentMethod === "stripe" &&
       booking.status === "pending" &&
@@ -389,8 +396,7 @@ export async function saveSettingsAction(form: FormData): Promise<void> {
         phone: field(form, "phone"),
         address: field(form, "address"),
         location: field(form, "location"),
-        payOnSite: field(form, "payOnSite") === "on",
-        stripeEnabled: field(form, "stripeEnabled") === "on",
+        kustomBookingEnabled: field(form, "kustomBookingEnabled") === "on",
       }),
   );
 }

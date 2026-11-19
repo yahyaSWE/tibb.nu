@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { DomainError, getUser } from "./db";
 import { getDb, transaction } from "./database";
 import { appUrl, getStripe } from "./stripe";
+import { shopPaymentProvider } from "./shop-payment-config";
 
 type Row = Record<string, unknown>;
 const str = (value: unknown) => String(value ?? "");
@@ -25,6 +26,10 @@ export function membershipBillingReady() {
 }
 export function membershipPortalReady() {
   return membershipBillingReady() && !!process.env.MEMBERSHIP_STRIPE_PORTAL_CONFIGURATION_ID;
+}
+
+export function membershipCheckoutReady() {
+  return shopPaymentProvider() !== "kustom" && membershipPortalReady();
 }
 export function assertMembershipOrigin(request: Request) {
   if (request.headers.get("origin") !== appUrl() || request.headers.get("sec-fetch-site") === "cross-site")
@@ -217,6 +222,7 @@ function assertSession(session: Stripe.Checkout.Session, attempt: Row) {
   assertCheckoutTax(session, attempt);
 }
 export async function createMembershipCheckout(userId: number, planId: number, consent: MembershipCheckoutConsent) {
+  if (!membershipCheckoutReady()) throw new DomainError("Nya abonnemang kan inte tecknas just nu.");
   const stripe = getStripe();
   const { attempt, token, fresh } = await reserveAttempt(userId, planId, consent);
   let sessionId: string | undefined;

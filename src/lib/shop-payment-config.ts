@@ -6,7 +6,7 @@ const liveKustomElements = {
 };
 
 export function shopPaymentProvider(): "stripe" | "kustom" {
-  return process.env.SHOP_PAYMENT_PROVIDER === "kustom" ? "kustom" : "stripe";
+  return process.env.NODE_ENV === "production" || process.env.SHOP_PAYMENT_PROVIDER === "kustom" ? "kustom" : "stripe";
 }
 
 export function getKustomElementsConfig() {
@@ -27,7 +27,7 @@ export function getKustomElementsConfig() {
 }
 
 export function kustomConfiguration() {
-  const environment = process.env.KUSTOM_ENVIRONMENT || "playground";
+  const environment = process.env.KUSTOM_ENVIRONMENT || (process.env.VERCEL_ENV === "production" ? "production" : "playground");
   if (!["playground", "production"].includes(environment)) throw new Error("Invalid Kustom environment");
   if (!process.env.KUSTOM_API_USERNAME || !process.env.KUSTOM_API_PASSWORD) throw new Error("Kustom credentials missing");
   if (environment === "production" && process.env.KUSTOM_LIVE_ENABLED !== "1") throw new Error("Kustom live payments disabled");
@@ -38,3 +38,12 @@ export function kustomConfiguration() {
     authorization: `Basic ${Buffer.from(`${process.env.KUSTOM_API_USERNAME}:${process.env.KUSTOM_API_PASSWORD}`).toString("base64")}` };
 }
 export function kustomReady() { try { kustomConfiguration(); return true; } catch { return false; } }
+
+export function bookingVatPercent() {
+  const value = process.env.KUSTOM_BOOKING_VAT_PERCENT ?? "25";
+  return ["0", "6", "12", "25"].includes(value) ? Number(value) : null;
+}
+
+export function kustomBookingReady() {
+  return kustomReady() && bookingVatPercent() !== null;
+}

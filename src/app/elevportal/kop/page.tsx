@@ -22,7 +22,7 @@ export default async function CoursePurchasesPage({ searchParams }: {
       <h2>Påbörjade betalningar</h2>
       <div className="stack">{pending.map(attempt => <article key={attempt.courseId} className="course-purchase-record">
         <h3>{attempt.title}</h3>
-        <p>{formatMoney(attempt.priceOre)} · {attempt.canCancel ? `Betalningslänken gäller till ${formatDateTime(attempt.expiresAt)}.` : "Betalningen behandlas. Vi inväntar Stripes bekräftelse."}</p>
+        <p>{formatMoney(attempt.priceOre)} · {attempt.canCancel ? `Betalningslänken gäller till ${formatDateTime(attempt.expiresAt)}.` : "Betalningen behandlas. Vi inväntar betalningsbekräftelse."}</p>
         <div className="membership-actions">
           <Link href={`/kurser/${encodeURIComponent(attempt.slug)}`} className="button button-primary">Till kurssidan</Link>
           {attempt.canCancel && <CoursePurchaseCancelButton courseId={attempt.courseId} />}

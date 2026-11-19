@@ -286,14 +286,16 @@ export async function updateBooking(
     if (!row) throw new DomainError("Bokningen finns inte.");
     if (row.payment_method === "stripe" && paymentStatus !== row.payment_status)
       throw new DomainError(
-        "Kortbetalningar uppdateras av Stripe. Hantera återbetalningar i Stripe.",
+        "Betalningsstatus uppdateras av betalningsleverantören. Hantera återbetalningen hos leverantören.",
       );
     if (
       row.payment_method === "stripe" &&
       row.payment_status !== "paid" &&
       status !== "cancelled"
     )
-      throw new DomainError("Kortbetalningen måste bekräftas av Stripe först.");
+      throw new DomainError("Betalningen måste verifieras först.");
+    if (row.online_payment_provider === "kustom" && row.status === "pending" && status === "cancelled")
+      throw new DomainError("Avsluta Kustom-betalningen innan reservationen släpps.");
     if (row.status === "cancelled" && status !== "cancelled")
       throw new DomainError(
         "En avbokad bokning kan inte återaktiveras. Skapa en ny bokning.",
@@ -326,8 +328,7 @@ export async function saveSettings(
     phone: string;
     address: string;
     location: string;
-    payOnSite: boolean;
-    stripeEnabled: boolean;
+    kustomBookingEnabled: boolean;
   },
 ) {
   await assertAdmin(actorId);
@@ -338,24 +339,12 @@ export async function saveSettings(
       phone: text(40),
       address: text(500),
       location: text(200),
-      payOnSite: z.boolean(),
-      stripeEnabled: z.boolean(),
+      kustomBookingEnabled: z.boolean(),
     })
     .parse(input);
-  if (
-    value.stripeEnabled &&
-    (!process.env.STRIPE_SECRET_KEY ||
-      !process.env.STRIPE_WEBHOOK_SECRET ||
-      !process.env.APP_URL)
-  )
-    throw new DomainError(
-      "Lägg till Stripe-nycklar, webhook-hemlighet och APP_URL på servern innan du aktiverar kortbetalning.",
-    );
-  if (!value.payOnSite && !value.stripeEnabled)
-    throw new DomainError("Minst ett betalningssätt måste vara aktiverat.");
   await getDb()
     .prepare(
-      "UPDATE settings SET site_name=?,email=?,phone=?,address=?,location=?,pay_on_site=?,stripe_enabled=? WHERE id=1",
+      "UPDATE settings SET site_name=?,email=?,phone=?,address=?,location=?,kustom_booking_enabled=? WHERE id=1",
     )
     .run(
       value.siteName,
@@ -363,8 +352,7 @@ export async function saveSettings(
       value.phone,
       value.address,
       value.location,
-      value.payOnSite ? 1 : 0,
-      value.stripeEnabled ? 1 : 0,
+      value.kustomBookingEnabled ? 1 : 0,
     );
 }
 export async function saveArticle(

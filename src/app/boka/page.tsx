@@ -1,6 +1,7 @@
 import { getPractitioners, getSlots, getTreatments } from "@/lib/db";
 import { getSiteSettings } from "@/lib/site-data";
 import { stripeReady } from "@/lib/stripe";
+import { kustomBookingReady, shopPaymentProvider } from "@/lib/shop-payment-config";
 import { createPageMetadata } from "@/lib/seo";
 import { BookingForm } from "@/components/booking-form";
 import { getBusinessSettings } from "@/lib/business-settings";
@@ -56,8 +57,9 @@ export default async function BookingPage({
         practitioners={practitioners}
         slots={slots}
         initialTreatment={Number(params.behandling) || undefined}
-        payOnSite={settings.payOnSite}
-        stripeEnabled={settings.stripeEnabled && stripeReady()}
+        payOnSite={shopPaymentProvider() !== "kustom" && settings.payOnSite}
+        stripeEnabled={shopPaymentProvider() === "kustom" ? settings.kustomBookingEnabled && kustomBookingReady() : settings.stripeEnabled && stripeReady()}
+        onlineProvider={shopPaymentProvider()}
         location={[settings.location, settings.address].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(" · ")}
         contactEmail={settings.email}
         cancellationNotice={cancellationText(business.cancellationHours)}

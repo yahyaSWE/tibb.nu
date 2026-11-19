@@ -144,6 +144,7 @@ export function StatusBadge({ status }: { status: string }) {
     failed: "Misslyckad",
     onsite: "På plats",
     stripe: "Kort via Stripe",
+    kustom: "Via Kustom",
   };
   const green = ["confirmed", "completed", "paid"].includes(status);
   return (

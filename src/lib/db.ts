@@ -159,7 +159,7 @@ function booking(row: Row): Booking {
     email: str(row.email),
     phone: str(row.phone),
     status: row.status as Booking["status"],
-    paymentMethod: row.payment_method as Booking["paymentMethod"],
+    paymentMethod: (row.online_payment_provider ?? row.payment_method) as Booking["paymentMethod"],
     paymentStatus: row.payment_status as Booking["paymentStatus"],
     checkoutSessionId: row.checkout_session_id
       ? str(row.checkout_session_id)
@@ -209,7 +209,8 @@ export async function getTreatment(id: number) {
 export async function expireBookings() {
   await getDb()
     .prepare(
-      "UPDATE bookings SET status='cancelled' WHERE status='pending' AND payment_method='stripe' AND expires_at<=?",
+      `UPDATE bookings SET status='cancelled' WHERE status='pending' AND payment_method='stripe' AND expires_at<=?
+       AND NOT EXISTS (SELECT 1 FROM kustom_service_payments WHERE reference=bookings.reference AND state='open')`,
     )
     .run(new Date().toISOString());
 }
@@ -297,6 +298,7 @@ export async function getSettings(): Promise<Settings> {
     location: str(row.location),
     payOnSite: !!row.pay_on_site,
     stripeEnabled: !!row.stripe_enabled,
+    kustomBookingEnabled: !!row.kustom_booking_enabled,
   };
 }
 export async function getArticles(
@@ -639,7 +641,7 @@ export async function reserveBooking(input: {
   name: string;
   email: string;
   phone: string;
-  paymentMethod: "onsite" | "stripe";
+  paymentMethod: "onsite" | "stripe" | "kustom";
 }): Promise<Booking> {
   return await transaction(async () => {
     await expireBookings();
@@ -677,6 +679,10 @@ export async function reserveBooking(input: {
         "Tiden hann bokas av någon annan. Välj en annan tid.",
       );
     const settings = await getSettings();
+    const { shopPaymentProvider, kustomBookingReady } = await import("./shop-payment-config");
+    const useKustom = shopPaymentProvider() === "kustom";
+    if (useKustom ? input.paymentMethod !== "kustom" || !settings.kustomBookingEnabled || !kustomBookingReady() : input.paymentMethod === "kustom")
+      throw new DomainError("Onlinebetalning via Kustom är inte tillgänglig för det valda betalningssättet.");
     if (input.paymentMethod === "onsite" && !settings.payOnSite)
       throw new DomainError("Betalning vid besöket är inte tillgänglig.");
     if (
@@ -690,12 +696,12 @@ export async function reserveBooking(input: {
     const reference = randomBytes(16).toString("hex");
     const now = new Date().toISOString();
     const expires =
-      input.paymentMethod === "stripe"
-        ? new Date(Date.now() + 35 * 60000).toISOString()
+      input.paymentMethod !== "onsite"
+        ? new Date(Math.min(Date.now() + 35 * 60000, input.paymentMethod === "kustom" ? Date.parse(str(row.start)) : Infinity)).toISOString()
         : null;
     await getDb()
       .prepare(
-        "INSERT INTO bookings(reference,treatment_id,practitioner_id,practitioner_name,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at,delivery_mode) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO bookings(reference,treatment_id,practitioner_id,practitioner_name,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at,delivery_mode,online_payment_provider) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .run(
         reference,
@@ -712,10 +718,11 @@ export async function reserveBooking(input: {
         input.email.toLowerCase(),
         input.phone,
         input.paymentMethod === "onsite" ? "confirmed" : "pending",
-        input.paymentMethod,
+        input.paymentMethod === "kustom" ? "stripe" : input.paymentMethod,
         expires,
         now,
         str(row.delivery_mode),
+        input.paymentMethod === "kustom" ? "kustom" : null,
       );
     const result = (await getBookingByReference(reference))!;
     const { recordBookingTermsSnapshot } = await import("./business-settings");
@@ -750,7 +757,7 @@ export async function completeStripeBooking(
       .get(sessionId);
     if (
       !row ||
-      row.payment_method !== "stripe" ||
+      row.payment_method !== "stripe" || row.online_payment_provider ||
       integer(row.price_ore) !== amount ||
       currency !== "sek"
     )

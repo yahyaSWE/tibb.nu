@@ -10,6 +10,7 @@ import { cancellationText } from "@/lib/business-config";
 import { getBookingEmailStatus } from "@/lib/email-outbox";
 import { BookingVisitDetails } from "@/components/booking-visit-details";
 import { BookingPreparation } from "@/components/booking-preparation";
+import { getKustomBookingPaymentLink } from "@/lib/kustom-service-payments";
 
 export const metadata = {
   ...PRIVATE_METADATA,
@@ -29,6 +30,7 @@ export default async function ConfirmationPage({
   ]);
   const pending = booking.status === "pending";
   const cancelled = booking.status === "cancelled";
+  const paymentLink = pending && booking.paymentMethod === "kustom" ? await getKustomBookingPaymentLink(ref) : null;
   return (
     <section className="section container narrow">
       <div className="panel confirmation-panel">
@@ -57,11 +59,12 @@ export default async function ConfirmationPage({
         </h1>
         <p>
           {pending
-            ? "Bokningen bekräftas när Stripe har bekräftat betalningen. Uppdatera sidan om en stund."
+            ? "Bokningen bekräftas när betalningen har verifierats. Uppdatera sidan om en stund."
             : cancelled
               ? "Bokningen har avbokats eller betalningstiden har löpt ut."
               : "Spara den här sidan så att du har alla uppgifter inför ditt besök."}
         </p>
+        {paymentLink && <a href={paymentLink} className="button button-secondary" rel="noreferrer">Tillbaka till Kustom</a>}
         <dl className="detail-list">
           <div>
             <dt>Behandling</dt>

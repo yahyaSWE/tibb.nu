@@ -16,7 +16,7 @@ const RETRY_WINDOW = 23 * 60 * 60 * 1000;
 export async function queueBookingEmails(bookingId: number): Promise<void> {
   await transaction(async () => {
     const booking = await getBookingById(bookingId);
-    if (!booking || booking.status !== "confirmed" || (booking.paymentMethod === "stripe" && booking.paymentStatus !== "paid")) return;
+    if (!booking || booking.status !== "confirmed" || (booking.paymentMethod !== "onsite" && booking.paymentStatus !== "paid")) return;
     let origin: string;
     try { origin = emailAppUrl(); } catch { return; }
     const settings = await getSettings();

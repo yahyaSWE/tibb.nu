@@ -4,7 +4,7 @@ import {
   attachCheckout, completeStripeBooking, createFirstAdmin, getBookingByReference, getDb,
   getTreatments, reserveBooking, type Booking,
 } from "../src/lib/db";
-import { saveSlot, saveTreatment } from "../src/lib/admin";
+import { saveSettings, saveSlot, saveTreatment } from "../src/lib/admin";
 import { getBusinessSettings, saveBusinessSettings } from "../src/lib/business-settings";
 import {
   bookingCheckoutSchema, createMcpBookingCheckout, getMcpBookingStatus,
@@ -13,6 +13,7 @@ import {
 import { createBookingMcpHandler } from "../src/lib/mcp-server";
 import { hashPassword, randomToken, tokenHash } from "../src/lib/security";
 import { CLIENT_CAPABILITIES_META_KEY, PROTOCOL_VERSION_META_KEY } from "@modelcontextprotocol/server";
+import { reconcileKustomServicePayment } from "../src/lib/kustom-service-payments";
 
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "RESEND_API_KEY", "EMAIL_FROM", "MCP_ALLOWED_ORIGINS", "MCP_BOOKING_ENABLED", "TRUST_PROXY"]) delete process.env[key];
 process.env.TIBB_DATABASE_PATH = ":memory:";
@@ -63,6 +64,66 @@ async function stored(secret: string): Promise<Booking> {
   return (await getBookingByReference(String(row!.booking_reference)))!;
 }
 async function bookingCount() { return Number((await getDb().prepare("SELECT COUNT(*) total FROM bookings").get())!.total); }
+
+test("Kustom MCP checkout keeps the booking private and confirms it once after verified capture", async (t) => {
+  for (const [key, value] of Object.entries({ NODE_ENV: "production", SHOP_PAYMENT_PROVIDER: "stripe", KUSTOM_ENVIRONMENT: "playground",
+    KUSTOM_API_USERNAME: "synthetic", KUSTOM_API_PASSWORD: "synthetic", KUSTOM_BOOKING_VAT_PERCENT: "25" })) {
+    const previous = process.env[key];
+    t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
+    process.env[key] = value;
+  }
+  const { input, treatment } = await fixture();
+  let order: { order_amount: number; order_lines: Array<{ name: string; total_tax_amount: number }> } | undefined;
+  let authorized = false, captured = false, captureCalls = 0;
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    const path = new URL(url).pathname;
+    if (path === "/checkout/v3/orders") {
+      const submitted = JSON.parse(String(init?.body));
+      order = { ...submitted, order_id: "order-kustom-booking", status: "CHECKOUT_INCOMPLETE" };
+      assert.equal(submitted.order_lines[0].name, "Behandlingsbokning");
+      assert.equal(submitted.order_lines[0].total_tax_amount, 7980);
+      assert.ok(!String(init?.body).includes(treatment.name));
+      return Response.json(order);
+    }
+    if (path === "/hpp/v1/sessions") return Response.json({ session_id: "session-kustom-booking", redirect_url: "https://hpp.example.test/booking" });
+    if (path === "/hpp/v1/sessions/session-kustom-booking") return Response.json({ session_id: "session-kustom-booking", status: "WAITING" });
+    if (path.endsWith("/acknowledge")) return new Response(null, { status: 204 });
+    if (path.endsWith("/captures")) {
+      captureCalls++;
+      assert.match(String((init?.headers as Record<string, string>)["Kustom-Idempotency-Key"]), /^[a-f0-9-]{36}$/);
+      captured = true;
+      return new Response(null, { status: 204 });
+    }
+    if (path === "/ordermanagement/v1/orders/order-kustom-booking") {
+      if (!authorized) return new Response(null, { status: 404 });
+      return Response.json({ ...order, status: captured ? "CAPTURED" : "AUTHORIZED", fraud_status: "ACCEPTED", initial_payment_method: { type: "CARD" },
+        captured_amount: captured ? order!.order_amount : 0, refunded_amount: 0, refunds: [],
+        captures: captured ? [{ capture_id: "capture-kustom-booking", captured_amount: order!.order_amount, captured_at: new Date().toISOString() }] : [] });
+    }
+    throw new Error(`Unexpected API path ${path}`);
+  });
+  assert.equal((await listMcpTreatments()).paymentMethod, "kustom");
+  const site = { siteName: "Tibb.nu", email: "booking@example.test", phone: "", address: "", location: "Besök" };
+  await saveSettings(adminId, { ...site, kustomBookingEnabled: false });
+  assert.equal((await listMcpTreatments()).onlinePaymentAvailable, false);
+  await assert.rejects(reserveBooking({ ...input, paymentMethod: "kustom" }), /Kustom/);
+  await saveSettings(adminId, { ...site, kustomBookingEnabled: true });
+  assert.equal((await listMcpTreatments()).onlinePaymentAvailable, true);
+  await assert.rejects(reserveBooking({ ...input, paymentMethod: "stripe" }), /Kustom/);
+  await assert.rejects(reserveBooking({ ...input, paymentMethod: "onsite" }), /Kustom/);
+  const started = await createMcpBookingCheckout(input, headers);
+  assert.equal(started.checkoutUrl, "https://hpp.example.test/booking");
+  assert.equal((await createMcpBookingCheckout(input, headers)).checkoutUrl, started.checkoutUrl);
+  const booking = await stored(input.bookingToken);
+  assert.equal(booking.paymentMethod, "kustom");
+  await reconcileKustomServicePayment(booking.reference);
+  assert.equal((await stored(input.bookingToken)).status, "pending");
+  authorized = true;
+  await reconcileKustomServicePayment(booking.reference);
+  await reconcileKustomServicePayment(booking.reference);
+  assert.equal((await stored(input.bookingToken)).status, "confirmed");
+  assert.equal(captureCalls, 1);
+});
 
 test("catalog and availability expose active public offers, exact prices and terms, without customer data", async () => {
   const { treatment, offers, offer, input } = await fixture();

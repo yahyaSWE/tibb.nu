@@ -33,6 +33,7 @@ export function BookingForm({
   initialTreatment,
   payOnSite,
   stripeEnabled,
+  onlineProvider = "stripe",
   location,
   contactEmail,
   cancellationNotice,
@@ -43,6 +44,7 @@ export function BookingForm({
   initialTreatment?: number;
   payOnSite: boolean;
   stripeEnabled: boolean;
+  onlineProvider?: "stripe" | "kustom";
   location: string;
   contactEmail: string;
   cancellationNotice?: string;
@@ -55,7 +57,7 @@ export function BookingForm({
   const [slotId, setSlotId] = useState<number | undefined>();
   const [practitionerId, setPractitionerId] = useState(practitioners[0]?.id);
   const [payment, setPayment] = useState(
-    payOnSite ? "onsite" : stripeEnabled ? "stripe" : "",
+    payOnSite ? "onsite" : stripeEnabled ? onlineProvider : "",
   );
   const treatment = treatments.find((t) => t.id === treatmentId);
   const practitioner = practitioners.find((p) => p.id === practitionerId);
@@ -270,13 +272,13 @@ export function BookingForm({
                       <input
                         type="radio"
                         name="paymentMethod"
-                        value="stripe"
-                        checked={payment === "stripe"}
-                        onChange={() => setPayment("stripe")}
+                        value={onlineProvider}
+                        checked={payment === onlineProvider}
+                        onChange={() => setPayment(onlineProvider)}
                         required
                       />
                       <CreditCard size={17} />
-                      <span>Betala med kort via Stripe</span>
+                      <span>Betala via {onlineProvider === "kustom" ? "Kustom" : "Stripe"}</span>
                     </label>
                   )}
                 </div>
@@ -307,8 +309,8 @@ export function BookingForm({
               </label>
               {payment && <SubmitBooking />}
               <p className="booking-payment-note">
-                {payment === "stripe"
-                  ? "Du går vidare till Stripe för att slutföra din betalning."
+                {payment === onlineProvider
+                  ? `Du går vidare till ${onlineProvider === "kustom" ? "Kustom" : "Stripe"} för att slutföra din betalning.`
                   : "Din tid bekräftas när bokningen har registrerats."}
               </p>
             </>

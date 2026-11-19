@@ -2,6 +2,7 @@ import { z } from "zod";
 import { assertAdmin } from "./admin";
 import { DomainError, getDb, transaction } from "./db";
 import { appUrl, stripeReady } from "./stripe";
+import { kustomReady, shopPaymentProvider } from "./shop-payment-config";
 import { text } from "./validation";
 import { coursePurchaseAccessSql } from "./course-purchase-access";
 
@@ -109,7 +110,7 @@ export type CoursePurchaseOffer = {
 };
 export async function getCoursePurchaseOffer(courseId: number): Promise<CoursePurchaseOffer | undefined> {
   positiveId.parse(courseId);
-  if (!stripeReady()) return undefined;
+  if (!(shopPaymentProvider() === "kustom" ? kustomReady() : stripeReady())) return undefined;
   try { appUrl(); } catch { return undefined; }
   const row = await getDb().prepare(`SELECT c.id,c.title,c.slug,c.updated_at AS course_revision,c.price_ore,
       s.updated_at AS settings_revision,s.terms,s.vat_percent,s.group_id,s.group_access_days,g.name AS group_name

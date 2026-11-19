@@ -15,6 +15,7 @@ import { createCoursePurchaseCheckout, cancelCoursePurchaseCheckout, getCoursePu
 import { POST as webhook } from "../src/app/api/stripe/webhook/route";
 import { POST as checkoutRoute } from "../src/app/api/kurser/checkout/route";
 import { POST as cancelRoute } from "../src/app/api/kurser/cancel/route";
+import { reconcileKustomServicePayment } from "../src/lib/kustom-service-payments";
 
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "RESEND_API_KEY", "EMAIL_FROM", "TRUST_PROXY"]) delete process.env[key];
 const directory = mkdtempSync(join(tmpdir(), "tibb-course-purchase-billing-"));
@@ -115,6 +116,53 @@ async function consent() {
   return { consent: true as const, courseRevision: offer.courseRevision, settingsRevision: offer.settingsRevision, termsRevision: offer.termsRevision };
 }
 async function checkout(userId = studentId) { return createCoursePurchaseCheckout(userId, courseId, await consent()); }
+
+test("Kustom course checkout grants access only after exact capture and revokes the refunded purchase", async (t) => {
+  for (const [key, value] of Object.entries({ SHOP_PAYMENT_PROVIDER: "kustom", KUSTOM_ENVIRONMENT: "playground",
+    KUSTOM_API_USERNAME: "synthetic", KUSTOM_API_PASSWORD: "synthetic" })) {
+    const previous = process.env[key];
+    t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
+    process.env[key] = value;
+  }
+  let order: Fixture;
+  let captured = false, refunded = false, incorrectAmount = true;
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    const path = new URL(url).pathname;
+    if (path === "/checkout/v3/orders") {
+      order = { ...JSON.parse(String(init?.body)), order_id: "order-kustom-course", status: "CHECKOUT_INCOMPLETE" };
+      return Response.json(order);
+    }
+    if (path === "/hpp/v1/sessions") return Response.json({ session_id: "session-kustom-course", redirect_url: "https://hpp.example.test/course" });
+    if (path.endsWith("/acknowledge")) return new Response(null, { status: 204 });
+    if (path.endsWith("/captures")) { captured = true; return new Response(null, { status: 204 }); }
+    if (path === "/ordermanagement/v1/orders/order-kustom-course") {
+      const timestamp = new Date().toISOString();
+      return Response.json({ ...order, order_amount: order.order_amount + Number(incorrectAmount), status: captured ? "CAPTURED" : "AUTHORIZED",
+        fraud_status: "ACCEPTED", initial_payment_method: { type: "CARD" }, captured_amount: captured ? order.order_amount : 0,
+        refunded_amount: refunded ? order.order_amount : 0,
+        refunds: refunded ? [{ refund_id: "refund-kustom-course", refunded_amount: order.order_amount, refunded_at: timestamp }] : [],
+        captures: captured ? [{ capture_id: "capture-kustom-course", captured_amount: order.order_amount, captured_at: timestamp }] : [] });
+    }
+    throw new Error(`Unexpected API path ${path}`);
+  });
+  assert.equal(await checkout(), "https://hpp.example.test/course");
+  assert.equal(checkoutRequests.length, 0);
+  const reference = order!.merchant_reference1;
+  const session = `kustom_${reference}`;
+  assert.equal((await getCoursePurchaseConfirmation(studentId, session))?.status, "pending");
+  assert.equal(await getCoursePurchaseConfirmation(otherId, session), null);
+  await assert.rejects(reconcileKustomServicePayment(reference), /matchar inte/);
+  assert.equal(captured, false);
+  assert.equal(await hasCourseAccess(studentId, courseId), false);
+  incorrectAmount = false;
+  await reconcileKustomServicePayment(reference);
+  await reconcileKustomServicePayment(reference);
+  assert.equal((await getCoursePurchaseConfirmation(studentId, session))?.status, "paid");
+  assert.equal(await hasCourseAccess(studentId, courseId), true);
+  refunded = true;
+  await reconcileKustomServicePayment(reference);
+  assert.equal(await hasCourseAccess(studentId, courseId), false);
+});
 function paidFixture(session = [...sessions.values()][0]): Fixture {
   const intentId = `pi_${session.client_reference_id}`, chargeId = `ch_${session.client_reference_id}`;
   session.status = "complete"; session.payment_status = "paid"; session.payment_intent = intentId;

@@ -26,7 +26,7 @@ import { CourseForm } from "@/components/admin/course-form";
 import { CourseSalesForm } from "@/components/admin/course-sales-form";
 import { getCourseSalesSettings } from "@/lib/course-sales";
 import { getAdminGroups } from "@/lib/memberships";
-import { stripeReady } from "@/lib/stripe";
+import { coursePurchaseReady } from "@/lib/course-purchase-billing";
 import { LessonForm } from "@/components/admin/lesson-form";
 import { CourseLessonActivities } from "@/components/admin/course-activities";
 import { CourseActivityResultsPanel } from "@/components/admin/course-activity-results";
@@ -94,7 +94,7 @@ export default async function CourseBuilderPage({
         <CourseInformationForm courseId={course.id} information={information} />
         <section className="panel form-panel">
           <SectionHeading title="Försäljning och grupp efter köp" />
-          <CourseSalesForm settings={sales} groups={groups} stripeReady={stripeReady()} />
+          <CourseSalesForm settings={sales} groups={groups} stripeReady={coursePurchaseReady()} />
         </section>
         <section className="panel">
           <SectionHeading

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { getWellnessAdmin, getWellnessSeller } from "@/lib/wellness";
-import { getAdminShopProducts } from "@/lib/shop";
+import { getAdminShopProducts, getShopSettings } from "@/lib/shop";
 import { formatDateTime, formatMoney } from "@/lib/time";
 import { AdminHeading } from "@/components/admin/common";
 import { captureWellnessAction, initializeWellnessAction, manualWellnessAction, manualWellnessRefundAction, reconcileWellnessAction, refundWellnessAction, resendWellnessAction, saveWellnessSellerAction, saveWellnessServiceAction, useWellnessPassAction, verifyWellnessPaymentAction } from "@/lib/wellness-actions";
@@ -10,7 +10,7 @@ import "./wellness-admin.css";
 
 export default async function WellnessAdminPage({ searchParams }: { searchParams: Promise<{ q?: string; error?: string; saved?: string }> }) {
   const user = await requireAdmin(); const params = await searchParams;
-  const [data, seller, all] = await Promise.all([getWellnessAdmin(user.id, params.q), getWellnessSeller(), getAdminShopProducts(user.id)]);
+  const [data, seller, all, shop] = await Promise.all([getWellnessAdmin(user.id, params.q), getWellnessSeller(), getAdminShopProducts(user.id), getShopSettings()]);
   const services = all.filter(product => product.wellnessEligible);
   const now = new Date().toISOString();
   const active = data.passes.filter(pass => pass.status === "active" && String(pass.valid_until) > now && Number(pass.remaining) > 0);
@@ -18,6 +18,7 @@ export default async function WellnessAdminPage({ searchParams }: { searchParams
     <AdminHeading title="Friskvård" description="Personliga tillfällen, verifierade betalningsunderlag och spårbar användning." action={<Link href="/friskvard" className="button button-secondary">Visa friskvårdssidan</Link>}/>
     {params.error && <p className="notice notice-error" role="alert">{params.error}</p>}
     {params.saved && <p className="notice notice-success" role="status">Åtgärden är sparad. Eventuella kvitton läggs i utskickskön.</p>}
+    {!shop.enabled && <p className="notice">Aktiva tjänster visas på friskvårdssidan. Aktivera försäljningen under <Link href="/admin/butik" className="inline-link">Admin → Butik</Link> när kassan är redo.</p>}
     <div className="wellness-admin-summary"><p><strong>{active.length}</strong> aktiva klippkort i listan</p><p><strong>{active.reduce((sum, pass) => sum + Number(pass.remaining), 0)}</strong> återstående aktiva tillfällen</p><p><strong>{formatMoney(data.receipts.reduce((sum, receipt) => sum + Number(receipt.amount_ore), 0))}</strong> utfärdade underlag, netto i listan</p></div>
     <section className="panel stack"><h2>Klippkort och köp</h2>
       <form className="wellness-admin-search" method="get"><label className="field">Sök namn eller e-post<input type="search" name="q" defaultValue={params.q} maxLength={100}/></label><button className="button button-secondary">Sök</button></form>

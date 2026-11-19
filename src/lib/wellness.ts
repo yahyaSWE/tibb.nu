@@ -21,6 +21,11 @@ export type WellnessReceipt = {
   totalOre: number; vat: { percent: number; taxOre: number; netOre: number }[];
 };
 export const WELLNESS_RULES_URL = "https://www.skatteverket.se/privat/skatter/arbeteochinkomst/formaner/personalvardmotionochfriskvard.4.7459477810df5bccdd4800014540.html";
+
+export async function getPublicWellnessServices() {
+  return (await loadShopProducts()).filter(product => product.published && product.isService && product.wellnessEligible);
+}
+
 const now = () => new Date().toISOString();
 export function wellnessExpiry(paidAt: string, months: number) {
   const date = new Date(paidAt); const day = date.getUTCDate();

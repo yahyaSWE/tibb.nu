@@ -26,6 +26,11 @@ export async function getKustomBookingPaymentLink(reference: string) {
   return null;
 }
 
+export async function wasKustomBookingCheckoutRejected(reference: string) {
+  const row = await payment(reference);
+  return row?.kind === "booking" && row.state === "cancelled" && !row.order_id && !row.candidate_id;
+}
+
 function serviceLine(kind: Kind, amount: number, vat: number) {
   return {
     reference: kind, type: "digital", name: kind === "booking" ? "Behandlingsbokning" : "Digital kurs",

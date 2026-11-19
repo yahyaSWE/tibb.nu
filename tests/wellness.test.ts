@@ -7,8 +7,8 @@ import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 import { createFirstAdmin, createUser, getDb } from "../src/lib/db";
 import { hashPassword, randomToken, tokenHash } from "../src/lib/security";
-import { getShopOrderByReference, getShopSettings, getAdminShopProduct, saveShopProduct, quoteShopCart, reserveShopOrder, expireShopOrders } from "../src/lib/shop";
-import { changeWellnessPass, createInitialWellnessServices, getWellnessAdmin, recordManualWellnessPurchase, recordManualWellnessRefund, recordWellnessPaymentEvidence, saveWellnessSeller, saveWellnessService, wellnessDownloadLink, wellnessExpiry, wellnessTotals } from "../src/lib/wellness";
+import { getShopOrderByReference, getShopSettings, getAdminShopProduct, getPublicShopProducts, saveShopProduct, quoteShopCart, reserveShopOrder, expireShopOrders } from "../src/lib/shop";
+import { changeWellnessPass, createInitialWellnessServices, getPublicWellnessServices, getWellnessAdmin, recordManualWellnessPurchase, recordManualWellnessRefund, recordWellnessPaymentEvidence, saveWellnessSeller, saveWellnessService, wellnessDownloadLink, wellnessExpiry, wellnessTotals } from "../src/lib/wellness";
 import { createKustomCheckout, KustomApiError, kustomOrderLines, reconcileKustomOrder, refundKustomWellness, validateKustomCallback, type KustomClient } from "../src/lib/kustom";
 import { kustomConfiguration } from "../src/lib/shop-payment-config";
 import { getWellnessPdf } from "../src/lib/wellness-pdf";
@@ -67,6 +67,22 @@ function gateway(order: Awaited<ReturnType<typeof fixture>>["order"], method = "
 }
 async function receipts(reference: string) { return getDb().prepare("SELECT * FROM wellness_receipts WHERE order_reference=? ORDER BY created_at").all(reference); }
 async function pass(reference: string, productId: number) { return (await getDb().prepare("SELECT * FROM wellness_passes WHERE order_reference=? AND product_id=?").get(reference, productId))!; }
+
+test("published wellness services remain visible when the shop checkout is closed", async () => {
+  const { first, second, input } = await fixture([1, 0], true);
+  await getDb().prepare("UPDATE shop_products SET published=0 WHERE id=?").run(second);
+  await getDb().prepare("UPDATE shop_settings SET enabled=0 WHERE id=1").run();
+  try {
+    const ids = (await getPublicWellnessServices()).map(service => service.id);
+    assert.ok(ids.includes(first));
+    assert.ok(!ids.includes(second));
+    assert.ok(!ids.includes(input.items.at(-1)!.productId));
+    assert.deepEqual(await getPublicShopProducts(), []);
+    await assert.rejects(reserveShopOrder(input), /tar inte emot/);
+  } finally {
+    await getDb().prepare("UPDATE shop_settings SET enabled=1 WHERE id=1").run();
+  }
+});
 
 test("wellness prices and tax are integer öre; 500, 4000 and 4100 examples have exact VAT and no shipping", async () => {
   for (const [quantities, total] of [[[1,0],50000], [[8,0],400000], [[7,1],410000]] as const) {

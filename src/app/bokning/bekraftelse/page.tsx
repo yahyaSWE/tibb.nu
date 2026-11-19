@@ -10,7 +10,7 @@ import { cancellationText } from "@/lib/business-config";
 import { getBookingEmailStatus } from "@/lib/email-outbox";
 import { BookingVisitDetails } from "@/components/booking-visit-details";
 import { BookingPreparation } from "@/components/booking-preparation";
-import { getKustomBookingPaymentLink } from "@/lib/kustom-service-payments";
+import { getKustomBookingPaymentLink, wasKustomBookingCheckoutRejected } from "@/lib/kustom-service-payments";
 
 export const metadata = {
   ...PRIVATE_METADATA,
@@ -30,6 +30,7 @@ export default async function ConfirmationPage({
   ]);
   const pending = booking.status === "pending";
   const cancelled = booking.status === "cancelled";
+  const checkoutRejected = cancelled && booking.paymentMethod === "kustom" && await wasKustomBookingCheckoutRejected(ref);
   const paymentLink = pending && booking.paymentMethod === "kustom" ? await getKustomBookingPaymentLink(ref) : null;
   return (
     <section className="section container narrow">
@@ -46,21 +47,21 @@ export default async function ConfirmationPage({
         <span className="eyebrow">
           {pending
             ? "INVÄNTAR BETALNING"
-            : cancelled
+            : checkoutRejected ? "BETALNINGEN KUNDE INTE STARTA" : cancelled
               ? "BOKNINGEN ÄR AVBOKAD"
               : "VI SER FRAM EMOT DITT BESÖK"}
         </span>
         <h1>
           {pending
             ? "Din betalning behandlas."
-            : cancelled
+            : checkoutRejected ? "Kustom-kassan kunde inte öppnas." : cancelled
               ? "Din tid är inte reserverad."
               : "Du har en tid bokad."}
         </h1>
         <p>
           {pending
             ? "Bokningen bekräftas när betalningen har verifierats. Uppdatera sidan om en stund."
-            : cancelled
+            : checkoutRejected ? "Ingen betalning drogs och tiden är inte reserverad. Kontakta oss om du vill ha hjälp med bokningen." : cancelled
               ? "Bokningen har avbokats eller betalningstiden har löpt ut."
               : "Spara den här sidan så att du har alla uppgifter inför ditt besök."}
         </p>

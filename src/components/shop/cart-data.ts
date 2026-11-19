@@ -75,6 +75,7 @@ export function shippingPrice(
 
 export function checkoutDestination(value: unknown): string | null {
   if (typeof value !== "string") return null;
+  if (/^\/(?:api\/kustom\/redirect|bestallning\/bekraftelse)\?ref=[a-f0-9]{32}$/.test(value)) return value;
   try {
     const url = new URL(value);
     return url.protocol === "https:" &&

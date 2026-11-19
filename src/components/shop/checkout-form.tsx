@@ -12,14 +12,19 @@ import { useShopCart } from "./cart-store";
 import { useQuoteChoices, normalizedCoupon } from "./quote-choices";
 import { useShopQuote } from "./use-shop-quote";
 import { CouponEntry, QuoteFeedback, QuoteTotals } from "./quote-controls";
+import { KustomPaymentMethods } from "./kustom-payment-methods";
 import "./shop.css";
 
 export function CheckoutForm({
   products,
   settings,
+  paymentProvider = "stripe",
+  showKustomPaymentMethods = false,
 }: {
   products: ShopProduct[];
   settings: ShopSettings;
+  paymentProvider?: "stripe" | "kustom";
+  showKustomPaymentMethods?: boolean;
 }) {
   const cart = useShopCart();
   const router = useRouter();
@@ -32,7 +37,7 @@ export function CheckoutForm({
     postcode: choices.postcode,
     city: "",
   });
-  const [delivery, setDelivery] = useState<"shipping" | "pickup">(
+  const [chosenDelivery, setDelivery] = useState<"shipping" | "pickup">(
     choices.delivery ?? (settings.shippingEnabled ? "shipping" : "pickup"),
   );
   const [acceptedTerms, setAcceptedTerms] = useState<string | null>(null);
@@ -41,9 +46,13 @@ export function CheckoutForm({
   const [error, setError] = useState<string | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const submitting = useRef(false);
+  const checkoutAttempt = useRef<{ key: string; id: string } | null>(null);
   const summary = cartSummary(cart.lines, products);
+  const servicesOnly = summary.rows.length > 0 && summary.rows.every(row => row.product?.isService);
+  const hasWellness = summary.rows.some(row => row.product?.wellnessEligible);
+  const delivery = servicesOnly ? "pickup" : chosenDelivery;
   const availableDelivery =
-    delivery === "shipping" ? settings.shippingEnabled : settings.pickupEnabled;
+    servicesOnly || (delivery === "shipping" ? settings.shippingEnabled : settings.pickupEnabled);
   const deliveryNeedsChange =
     !availableDelivery && (settings.shippingEnabled || settings.pickupEnabled);
   const quoteState = useShopQuote({items:cart.lines,delivery,postcode:values.postcode,couponCode:choices.couponCode},products,settings,cart.ready && summary.valid && availableDelivery && settings.enabled);
@@ -90,6 +99,14 @@ export function CheckoutForm({
     setPending(true);
     setError(null);
     try {
+      const payload = { items: cart.lines, ...values, delivery, consent, couponCode: choices.couponCode, expectedQuote: quote!.fingerprint };
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)));
+      const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+      if (!checkoutAttempt.current) {
+        try { checkoutAttempt.current = JSON.parse(window.sessionStorage.getItem("tibb-checkout-attempt-v1") || "null"); } catch { /* In-memory retries remain available. */ }
+      }
+      if (checkoutAttempt.current?.key !== key) checkoutAttempt.current = { key, id: crypto.randomUUID() };
+      try { window.sessionStorage.setItem("tibb-checkout-attempt-v1", JSON.stringify(checkoutAttempt.current)); } catch { /* No contact data is persisted. */ }
       const response = await fetch("/api/shop/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,6 +117,7 @@ export function CheckoutForm({
           consent,
           couponCode: choices.couponCode,
           expectedQuote: quote!.fingerprint,
+          checkoutAttemptId: checkoutAttempt.current.id,
         }),
       });
       const result: unknown = await response.json().catch(() => null);
@@ -172,7 +190,7 @@ export function CheckoutForm({
             innan du betalar.
           </div>
         )}
-        {!settings.shippingEnabled && !settings.pickupEnabled && (
+        {!servicesOnly && !settings.shippingEnabled && !settings.pickupEnabled && (
           <p className="notice notice-error" role="alert">
             Beställningar öppnar när ett leveransalternativ finns tillgängligt.
           </p>
@@ -180,7 +198,7 @@ export function CheckoutForm({
         <fieldset disabled={pending}>
           <legend>Dina kontaktuppgifter</legend>
           <div className="form-grid">
-            {field("name", "Namn", {
+            {field("name", hasWellness ? "För- och efternamn på ditt personliga klippkort" : "Namn", {
               required: true,
               autoComplete: "name",
               minLength: 2,
@@ -205,7 +223,8 @@ export function CheckoutForm({
             deliveryNeedsChange ? "checkout-delivery-unavailable" : undefined
           }
         >
-          <legend>Leverans</legend>
+          <legend>{servicesOnly ? "Ditt digitala klippkort" : "Leverans"}</legend>
+          {servicesOnly && <p>Klippkort och kvitto levereras digitalt efter styrkt betalning. Ingen fraktavgift tillkommer.</p>}
           {deliveryNeedsChange && (
             <p
               id="checkout-delivery-unavailable"
@@ -217,7 +236,7 @@ export function CheckoutForm({
             </p>
           )}
           <div className="shop-delivery-options">
-            {settings.shippingEnabled && (
+            {!servicesOnly && settings.shippingEnabled && (
               <label
                 className={`shop-delivery-option${delivery === "shipping" ? " selected" : ""}`}
               >
@@ -237,7 +256,7 @@ export function CheckoutForm({
                 </span>
               </label>
             )}
-            {settings.pickupEnabled && (
+            {!servicesOnly && settings.pickupEnabled && (
               <label
                 className={`shop-delivery-option${delivery === "pickup" ? " selected" : ""}`}
               >
@@ -256,9 +275,9 @@ export function CheckoutForm({
               </label>
             )}
           </div>
-          {delivery === "shipping" && settings.shippingEnabled && (
+          {((delivery === "shipping" && settings.shippingEnabled) || hasWellness) && (
             <div className="form-grid shop-address-fields">
-              {field("address", "Gatuadress", {
+              {field("address", hasWellness ? "Gatuadress för kvittot" : "Gatuadress", {
                 required: true,
                 autoComplete: "shipping street-address",
                 minLength: 3,
@@ -279,7 +298,7 @@ export function CheckoutForm({
               <p className="muted">Leveransland: Sverige.</p>
             </div>
           )}
-          {delivery === "pickup" && settings.pickupEnabled && (
+          {!servicesOnly && delivery === "pickup" && settings.pickupEnabled && (
             <div className="shop-pickup-details">
               <h3>Hämtningsplats</h3>
               <p>{settings.pickupAddress}</p>
@@ -339,9 +358,10 @@ export function CheckoutForm({
           {!pending && <ArrowRight size={17} aria-hidden="true" />}
         </button>
         <p className="muted">
-          Du fortsätter till Stripe för att slutföra köpet. Beställningen är
+          Du fortsätter till {paymentProvider === "kustom" ? "Kustom Checkout" : "Stripe"} för att slutföra köpet. Beställningen är
           betald först när betalningen har bekräftats.
         </p>
+        {showKustomPaymentMethods && <KustomPaymentMethods />}
         <noscript>
           <p className="notice notice-error">
             Kassan behöver JavaScript. Aktivera det i webbläsaren för att

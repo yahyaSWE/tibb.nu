@@ -1,6 +1,7 @@
 import { dispatchBookingEmailOutbox } from "@/lib/email-outbox";
 import { dispatchShopOrderEmails } from "@/lib/shop-email";
 import { equalSecret } from "@/lib/security";
+import { dispatchWellnessEmails } from "@/lib/wellness-email";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -12,7 +13,8 @@ export async function GET(request: Request) {
   try {
     const bookings = await dispatchBookingEmailOutbox({ limit: 5 });
     const orders = await dispatchShopOrderEmails({ limit: 5 });
-    return Response.json({ ...bookings, orders }, { headers: { "Cache-Control": "no-store" } });
+    const wellness = await dispatchWellnessEmails({ limit: 5 });
+    return Response.json({ ...bookings, orders, wellness }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Utskicksjobbet kunde inte slutföras. Kontrollera serverns anslutning." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }

@@ -33,6 +33,7 @@ const links = [
   { href: "/admin/grupper", label: "Grupper", icon: Users },
   { href: "/admin/medlemskap", label: "Medlemskap", icon: TicketPercent },
   { href: "/admin/butik", label: "Butik", icon: Store },
+  { href: "/admin/friskvard", label: "Friskvård", icon: TicketPercent },
   { href: "/admin/produkter", label: "Produkter", icon: Package },
   { href: "/admin/rabatter", label: "Rabatter", icon: TicketPercent },
   { href: "/admin/frakt", label: "Frakt", icon: Truck },

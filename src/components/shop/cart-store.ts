@@ -79,6 +79,18 @@ export function useShopCart() {
   );
   return {
     ...state,
+    addMany(items: { productId: number; quantity: number; stock: number }[]): string | null {
+      const next = snapshot.lines.map(line => ({ ...line }));
+      for (const item of items) {
+        const current = next.find(line => line.productId === item.productId);
+        const total = (current?.quantity ?? 0) + item.quantity;
+        if (!Number.isInteger(item.quantity) || item.quantity < 1 || total > Math.min(item.stock, MAX_CART_QUANTITY))
+          return "Antalet i paketet och varukorgen får tillsammans vara högst 99 tillfällen per tjänst. Kontrollera varukorgen.";
+        if (current) current.quantity = total; else next.push({ productId: item.productId, quantity: total });
+      }
+      if (next.length > MAX_CART_ITEMS) return "Varukorgen kan innehålla högst 20 olika tjänster och produkter.";
+      write(next); return null;
+    },
     add(productId: number, quantity: number, stock: number): string | null {
       const current = snapshot.lines.find(
         (line) => line.productId === productId,

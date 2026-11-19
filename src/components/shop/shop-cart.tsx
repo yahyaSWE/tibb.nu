@@ -110,8 +110,9 @@ export function CartPageContent({ products,settings }: { products: ShopProduct[]
   const cart = useShopCart();
   const summary = cartSummary(cart.lines, products);
   const choices=useQuoteChoices();
-  const delivery=choices.delivery??(settings.shippingEnabled?"shipping":"pickup");
-  const availableDelivery=delivery==="shipping"?settings.shippingEnabled:settings.pickupEnabled;
+  const servicesOnly=summary.rows.length>0&&summary.rows.every(row=>row.product?.isService);
+  const delivery=servicesOnly?"pickup":choices.delivery??(settings.shippingEnabled?"shipping":"pickup");
+  const availableDelivery=servicesOnly||(delivery==="shipping"?settings.shippingEnabled:settings.pickupEnabled);
   const quoteState=useShopQuote({items:cart.lines,delivery,postcode:choices.postcode,couponCode:choices.couponCode},products,settings,cart.ready&&summary.valid&&availableDelivery&&settings.enabled);
   const quote=quoteState.quote;
   const couponEdited=normalizedCoupon(choices.couponDraft)!==choices.couponCode;
@@ -227,10 +228,10 @@ export function CartPageContent({ products,settings }: { products: ShopProduct[]
           })}
         </div>
         <section className="shop-cart-options" aria-labelledby="cart-delivery-title">
-          <h2 id="cart-delivery-title">Leverans och rabattkod</h2>
-          <DeliveryChoices settings={settings} delivery={delivery} onChange={next=>choices.update({delivery:next})}/>
+          <h2 id="cart-delivery-title">{servicesOnly ? "Digital leverans och rabattkod" : "Leverans och rabattkod"}</h2>
+          {servicesOnly ? <p>Klippkort och kvitto levereras digitalt efter styrkt betalning. Ingen fraktavgift tillkommer.</p> : <DeliveryChoices settings={settings} delivery={delivery} onChange={next=>choices.update({delivery:next})}/>}
           {!availableDelivery&&<p className="notice notice-error">Välj ett tillgängligt leveransalternativ.</p>}
-          {delivery==="shipping"&&settings.shippingRuleMode&&<PostcodeField value={choices.postcode} onChange={postcode=>choices.update({postcode})}/>}
+          {!servicesOnly&&delivery==="shipping"&&settings.shippingRuleMode&&<PostcodeField value={choices.postcode} onChange={postcode=>choices.update({postcode})}/>}
           <CouponEntry draft={choices.couponDraft} code={choices.couponCode} onDraft={couponDraft=>choices.update({couponDraft})} onApply={()=>{choices.update({couponCode:normalizedCoupon(choices.couponDraft)});quoteState.refresh();}} onRemove={()=>choices.update({couponDraft:"",couponCode:""})} pending={quoteState.pending} confirmedCode={quote?.couponCode}/>
         </section>
         </div>

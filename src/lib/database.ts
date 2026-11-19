@@ -27,6 +27,7 @@ import { MEMBERSHIP_BILLING_SCHEMA } from "./membership-billing-schema";
 import { COURSE_PURCHASE_SCHEMA } from "./course-purchase-schema";
 import { ANAMNES_SCHEMA } from "./anamnes/schema";
 import { MCP_BOOKING_SCHEMA } from "./mcp-schema";
+import { WELLNESS_SCHEMA } from "./wellness-schema";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
@@ -202,6 +203,16 @@ export class DatabaseAdapter {
         await tx.executeMultiple(COURSE_PURCHASE_SCHEMA);
         await tx.executeMultiple(ANAMNES_SCHEMA);
         await tx.executeMultiple(MCP_BOOKING_SCHEMA);
+        const wellnessColumns = await tx.execute("PRAGMA table_info(shop_products)");
+        for (const [name, definition] of Object.entries({
+          is_service: "INTEGER NOT NULL DEFAULT 0 CHECK(is_service IN (0,1))",
+          wellness_eligible: "INTEGER NOT NULL DEFAULT 0 CHECK(wellness_eligible IN (0,1))",
+          validity_months: "INTEGER NOT NULL DEFAULT 12 CHECK(validity_months BETWEEN 1 AND 36)",
+        })) {
+          if (!wellnessColumns.rows.some(row => row.name === name))
+            await tx.execute(`ALTER TABLE shop_products ADD COLUMN ${name} ${definition}`);
+        }
+        await tx.executeMultiple(WELLNESS_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

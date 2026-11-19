@@ -144,6 +144,10 @@ Kortbokningar reserveras i 35 minuter. Avbruten eller utgången betalning frigö
 
 AI-klienter kan ansluta till `/api/mcp` med Streamable HTTP för att hämta behandlingar och lediga tider, reservera ett kundgodkänt besök och få en Stripe-betalningslänk. Kunden betalar på Stripe-sidan; den ordinarie signerade webhooken bekräftar betalningen. Privat bokningstoken skyddar statuskontroll och återförsök. Ingen adminnyckel ska delas med klienten. Läs [installations- och klientguiden för MCP](docs/mcp-booking.md).
 
+## Friskvård och Kustom Checkout
+
+`/friskvard` använder butikens varukorg för specificerade personliga tillfällen. `/admin/friskvard` hanterar tjänster, digitala klippkort, privata PDF-kvitton, registreringar och återbetalningsunderlag. Kustom Checkout väljs för butikskassan med `SHOP_PAYMENT_PROVIDER=kustom`; andra befintliga Stripe-flöden är separata. Faktura eller delbetalning ger inget betalt friskvårdskvitto utan styrkt kundbetalning. Läs [installations-, test- och driftguiden](docs/friskvard-kustom.md) innan tjänsterna öppnas. Produktionsbetalningar är avstängda som standard för Kustom.
+
 ## Drift
 
 ```sh

@@ -29,7 +29,7 @@ export function requireEmailConfiguration() {
   if (!status.configured) throw new EmailConfigurationError(status.reason!);
   return { from: senderAddress()!, origin: emailAppUrl() };
 }
-export async function sendEmail(input: { to: string; subject: string; text: string; idempotencyKey: string; from?: string }) {
+export async function sendEmail(input: { to: string; subject: string; text: string; idempotencyKey: string; from?: string; attachments?: { filename: string; content: string }[] }) {
   const config = requireEmailConfiguration();
   z.email().parse(input.to);
   if (!input.idempotencyKey || input.idempotencyKey.length > 256 || /[\r\n]/.test(input.subject))
@@ -39,7 +39,8 @@ export async function sendEmail(input: { to: string; subject: string; text: stri
     response = await fetch("https://api.resend.com/emails", {
       method: "POST", cache: "no-store", signal: AbortSignal.timeout(5000),
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": input.idempotencyKey },
-      body: JSON.stringify({ from: input.from || config.from, to: [input.to], subject: input.subject, text: input.text }),
+      body: JSON.stringify({ from: input.from || config.from, to: [input.to], subject: input.subject, text: input.text,
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}) }),
     });
   } catch { throw new EmailDeliveryError("E-posttjänsten svarar inte. Försök igen om en stund."); }
   if (!response.ok) throw new EmailDeliveryError("E-posttjänsten kunde inte acceptera meddelandet. Kontrollera anslutningen eller försök igen.");

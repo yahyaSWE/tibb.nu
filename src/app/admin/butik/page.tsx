@@ -2,13 +2,15 @@ import Link from "next/link";
 import { Eye, Package, ShoppingBag } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { getShopSettings, shopStripeReady } from "@/lib/shop";
+import { shopPaymentProvider, kustomReady } from "@/lib/shop-payment-config";
 import { AdminHeading, SectionHeading } from "@/components/admin/common";
 import { ShopSettingsForm } from "@/components/admin/shop-forms";
 
 export default async function ShopSettingsPage() {
   await requireAdmin();
   const settings = await getShopSettings();
-  const stripeReady = shopStripeReady();
+  const provider = shopPaymentProvider();
+  const stripeReady = provider === "kustom" ? kustomReady() : shopStripeReady();
   return (
     <>
       <AdminHeading
@@ -57,8 +59,8 @@ export default async function ShopSettingsPage() {
           <SectionHeading title="Betalning" />
           <p className="muted">
             {stripeReady
-              ? "Stripe-konfiguration finns för butikens kortbetalningar. Anslutningen och webhooken behöver vara korrekt inställda hos Stripe för att betalningar ska bekräftas."
-              : "Butikens Stripe-anslutning behöver konfigureras innan du kan öppna. Du kan spara inställningar och produkter under tiden."}
+              ? `${provider === "kustom" ? "Kustom Checkout" : "Stripe"}-konfiguration finns. Kontrollera anslutning och betalningsbekräftelser i testmiljön innan skarp användning.`
+              : `Butikens ${provider === "kustom" ? "Kustom Checkout" : "Stripe"}-anslutning behöver konfigureras innan du kan öppna. Du kan spara inställningar och produkter under tiden.`}
           </p>
           <span
             className={`badge ${stripeReady ? "badge-green" : "badge-amber"}`}

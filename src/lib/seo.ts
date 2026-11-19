@@ -133,6 +133,7 @@ export function buildOrganizationSchema(contact?: { email?: string; phone?: stri
 export const PUBLIC_PAGES = [
   { path: "/", title: "Tibb.nu", description: "Traditionell kinesisk medicin i Jönköping, behandlingar, kurser och artiklar." },
   { path: "/boka", title: "Boka en behandling", description: "Välj behandling, behandlare, tillgängligt datum och tid. Se pris och längd innan du bokar." },
+  { path: "/friskvard", title: "Friskvård och klippkort", description: "Specificerade friskvårdstillfällen, personliga klippkort och betalningsunderlag för arbetsgivaren." },
   { path: "/kurser", title: "Kurser", description: "Publicerade kurser inom traditionell medicin. Köp online när det erbjuds eller kontakta oss för anmälan och kursåtkomst." },
   { path: "/artiklar", title: "Artiklar", description: "Kunskap och reflektion om klassisk kinesisk medicin och profetisk vägledning." },
   { path: "/sjalvtest", title: "Självtest med fem faser", description: "Ett självtest för utbildning och självreflektion. Testet är inte en medicinsk diagnos." },

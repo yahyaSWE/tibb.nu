@@ -9,7 +9,11 @@ export async function POST(request: Request) {
     assertShopOrigin(request);
     const value = z.object({ reference: z.string().regex(/^[a-f0-9]{32}$/) }).parse(await shopRequestJson(request));
     await enforceRequestLimit("shop-cancel", value.reference, 10, request.headers);
-    await cancelShopOrder(value.reference);
+    const { getDb } = await import("@/lib/db");
+    if (await getDb().prepare("SELECT order_reference FROM kustom_checkouts WHERE order_reference=?").get(value.reference)) {
+      const { cancelKustomOrder } = await import("@/lib/kustom");
+      await cancelKustomOrder(value.reference);
+    } else await cancelShopOrder(value.reference);
     return Response.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return shopResponseError(error); }
 }

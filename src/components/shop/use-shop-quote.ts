@@ -9,7 +9,8 @@ export function useShopQuote(input: ShopQuoteInput, products: ShopProduct[], set
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<LatestRequestState<ShopQuote> | null>(null);
   const inputKey = quoteRequestKey(input, products, settings, revision);
-  const postcodeRequired = input.delivery === "shipping" && settings.shippingRuleMode;
+  const servicesOnly = input.items.length > 0 && input.items.every(line => products.find(product => product.id === line.productId)?.isService);
+  const postcodeRequired = !servicesOnly && input.delivery === "shipping" && settings.shippingRuleMode;
   const needsPostcode = Boolean(postcodeRequired && !/^\d{5}$/.test(normalizedPostcode(input.postcode || "")));
   const allowed = enabled && !needsPostcode;
 

@@ -75,12 +75,12 @@ export async function saveShopShippingRule(actorId: number, id: number | null, i
 
 export async function loadShopProducts(): Promise<ShopProduct[]> {
   const [rows, parts] = await Promise.all([getDb().prepare("SELECT * FROM shop_products ORDER BY name,id").all(), getDb().prepare("SELECT * FROM shop_bundle_items ORDER BY bundle_id,product_id").all()]);
-  const products: ShopProduct[] = rows.map((r) => ({ id: Number(r.id), name: String(r.name), slug: String(r.slug), description: String(r.description), richDescription: parseProductRichText(r.rich_description_json), priceOre: Number(r.price_ore), vatPercent: Number(r.vat_percent), stock: Number(r.stock), published: !!r.published, imageId: r.image_id ? String(r.image_id) : null, createdAt: String(r.created_at), updatedAt: String(r.updated_at), kind: r.kind as "product" | "bundle", weightGrams: Number(r.weight_grams), bundleItems: [], bundleOriginalPriceOre: null }));
+  const products: ShopProduct[] = rows.map((r) => ({ id: Number(r.id), name: String(r.name), slug: String(r.slug), description: String(r.description), richDescription: parseProductRichText(r.rich_description_json), priceOre: Number(r.price_ore), vatPercent: Number(r.vat_percent), stock: r.is_service ? 99 : Number(r.stock), published: !!r.published, imageId: r.image_id ? String(r.image_id) : null, createdAt: String(r.created_at), updatedAt: String(r.updated_at), kind: r.kind as "product" | "bundle", weightGrams: Number(r.weight_grams), bundleItems: [], bundleOriginalPriceOre: null, isService: !!r.is_service, wellnessEligible: !!r.wellness_eligible, validityMonths: Number(r.validity_months ?? 12) }));
   const byId = new Map(products.map((p) => [p.id, p]));
   for (const p of products.filter((p) => p.kind === "bundle")) {
     p.bundleItems = parts.filter((r) => Number(r.bundle_id) === p.id).map((r) => ({ productId: Number(r.product_id), quantity: Number(r.quantity) }));
     const children = p.bundleItems.map((part) => ({ part, child: byId.get(part.productId) }));
-    if (!children.length || children.some(({ child }) => !child || child.kind !== "product")) { p.stock = 0; p.weightGrams = 0; continue; }
+    if (!children.length || children.some(({ child }) => !child || child.kind !== "product" || child.isService)) { p.stock = 0; p.weightGrams = 0; continue; }
     p.stock = Math.min(...children.map(({ part, child }) => Math.floor(child!.stock / part.quantity)));
     p.weightGrams = children.some(({ child }) => !child!.weightGrams) ? 0 : children.reduce((sum, { part, child }) => sum + child!.weightGrams! * part.quantity, 0);
     p.bundleOriginalPriceOre = children.reduce((sum, { part, child }) => sum + child!.priceOre * part.quantity, 0);
@@ -88,7 +88,7 @@ export async function loadShopProducts(): Promise<ShopProduct[]> {
   return products;
 }
 export function publiclyAvailable(p: ShopProduct, products: Map<number, ShopProduct>): boolean {
-  return p.published && (p.kind !== "bundle" || (!!p.bundleItems?.length && p.bundleItems.every((part) => { const child = products.get(part.productId); return !!child?.published && child.kind === "product" && child.vatPercent === p.vatPercent; })));
+  return p.published && (p.kind !== "bundle" || (!!p.bundleItems?.length && p.bundleItems.every((part) => { const child = products.get(part.productId); return !!child?.published && child.kind === "product" && !child.isService && child.vatPercent === p.vatPercent; })));
 }
 export async function getPublicShopOffers(): Promise<ShopQuantityOffer[]> {
   if (!(await getDb().prepare("SELECT id FROM shop_settings WHERE enabled=1").get())) return [];
@@ -114,7 +114,6 @@ function allocate(total: number, amounts: number[]): number[] {
 export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSettings): Promise<{ quote: ShopQuote; inventory: InventoryLine[]; couponId: number | null }> {
   const v = shopQuoteSchema.parse(input);
   if (!settings.enabled) throw new DomainError("Butiken tar inte emot nya beställningar just nu.");
-  if ((v.delivery === "shipping" && !settings.shippingEnabled) || (v.delivery === "pickup" && !settings.pickupEnabled)) throw new DomainError("Det leveranssättet är inte tillgängligt.");
   const products = new Map((await loadShopProducts()).map((p) => [p.id, p]));
   const inventoryMap = new Map<number, number>(); const items: ShopQuoteItem[] = [];
   let knownWeight = true, totalWeight = 0;
@@ -122,16 +121,23 @@ export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSe
   for (const line of [...v.items].sort((a, b) => a.productId - b.productId)) {
     const p = products.get(line.productId);
     if (!p || !publiclyAvailable(p, products)) throw new DomainError("En produkt i varukorgen är inte längre tillgänglig.");
-    if (!p.weightGrams) knownWeight = false; else totalWeight += p.weightGrams * line.quantity;
+    if (!p.isService) { if (!p.weightGrams) knownWeight = false; else totalWeight += p.weightGrams * line.quantity; }
     const base = p.priceOre * line.quantity;
     const item: ShopQuoteItem = { productId: p.id, name: p.name, quantity: line.quantity, priceOre: p.priceOre, vatPercent: p.vatPercent, kind: p.kind, lineTotalOre: base, originalLineTotalOre: Math.max(p.priceOre, p.bundleOriginalPriceOre ?? 0) * line.quantity };
+    if (p.isService) item.isService = true;
+    if (p.wellnessEligible) {
+      if (!p.isService || p.kind === "bundle" || p.priceOre > 100000) throw new DomainError("Friskvårdstjänstens inställningar behöver ses över.");
+      item.wellness = { validityMonths: p.validityMonths ?? 12 };
+    }
     if (p.kind === "bundle") {
       item.bundleParts = p.bundleItems!.map((part) => ({ productId: part.productId, name: products.get(part.productId)!.name, quantity: part.quantity * line.quantity }));
       for (const part of item.bundleParts) addInventory(part.productId, part.quantity);
-    } else addInventory(p.id, line.quantity);
+    } else if (!p.isService) addInventory(p.id, line.quantity);
     items.push(item);
   }
   for (const [id, quantity] of inventoryMap) if (products.get(id)!.stock < quantity) throw new DomainError(`Det finns inte tillräckligt många av ${products.get(id)!.name} i lager. Uppdatera varukorgen.`);
+  const servicesOnly = items.every(item => item.isService);
+  if (!servicesOnly && ((v.delivery === "shipping" && !settings.shippingEnabled) || (v.delivery === "pickup" && !settings.pickupEnabled))) throw new DomainError("Det leveranssättet är inte tillgängligt.");
   const sellingSubtotal = items.reduce((s, i) => s + i.lineTotalOre, 0);
   if (sellingSubtotal > 100000000) throw new DomainError("Beställningen är för stor. Kontakta verksamheten.");
   const code = v.couponCode.trim().toUpperCase(); let selectedCoupon: ShopCoupon | undefined;
@@ -162,7 +168,7 @@ export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSe
   let shippingOre = v.delivery === "shipping" ? settings.shippingPriceOre : 0;
   let shippingLabel = v.delivery === "shipping" ? "Frakt inom Sverige" : "Hämtning";
   let selectedRule: ShopShippingRule | undefined;
-  if (v.delivery === "shipping" && settings.shippingRuleMode) {
+  if (!servicesOnly && v.delivery === "shipping" && settings.shippingRuleMode) {
     if (!knownWeight) throw new DomainError("Frakten kan inte beräknas eftersom en produkt saknar vikt. Kontakta verksamheten.");
     const postcode = v.postcode.replace(/\s/g, ""); if (!/^\d{5}$/.test(postcode)) throw new DomainError("Ange ett svenskt postnummer för att beräkna frakten.");
     selectedRule = (await getDb().prepare("SELECT * FROM shop_shipping_rules WHERE active=1 ORDER BY priority,price_ore,id").all()).map(rule).find((r) => totalWeight >= r.minWeightGrams && (r.maxWeightGrams === null || totalWeight <= r.maxWeightGrams) && subtotalOre >= r.minSubtotalOre && (r.maxSubtotalOre === null || subtotalOre <= r.maxSubtotalOre) && (!r.postcodePrefixes.length || r.postcodePrefixes.some((prefix) => postcode.startsWith(prefix))));
@@ -170,6 +176,7 @@ export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSe
     shippingOre = selectedRule.priceOre; shippingLabel = [selectedRule.name, selectedRule.carrier, selectedRule.service].filter(Boolean).join(" · ");
   }
   if (v.delivery === "shipping" && settings.freeShippingThresholdOre !== null && subtotalOre >= settings.freeShippingThresholdOre) shippingOre = 0;
+  if (servicesOnly) { shippingOre = 0; shippingLabel = "Personligt digitalt klippkort"; }
   const totalOre = subtotalOre + shippingOre;
   // Stripe's minimum SEK charge is 3.00 SEK: https://docs.stripe.com/currencies
   if (subtotalOre <= 0 || totalOre < 300) throw new DomainError("Beställningen måste vara minst 3 kr efter rabatter för att kunna betalas med kort.");

@@ -1,9 +1,10 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { DomainError, getDb, getSettings, transaction } from "./db";
 import { assertAdmin } from "./admin";
 import { emailSchema, slug, text } from "./validation";
 import { appUrl } from "./stripe";
+import { kustomReady, shopPaymentProvider } from "./shop-payment-config";
 import type { ShopSettings, ShopProduct, ShopOrder, ShopOrderItem, ShopQuote, ShopQuoteInput } from "./shop-types";
 import { calculateShopQuote, loadShopProducts, publiclyAvailable } from "./shop-commerce";
 import { parseProductRichText, productRichTextImageIds } from "./product-rich-text";
@@ -30,6 +31,7 @@ export const shopCheckoutSchema = z.object({
   name: text(100, 2), email: emailSchema, phone: text(30), delivery: z.enum(["shipping", "pickup"]),
   address: text(200).default(""), postcode: text(10).default(""), city: text(100).default(""), consent: z.literal(true),
   couponCode: text(50).optional().default(""), expectedQuote: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  checkoutAttemptId: z.uuid().optional(),
 }).superRefine((value, context) => {
   if (new Set(value.items.map((line) => line.productId)).size !== value.items.length)
     context.addIssue({ code: "custom", path: ["items"], message: "Varje produkt får bara finnas en gång i varukorgen." });
@@ -49,10 +51,11 @@ export function shopStripeReady(): boolean {
   try { appUrl(); return true; } catch { return false; }
 }
 async function assertReady(settings: ShopSettings) {
-  if (!shopStripeReady()) throw new DomainError("Butiken kräver Stripe, SHOP_STRIPE_WEBHOOK_SECRET och en giltig APP_URL.");
+  if (shopPaymentProvider() === "kustom" ? !kustomReady() : !shopStripeReady())
+    throw new DomainError(shopPaymentProvider() === "kustom" ? "Butiken kräver Kustom Checkout, rätt betalningsmiljö och en giltig APP_URL." : "Butiken kräver Stripe, SHOP_STRIPE_WEBHOOK_SECRET och en giltig APP_URL.");
   if (!z.email().safeParse((await getSettings()).email).success) throw new DomainError("Fyll i en fungerande kontaktadress i webbplatsens inställningar innan butiken aktiveras.");
   if (settings.terms.length < 20) throw new DomainError("Fyll i butikens köp- och returvillkor innan du aktiverar den.");
-  if (!settings.shippingEnabled && !settings.pickupEnabled) throw new DomainError("Välj frakt eller hämtning för butiken.");
+  if (!settings.shippingEnabled && !settings.pickupEnabled && !(await loadShopProducts()).some(product => product.published && product.isService)) throw new DomainError("Välj frakt eller hämtning, eller publicera en digital tjänst för butiken.");
   if (settings.pickupEnabled && settings.pickupAddress.length < 5) throw new DomainError("Ange en riktig hämtningsadress innan du aktiverar hämtning.");
 }
 export async function getShopSettings(): Promise<ShopSettings> {
@@ -132,8 +135,9 @@ export async function saveShopProduct(actorId: number, id: number | null, input:
     let now = new Date().toISOString();
     if (id !== null) {
       z.number().int().positive().parse(id);
-      const current = await getDb().prepare("SELECT updated_at,kind,rich_description_json FROM shop_products WHERE id=?").get(id);
+      const current = await getDb().prepare("SELECT updated_at,kind,rich_description_json,wellness_eligible FROM shop_products WHERE id=?").get(id);
       if (!current) throw new DomainError("Produkten finns inte.");
+      if (current.wellness_eligible && value.priceOre > 100000) throw new DomainError("En friskvårdstjänst utan motionsinslag får kosta högst 1 000 kr per tillfälle.");
       if (current.kind !== value.kind) throw new DomainError("Produkttypen kan inte ändras efter att produkten skapats. Skapa en ny produkt eller ett nytt paket.");
       if (!value.expectedUpdatedAt || value.expectedUpdatedAt !== current.updated_at) throw new DomainError("Produkten eller lagret har ändrats sedan du öppnade formuläret. Ladda om produkten innan du sparar igen.");
       now = new Date(Math.max(Date.now(), Date.parse(String(current.updated_at)) + 1)).toISOString();
@@ -175,7 +179,8 @@ export async function updateShopFulfillment(actorId: number, id: number, input: 
     await assertAdmin(actorId);
     const value = z.object({ fulfillment: z.enum(["unfulfilled", "ready", "shipped", "collected"]), trackingNumber: text(100) }).parse(input);
     const current = await getShopOrderById(id);
-    if (!current || current.status !== "paid") throw new DomainError("Endast betalda beställningar kan lämnas ut eller skickas.");
+    const captured = current && await getDb().prepare("SELECT order_reference FROM kustom_checkouts WHERE order_reference=? AND captured=1 AND refunded_ore=0").get(current.reference);
+    if (!current || (current.status !== "paid" && !(current.status === "pending" && captured))) throw new DomainError("Endast betalda eller verifierat Kustom-debiterade beställningar kan lämnas ut eller skickas.");
     if (current.delivery === "shipping" && !["unfulfilled", "shipped"].includes(value.fulfillment)) throw new DomainError("En fraktbeställning ska markeras som skickad.");
     if (current.delivery === "pickup" && value.fulfillment === "shipped") throw new DomainError("En hämtningsbeställning ska markeras som klar eller hämtad.");
     await getDb().prepare("UPDATE shop_orders SET fulfillment=?,tracking_number=? WHERE id=?").run(value.fulfillment, current.delivery === "shipping" ? value.trackingNumber : "", id);
@@ -196,9 +201,9 @@ async function releaseInventory(row: Row): Promise<void> {
 export async function expireShopOrders(): Promise<void> {
   // Most reads need no write lock; a second check under the lock handles races.
   const now = new Date().toISOString();
-  if (!(await getDb().prepare("SELECT id FROM shop_orders WHERE status='pending' AND expires_at<=? LIMIT 1").get(now))) return;
+  if (!(await getDb().prepare("SELECT id FROM shop_orders WHERE status='pending' AND expires_at<=? AND NOT EXISTS(SELECT 1 FROM kustom_checkouts k WHERE k.order_reference=shop_orders.reference) LIMIT 1").get(now))) return;
   await transaction(async () => {
-    const rows = await getDb().prepare("SELECT * FROM shop_orders WHERE status='pending' AND expires_at<=?").all(new Date().toISOString());
+    const rows = await getDb().prepare("SELECT * FROM shop_orders WHERE status='pending' AND expires_at<=? AND NOT EXISTS(SELECT 1 FROM kustom_checkouts k WHERE k.order_reference=shop_orders.reference)").all(new Date().toISOString());
     for (const row of rows) {
       await releaseInventory(row);
       await getDb().prepare("UPDATE shop_orders SET status='cancelled' WHERE id=?").run(Number(row.id));
@@ -208,6 +213,16 @@ export async function expireShopOrders(): Promise<void> {
 export async function reserveShopOrder(input: unknown): Promise<ShopOrder> {
   const value = shopCheckoutSchema.parse(input);
   return transaction(async () => {
+    const requestHash = createHash("sha256").update(JSON.stringify({ ...value, items: [...value.items].sort((a,b) => a.productId-b.productId) })).digest("hex");
+    if (value.checkoutAttemptId && shopPaymentProvider() === "kustom") {
+      const existing = await getDb().prepare("SELECT * FROM shop_checkout_requests WHERE attempt_id=?").get(value.checkoutAttemptId);
+      if (existing) {
+        if (existing.request_hash !== requestHash) throw new DomainError("Betalningsförsöket har redan andra uppgifter. Granska beställningen och försök med en ny referens.");
+        const previous = await getShopOrderByReference(String(existing.order_reference));
+        if (!previous) throw new DomainError("Den tidigare beställningen behöver kontrolleras.");
+        return previous;
+      }
+    }
     await expireShopOrders();
     const settings = await getShopSettings();
     if (!settings.enabled) throw new DomainError("Butiken tar inte emot nya beställningar just nu.");
@@ -224,6 +239,16 @@ export async function reserveShopOrder(input: unknown): Promise<ShopOrder> {
       .run(randomBytes(16).toString("hex"), value.name, value.email, value.phone, value.delivery, value.delivery === "shipping" ? value.address : "", value.delivery === "shipping" ? value.postcode.replace(/\s/g, "") : "", value.delivery === "shipping" ? value.city : "", quote.subtotalOre, quote.shippingOre, quote.totalOre, new Date(Date.now() + 30 * 60000).toISOString(), now, JSON.stringify(quote.items), value.delivery === "pickup" ? settings.pickupAddress : "", value.delivery === "pickup" ? settings.pickupInstructions : "", settings.terms,JSON.stringify(inventory),quote.originalSubtotalOre,quote.discountOre,JSON.stringify(quote.discounts),quote.weightGrams,quote.shippingLabel,quote.couponCode);
     const orderId = Number(result.lastInsertRowid);
     if(couponId !== null) await getDb().prepare("INSERT INTO shop_coupon_uses(order_id,coupon_id,state) VALUES(?,?,'reserved')").run(orderId,couponId);
+    const reserved = (await getShopOrderById(orderId))!;
+    if (reserved.items.some(item => item.wellness)) {
+      if (shopPaymentProvider() !== "kustom") throw new DomainError("Friskvårdskassan behöver Kustom Checkout. Kontakta verksamheten.");
+      await getDb().prepare("UPDATE shop_orders SET address=?,postcode=?,city=? WHERE id=?")
+        .run(value.address, value.postcode.replace(/\s/g, ""), value.city, orderId);
+      const { snapshotWellnessOrder } = await import("./wellness");
+      await snapshotWellnessOrder((await getShopOrderById(orderId))!);
+    }
+    if (value.checkoutAttemptId && shopPaymentProvider() === "kustom")
+      await getDb().prepare("INSERT INTO shop_checkout_requests(attempt_id,request_hash,order_reference) VALUES(?,?,?)").run(value.checkoutAttemptId, requestHash, reserved.reference);
     return (await getShopOrderById(orderId))!;
   });
 }

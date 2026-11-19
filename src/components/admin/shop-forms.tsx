@@ -495,7 +495,9 @@ export function ShopProductForm({ product, catalog = [], shippingRuleMode = fals
 
 export function ShopFulfillmentForm({
   order,
+  captured = false,
 }: {
+  captured?: boolean;
   order: Pick<
     ShopOrder,
     "id" | "delivery" | "status" | "fulfillment" | "trackingNumber"
@@ -516,7 +518,7 @@ export function ShopFulfillmentForm({
           { value: "ready", label: "Klar för hämtning" },
           { value: "collected", label: "Hämtad" },
         ];
-  if (order.status !== "paid")
+  if (order.status !== "paid" && !(order.status === "pending" && captured))
     return (
       <div className="notice">
         Leveransstatus kan ändras när beställningen är betald och bekräftad.

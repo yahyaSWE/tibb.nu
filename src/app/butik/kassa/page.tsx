@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { CheckoutForm } from "@/components/shop/checkout-form";
+import { getKustomElementsConfig, shopPaymentProvider } from "@/lib/shop-payment-config";
 import {
   shopProductsForRender,
   shopSettingsForRender,
@@ -26,7 +27,12 @@ export default async function CheckoutPage() {
           Välj leverans och se ditt totalbelopp innan du betalar.
         </p>
       </div>
-      <CheckoutForm products={products.map(({ richDescription: _content, ...product }) => product)} settings={settings} />
+      <CheckoutForm
+        products={products.map(({ richDescription: _content, ...product }) => product)}
+        settings={settings}
+        paymentProvider={shopPaymentProvider()}
+        showKustomPaymentMethods={!!getKustomElementsConfig()}
+      />
     </section>
   );
 }

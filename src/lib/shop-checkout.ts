@@ -44,6 +44,11 @@ export function shopResponseError(error: unknown) {
   return Response.json({ error: "Betalningen kunde inte öppnas. Beställningen har inte bekräftats. Försök igen om en stund." }, { status: 503, headers });
 }
 export async function createShopCheckout(value: ShopOrder): Promise<string> {
+  const { shopPaymentProvider } = await import("./shop-payment-config");
+  if (shopPaymentProvider() === "kustom") {
+    const { createKustomCheckout } = await import("./kustom");
+    return createKustomCheckout(value.reference);
+  }
   const order = await getShopOrderById(value.id);
   if (!order || order.status !== "pending" || Date.parse(order.expiresAt) <= Date.now()) throw new DomainError("Lagerreservationen har gått ut.");
   if (!(await getShopSettings()).enabled) throw new DomainError("Butiken tar inte emot nya beställningar just nu.");

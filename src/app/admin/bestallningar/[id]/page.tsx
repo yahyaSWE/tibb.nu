@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { getAdminShopOrder } from "@/lib/shop";
+import { getDb } from "@/lib/db";
+import { kustomAdminOrderAction } from "@/lib/kustom-admin-actions";
 import { getShopOrderEmailStatus } from "@/lib/shop-email";
 import { ShopOrderEmailRetry } from "@/components/admin/shop-order-email";
 import {
@@ -19,8 +21,10 @@ import {
 
 export default async function ShopOrderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ paymentError?: string }>;
 }) {
   const user = await requireAdmin();
   const { id } = await params;
@@ -29,6 +33,8 @@ export default async function ShopOrderPage({
   const order = await getAdminShopOrder(user.id, orderId);
   if (!order) notFound();
   const email = await getShopOrderEmailStatus(order.id);
+  const payment = await getDb().prepare("SELECT method,authorized,captured,customer_paid,refunded_ore,state FROM kustom_checkouts WHERE order_reference=?").get(order.reference);
+  const query = await searchParams;
   const emailLabels = { pending: "Väntar på utskick", sending: "Behandlas", sent: "Accepterat av e-posttjänsten", failed: "Försöken har avslutats – kontrollera Resend", skipped: "Utskick avbrutet" };
   return (
     <>
@@ -43,6 +49,8 @@ export default async function ShopOrderPage({
         }
       />
       <div className="stack">
+        {query.paymentError && <p className="notice notice-error" role="alert">{query.paymentError}</p>}
+        {payment && <section className="panel stack"><h2>Kustom Checkout</h2><p>{payment.captured ? payment.customer_paid ? "Debitering och kundbetalning är styrkta." : "Köpet är debiterat. Kundbetalning för faktura eller delbetalning behöver styrkas separat innan betalt friskvårdskvitto utfärdas." : payment.authorized ? "Köpet är auktoriserat och väntar på debitering vid leverans." : payment.state === "uncertain" ? "Betalningssessionen behöver manuell kontroll. Skapa inte en ny betalningssession." : "Kunden har inte slutfört betalningen."} {String(payment.method)}</p><form action={kustomAdminOrderAction} className="wellness-admin-buttons"><input type="hidden" name="orderId" value={order.id}/><button className="button button-secondary" name="operation" value="reconcile">Kontrollera betalningsstatus</button><button className="button button-primary" name="operation" value="capture" disabled={!!payment.captured || order.status === "cancelled" || order.status === "refunded"}>Debitera när ordern levereras</button></form></section>}
         <div className="shop-status-row">
           <span>
             <span className="sr-only">Orderstatus: </span>
@@ -124,7 +132,7 @@ export default async function ShopOrderPage({
             </section>
             <section className="panel">
               <SectionHeading title="Leveransstatus" />
-              <ShopFulfillmentForm order={{ id: order.id, delivery: order.delivery, status: order.status, fulfillment: order.fulfillment, trackingNumber: order.trackingNumber }} />
+              <ShopFulfillmentForm order={{ id: order.id, delivery: order.delivery, status: order.status, fulfillment: order.fulfillment, trackingNumber: order.trackingNumber }} captured={!!payment?.captured && Number(payment.refunded_ore) === 0} />
             </section>
             <section className="panel">
               <details>

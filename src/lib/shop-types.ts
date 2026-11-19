@@ -13,6 +13,9 @@ export type ShopSettings = {
   packingWeightGrams?: number;
 };
 export type ShopProduct = {
+  isService?: boolean;
+  wellnessEligible?: boolean;
+  validityMonths?: number;
   id: number;
   name: string;
   slug: string;
@@ -32,6 +35,8 @@ export type ShopProduct = {
 };
 export type ShopCartLine = { productId: number; quantity: number };
 export type ShopOrderItem = {
+  isService?: boolean;
+  wellness?: { validityMonths: number };
   productId: number;
   name: string;
   quantity: number;

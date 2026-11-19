@@ -4,6 +4,7 @@ import { NavigationLink as Link } from "@/components/navigation-link";
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import { ArrowUpRight, Leaf, Menu, UserRound, X } from "lucide-react";
+import { KustomPaymentMethods } from "@/components/shop/kustom-payment-methods";
 import "./content-accessibility.css";
 import "./site-chrome-shop.css";
 import "./memberships/memberships.css";
@@ -38,6 +39,7 @@ export function SiteChrome({
   legalName,
   organizationNumber,
   shopEnabled = false,
+  showKustomPaymentMethods = false,
   membershipEnabled = false,
 }: {
   children: React.ReactNode;
@@ -47,6 +49,7 @@ export function SiteChrome({
   legalName?: string;
   organizationNumber?: string;
   shopEnabled?: boolean;
+  showKustomPaymentMethods?: boolean;
   membershipEnabled?: boolean;
 }) {
   const pathname = usePathname();
@@ -57,6 +60,7 @@ export function SiteChrome({
   const nav = [
     { href: "/", label: "Startsida" },
     { href: "/boka", label: "Behandlingar & bokning" },
+    { href: "/friskvard", label: "Friskvård" },
     { href: "/kurser", label: "Kurser" },
     ...(membershipEnabled ? [{ href: "/medlemskap", label: "Medlemskap" }] : []),
     { href: "/artiklar", label: "Artiklar" },
@@ -256,6 +260,7 @@ export function SiteChrome({
           <Link href="/admin" intentOnly>
             Administration
           </Link>
+          {showKustomPaymentMethods && <KustomPaymentMethods />}
         </div>
       </footer>
     </div>

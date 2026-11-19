@@ -7,15 +7,29 @@ import "./shop.css";
 export function OrderControls({
   reference,
   pending,
+  kustom = false,
 }: {
   reference: string;
   pending: boolean;
+  kustom?: boolean;
 }) {
   const router = useRouter();
   const [refreshing, refresh] = useTransition();
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+  const [checking, setChecking] = useState(false);
+  async function checkPayment() {
+    if (!kustom) { refresh(() => router.refresh()); return; }
+    if (busy.current) return;
+    busy.current = true; setChecking(true); setError(null);
+    try {
+      const response = await fetch("/api/kustom/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference }) });
+      if (!response.ok) { const body = await response.json().catch(() => ({})); setError(body.error || "Betalningen kunde inte kontrolleras. Försök igen om en stund."); }
+      refresh(() => router.refresh());
+    } catch { setError("Anslutningen till betalningstjänsten kunde inte bekräftas. Försök igen om en stund."); }
+    finally { busy.current = false; setChecking(false); }
+  }
   async function cancel() {
     if (busy.current) return;
     busy.current = true;
@@ -54,17 +68,17 @@ export function OrderControls({
         <button
           type="button"
           className="button button-primary"
-          disabled={refreshing || cancelling}
-          onClick={() => refresh(() => router.refresh())}
+          disabled={refreshing || cancelling || checking}
+          onClick={checkPayment}
         >
-          {refreshing ? "Uppdaterar…" : "Uppdatera betalningsstatus"}
+          {refreshing || checking ? "Uppdaterar…" : "Uppdatera betalningsstatus"}
         </button>
       )}
       {pending && (
         <button
           type="button"
           className="button button-secondary"
-          disabled={refreshing || cancelling}
+          disabled={refreshing || cancelling || checking}
           onClick={cancel}
         >
           {cancelling ? "Avbryter…" : "Avbryt väntande beställning"}

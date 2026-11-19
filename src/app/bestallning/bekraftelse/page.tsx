@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { WellnessOrderDocuments } from "@/components/wellness-order-documents";
+import { getDb } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { Check, Clock3, Package, X } from "lucide-react";
 import { getShopOrderByReference } from "@/lib/shop";
@@ -28,6 +30,7 @@ export default async function OrderConfirmationPage({
   const paid = order.status === "paid" && order.paymentStatus === "paid";
   const pending = order.status === "pending";
   const refundPending = order.paymentStatus === "refund_pending";
+  const kustom = !!(await getDb().prepare("SELECT order_reference FROM kustom_checkouts WHERE order_reference=?").get(order.reference));
   const title = paid
     ? "Tack för din beställning."
     : pending
@@ -208,7 +211,7 @@ export default async function OrderConfirmationPage({
             .
           </p>
         )}
-        <OrderControls reference={order.reference} pending={pending} />
+        <OrderControls reference={order.reference} pending={pending} kustom={kustom} />
         {refundPending && (
           <a
             className="button button-secondary"
@@ -217,6 +220,7 @@ export default async function OrderConfirmationPage({
             Uppdatera återbetalningsstatus
           </a>
         )}
+        <WellnessOrderDocuments reference={order.reference} />
         <div className="shop-order-links">
           {paid && <ClearPurchasedCart />}
           <Link href="/" className="button button-secondary">

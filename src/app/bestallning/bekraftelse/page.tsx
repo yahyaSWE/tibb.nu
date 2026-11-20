@@ -30,6 +30,7 @@ export default async function OrderConfirmationPage({
   const paid = order.status === "paid" && order.paymentStatus === "paid";
   const pending = order.status === "pending";
   const refundPending = order.paymentStatus === "refund_pending";
+  const digitalOnly = order.items.length > 0 && order.items.every(item => item.isService || item.wellness);
   const kustom = !!(await getDb().prepare("SELECT order_reference FROM kustom_checkouts WHERE order_reference=?").get(order.reference));
   const title = paid
     ? "Tack för din beställning."
@@ -58,7 +59,6 @@ export default async function OrderConfirmationPage({
             <X size={30} />
           )}
         </span>
-        <p className="eyebrow">Din beställning</p>
         <h1 className="page-title">{title}</h1>
         <p className="muted">
           {paid
@@ -94,6 +94,8 @@ export default async function OrderConfirmationPage({
                   : "Någon e-postbekräftelse är ännu inte skickad. Spara denna sida som bekräftelse på beställningen."}
           </p>
         )}
+        <WellnessOrderDocuments reference={order.reference} />
+        {pending && <OrderControls reference={order.reference} pending={pending} kustom={kustom} />}
         <dl className="detail-list">
           <div>
             <dt>Beställningsreferens</dt>
@@ -114,19 +116,19 @@ export default async function OrderConfirmationPage({
           <div>
             <dt>Leveransval</dt>
             <dd>
-              {order.delivery === "shipping"
+              {digitalOnly ? "Digital leverans" : order.delivery === "shipping"
                 ? "Leverans inom Sverige"
                 : "Hämtning"}
             </dd>
           </div>
-          {paid && (
+          {paid && !digitalOnly && (
             <div>
               <dt>Status</dt>
               <dd>{fulfillment}</dd>
             </div>
           )}
         </dl>
-        <h2 className="shop-order-subheading">Varor</h2>
+        <h2 className="shop-order-subheading">{digitalOnly ? "Tjänster" : "Din beställning"}</h2>
         <ul className="shop-checkout-lines">
           {order.items.map((item, index) => (
             <li key={`${item.productId}-${index}`}>
@@ -149,16 +151,18 @@ export default async function OrderConfirmationPage({
           </div>
           {order.discounts?.map((discount,index)=><div key={index}><dt>{discount.name}{discount.code?` (${discount.code})`:""}</dt><dd>−{formatMoney(discount.amountOre)}</dd></div>)}
           <div><dt>Varor efter rabatter</dt><dd>{formatMoney(order.subtotalOre)}</dd></div>
-          <div>
-            <dt>{order.shippingLabel||(order.delivery === "shipping" ? "Frakt" : "Hämtning")}</dt>
-            <dd>{formatMoney(order.shippingOre)}</dd>
-          </div>
+          {!digitalOnly && (
+            <div>
+              <dt>{order.shippingLabel || (order.delivery === "shipping" ? "Frakt" : "Hämtning")}</dt>
+              <dd>{formatMoney(order.shippingOre)}</dd>
+            </div>
+          )}
           <div className="shop-total">
             <dt>Totalt, inklusive moms</dt>
             <dd>{formatMoney(order.totalOre)}</dd>
           </div>
         </dl>
-        {order.delivery === "shipping" ? (
+        {!digitalOnly && (order.delivery === "shipping" ? (
           <div className="shop-order-address">
             <h2 className="shop-order-subheading">
               <Package size={22} aria-hidden="true" />
@@ -192,7 +196,7 @@ export default async function OrderConfirmationPage({
               </p>
             )}
           </div>
-        )}
+        ))}
         {order.terms && (
           <details className="shop-checkout-terms">
             <summary>Köpvillkor för denna beställning</summary>
@@ -211,7 +215,6 @@ export default async function OrderConfirmationPage({
             .
           </p>
         )}
-        <OrderControls reference={order.reference} pending={pending} kustom={kustom} />
         {refundPending && (
           <a
             className="button button-secondary"
@@ -220,7 +223,6 @@ export default async function OrderConfirmationPage({
             Uppdatera återbetalningsstatus
           </a>
         )}
-        <WellnessOrderDocuments reference={order.reference} />
         <div className="shop-order-links">
           {paid && <ClearPurchasedCart />}
           <Link href="/" className="button button-secondary">

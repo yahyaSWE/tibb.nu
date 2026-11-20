@@ -13,7 +13,7 @@ export function CouponEntry({ draft, code, onDraft, onApply, onRemove, pending, 
   const id = useId();
   const edited = normalizedCoupon(draft) !== code;
   return <div className="shop-coupon">
-    <label className="field" htmlFor={id}>Rabattkod (valfritt)
+    <label className="field" htmlFor={id}>Din rabattkod
       <input id={id} value={draft} onChange={(event) => onDraft(event.target.value)} maxLength={50} autoComplete="off" autoCapitalize="characters" spellCheck={false} disabled={disabled} />
     </label>
     <div className="shop-coupon-actions">
@@ -23,13 +23,6 @@ export function CouponEntry({ draft, code, onDraft, onApply, onRemove, pending, 
     {edited && <p className="muted">Använd eller ta bort den ändrade rabattkoden innan du fortsätter.</p>}
     {!pending && confirmedCode && !edited && <p role="status" className="shop-add-feedback">Rabattkod {confirmedCode} används i prisberäkningen.</p>}
   </div>;
-}
-
-export function PostcodeField({ value, onChange, required = false, disabled = false }: { value: string; onChange: (value: string) => void; required?: boolean; disabled?: boolean }) {
-  const id = useId();
-  return <label className="field" htmlFor={id}>Postnummer
-    <input id={id} name="postcode" value={value} onChange={(event) => onChange(event.target.value)} required={required} disabled={disabled} maxLength={6} pattern="[0-9]{3} ?[0-9]{2}" inputMode="numeric" autoComplete="shipping postal-code" />
-  </label>;
 }
 
 export function DeliveryChoices({ settings, delivery, onChange }: { settings: ShopSettings; delivery: "shipping" | "pickup"; onChange: (value: "shipping" | "pickup") => void }) {
@@ -47,18 +40,23 @@ export function DeliveryChoices({ settings, delivery, onChange }: { settings: Sh
 }
 
 export function QuoteFeedback({ pending, error, needsPostcode, onRetry }: { pending: boolean; error: string | null; needsPostcode: boolean; onRetry: () => void }) {
-  if (needsPostcode) return <p className="notice" role="status">Ange ett svenskt postnummer med fem siffror för att beräkna frakt och totalbelopp.</p>;
-  if (pending) return <p className="notice" role="status">Beräknar aktuellt pris, rabatter och frakt…</p>;
-  if (error) return <div className="notice notice-error" role="alert"><p>{error}</p><p>Kontrollera varukorgen, rabattkoden och leveransvalet. Du kan välja hämtning om det erbjuds, eller kontakta verksamheten om leveransen inte kan beräknas.</p><button type="button" className="button button-secondary" onClick={onRetry}>Beräkna igen</button></div>;
+  if (needsPostcode) return <p className="notice" role="status">Ange ditt postnummer för att se frakten och totalpriset.</p>;
+  if (pending) return <p className="notice" role="status">Beräknar totalpriset…</p>;
+  if (error) return <div className="notice notice-error" role="alert"><p>{error}</p><p>Kontrollera rabattkoden eller prova hämtning om det finns som alternativ.</p><button type="button" className="button button-secondary" onClick={onRetry}>Beräkna igen</button></div>;
   return null;
 }
 
-export function QuoteTotals({ quote }: { quote: Pick<ShopQuote, "originalSubtotalOre" | "subtotalOre" | "shippingOre" | "totalOre" | "discounts" | "shippingLabel"> }) {
-  return <dl className="shop-order-totals">
-    <div><dt>Varor före rabatter</dt><dd>{formatMoney(quote.originalSubtotalOre)}</dd></div>
-    {quote.discounts.map((discount, index) => <div className="shop-discount" key={`${discount.kind}-${index}`}><dt>{discount.name}{discount.code ? ` (${discount.code})` : ""}</dt><dd>−{formatMoney(discount.amountOre)}</dd></div>)}
-    <div><dt>Varor efter rabatter</dt><dd>{formatMoney(quote.subtotalOre)}</dd></div>
-    <div><dt>{quote.shippingLabel}</dt><dd>{formatMoney(quote.shippingOre)}</dd></div>
-    <div className="shop-total"><dt>Totalt, inklusive moms</dt><dd>{formatMoney(quote.totalOre)}</dd></div>
-  </dl>;
+export function QuoteBreakdown({ quote }: { quote: Pick<ShopQuote, "originalSubtotalOre" | "shippingOre" | "discounts" | "shippingLabel"> }) {
+  return (
+    <dl className="shop-order-totals">
+      <div><dt>Delsumma</dt><dd>{formatMoney(quote.originalSubtotalOre)}</dd></div>
+      {quote.discounts.map((discount, index) => (
+        <div className="shop-discount" key={discount.kind + "-" + index}>
+          <dt>{discount.name}{discount.code ? " (" + discount.code + ")" : ""}</dt>
+          <dd>−{formatMoney(discount.amountOre)}</dd>
+        </div>
+      ))}
+      <div><dt>{quote.shippingLabel}</dt><dd>{formatMoney(quote.shippingOre)}</dd></div>
+    </dl>
+  );
 }

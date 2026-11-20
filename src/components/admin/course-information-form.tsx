@@ -32,7 +32,9 @@ export function CourseInformationForm({
   return (
     <form
       action={action}
-      className="panel form-panel stack"
+      id="kursinformation"
+      tabIndex={-1}
+      className="panel form-panel stack admin-section-target"
       aria-busy={pending}
       onChange={() => setDismissedResult(state)}
       onSubmit={() => setDismissedResult(state)}

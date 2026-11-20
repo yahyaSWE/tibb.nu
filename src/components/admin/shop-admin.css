@@ -142,7 +142,7 @@
 }
 @media (max-width: 950px) {
   .admin-shell .shop-detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 650px) {

@@ -91,6 +91,7 @@ export default async function PractitionersPage({
   return (
     <>
       <AdminHeading
+        sections={[["dina-behandlare", "Dina behandlare"], ["ny-behandlare", "Ny behandlare"]]}
         title="Behandlare"
         description="Presentera dina behandlare och ge var och en ett eget schema för bokningar."
       />
@@ -99,7 +100,7 @@ export default async function PractitionersPage({
         <p className="notice">Standardprofilen heter Tibb.nu. Ange behandlarens offentliga namn och en valfri porträttbild här innan bokningen öppnas. För Johan: Johan Yahya Blomdahl.</p>
       )}
       <div className="split-grid">
-        <section className="panel">
+        <section id="dina-behandlare" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading
             title="Dina behandlare"
             description="Redigera namn och presentation. Befintliga tider är kopplade till Tibb.nu; ändra namnet till din behandlares namn."
@@ -167,7 +168,7 @@ export default async function PractitionersPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel">
+        <section id="ny-behandlare" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading
             title="Ny behandlare"
             description="Lägg till personen här och publicera sedan tider i personens schema."

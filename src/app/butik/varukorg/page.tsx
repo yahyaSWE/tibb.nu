@@ -15,18 +15,14 @@ export default async function CartPage() {
   if (!settings.enabled) notFound();
   const products = await shopProductsForRender();
   return (
-    <section className="shop section container">
+    <section className="shop shop-purchase section container">
       <Link href="/butik" className="back-link">
         <ArrowLeft size={17} aria-hidden="true" /> Till butiken
       </Link>
-      <div className="page-heading">
-        <p className="eyebrow">Din beställning</p>
-        <h1 className="page-title">Varukorg.</h1>
-        <p className="muted">
-          Kontrollera varor och antal innan du fortsätter.
-        </p>
-      </div>
-      <CartPageContent products={products.map(({ richDescription: _content, ...product }) => product)} settings={settings} />
+      <header className="shop-purchase-heading">
+        <h1 className="page-title">Varukorg</h1>
+      </header>
+      <CartPageContent products={products.map(({ richDescription: _content, ...product }) => product)} />
     </section>
   );
 }

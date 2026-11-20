@@ -5,13 +5,17 @@ import { emailConfigurationStatus, sendEmail } from "./email-provider";
 import { getWellnessPdf } from "./wellness-pdf";
 
 export async function resendWellnessReceipt(actorId: number, receiptId: string) {
-  await assertAdmin(actorId);
-  const receipt = await getDb().prepare("SELECT snapshot_json FROM wellness_receipts WHERE id=?").get(receiptId);
-  if (!receipt) throw new DomainError("Kvittot finns inte.");
-  const recipient = JSON.parse(String(receipt.snapshot_json)).customer.email;
-  const id = randomUUID(); const now = new Date().toISOString();
-  await getDb().prepare("INSERT INTO wellness_email_outbox(id,receipt_id,event_key,recipient,next_attempt_at,created_at) VALUES(?,?,?,?,?,?)")
-    .run(id, receiptId, `resend:${id}`, recipient, now, now);
+  await transaction(async () => {
+    await assertAdmin(actorId);
+    const receipt = await getDb().prepare(`SELECT r.snapshot_json,v.correction_id FROM wellness_receipts r
+      LEFT JOIN wellness_order_voids v ON v.order_reference=r.order_reference WHERE r.id=?`).get(receiptId);
+    if (!receipt) throw new DomainError("Kvittot finns inte.");
+    if (receipt.correction_id && receipt.correction_id !== receiptId) throw new DomainError("Det makulerade originalet kan inte skickas igen. Välj korrigeringsunderlaget.");
+    const recipient = JSON.parse(String(receipt.snapshot_json)).customer.email;
+    const id = randomUUID(); const now = new Date().toISOString();
+    await getDb().prepare("INSERT INTO wellness_email_outbox(id,receipt_id,event_key,recipient,next_attempt_at,created_at) VALUES(?,?,?,?,?,?)")
+      .run(id, receiptId, `resend:${id}`, recipient, now, now);
+  });
 }
 export async function dispatchWellnessEmails(options: { reference?: string; limit?: number } = {}) {
   const result = { configured: emailConfigurationStatus().configured, sent: 0, failed: 0 };

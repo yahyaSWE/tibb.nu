@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, Package, ShoppingBag } from "lucide-react";
+import { Eye } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { getShopSettings, shopStripeReady } from "@/lib/shop";
 import { shopPaymentProvider, kustomReady } from "@/lib/shop-payment-config";
@@ -14,7 +14,7 @@ export default async function ShopSettingsPage() {
   return (
     <>
       <AdminHeading
-        eyebrow="Din butik"
+        sections={[["butik-betalning", "Betalning"], ["butik-leverans", "Butik och leverans"]]}
         title="Butiksinställningar"
         description="Välj när butiken ska öppna, hur kunderna får sina varor och vilka köpvillkor som gäller."
         action={
@@ -38,24 +38,8 @@ export default async function ShopSettingsPage() {
             ? "Publicerade produkter visas på hemsidan."
             : "Du kan lägga in produkter och förhandsgranska innan du öppnar."}
         </div>
-        <div className="shop-page-actions">
-          <Link href="/admin/rabatter" className="button button-secondary">Rabatter</Link>
-          <Link href="/admin/frakt" className="button button-secondary">Fraktregler</Link>
-          <Link href="/admin/produkter" className="button button-secondary">
-            <Package size={18} aria-hidden="true" />
-            Produkter
-          </Link>
-          <Link href="/admin/bestallningar" className="button button-secondary">
-            <ShoppingBag size={18} aria-hidden="true" />
-            Beställningar
-          </Link>
-          {settings.enabled && (
-            <Link href="/butik" className="text-link">
-              Visa butiken på hemsidan ↗
-            </Link>
-          )}
-        </div>
-        <section className="panel">
+        {settings.enabled && <Link href="/butik" className="text-link">Visa butiken på hemsidan</Link>}
+        <section id="butik-betalning" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Betalning" />
           <p className="muted">
             {stripeReady
@@ -76,7 +60,7 @@ export default async function ShopSettingsPage() {
             .
           </p>
         </section>
-        <section className="panel form-panel">
+        <section id="butik-leverans" tabIndex={-1} className="panel form-panel admin-section-target">
           <SectionHeading
             title="Butik och leverans"
             description="Ange dina egna priser, hämtningsuppgifter och villkor. Ändrade villkor påverkar nya beställningar."

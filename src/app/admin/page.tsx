@@ -5,16 +5,17 @@ import {
   BookOpen,
   CalendarDays,
   FileText,
+  ShoppingBag,
   Sprout,
+  TicketPercent,
+  Users,
 } from "lucide-react";
 import {
   getArticles,
   getBookings,
   getCourses,
-  getEnrollments,
   getSlots,
 } from "@/lib/db";
-import { getSiteSettings } from "@/lib/site-data";
 import {
   AdminHeading,
   AdminNotice,
@@ -32,14 +33,12 @@ export default async function AdminDashboard({
   searchParams: AdminSearchParams;
 }) {
   await requireAdmin();
-  const [bookings, allSlots, courses, articles, enrollments, settings] =
+  const [bookings, allSlots, courses, articles] =
     await Promise.all([
       getBookings(),
       getSlots({ futureOnly: true }),
       getCourses(),
       getArticles(),
-      getEnrollments(),
-      getSiteSettings(),
     ]);
   const now = new Date().toISOString();
   const upcoming = bookings
@@ -75,30 +74,26 @@ export default async function AdminDashboard({
   return (
     <>
       <AdminHeading
-        eyebrow="Välkommen tillbaka"
         title="Översikt"
-        description={`Här tar du hand om ${settings.siteName} – dina bokningar, din kunskap och dina elever.`}
+        description="Se kommande besök och gå direkt till vanliga uppgifter."
         action={
-          <Link href="/admin/tider" className="button button-primary">
+          <Link href="/admin/tider#skapa-tider" className="button button-primary">
             Lägg till en tid
           </Link>
         }
       />
       <AdminNotice searchParams={searchParams} />
-      <div className="stats-grid">
+      <ul className="admin-summary" aria-label="Verksamheten i siffror">
         {stats.map(({ label, value, href, icon: Icon }) => (
-          <Link href={href} className="stat-card" key={label}>
-            <div className="stat-card-top">
+          <li key={label}>
+            <Link href={href}>
+              <Icon size={17} aria-hidden="true" />
               <span>{label}</span>
-              <Icon size={20} aria-hidden="true" />
-            </div>
-            <strong className="stat-value">{value}</strong>
-            <small>
-              Visa översikt <ArrowRight size={14} aria-hidden="true" />
-            </small>
-          </Link>
+              <strong>{value}</strong>
+            </Link>
+          </li>
         ))}
-      </div>
+      </ul>
       <div className="dashboard-grid">
         <section className="panel">
           <div className="section-heading-with-action">
@@ -145,59 +140,39 @@ export default async function AdminDashboard({
               </table>
             </div>
           ) : (
-            <EmptyState title="En ny början">
-              Dina kommande besök visas här så snart den första kunden bokar.
+            <EmptyState title="Inga kommande besök">
+              Nya bokningar visas här när de kommer in.
             </EmptyState>
           )}
         </section>
         <section className="panel quick-actions">
-          <SectionHeading
-            title="Låt verksamheten växa"
-            description="Dina nästa steg, samlade på ett ställe."
-          />
-          <Link href="/admin/behandlingar">
-            <Sprout size={21} aria-hidden="true" />
-            <span>
-              <strong>Hantera behandlingar</strong>
-              <small>Längder, priser och beskrivningar</small>
-            </span>
+          <SectionHeading title="Genvägar" />
+          <Link href="/admin/bestallningar">
+            <ShoppingBag size={20} aria-hidden="true" />
+            <strong>Hantera beställningar</strong>
+            <ArrowRight size={17} aria-hidden="true" />
+          </Link>
+          <Link href="/admin/friskvard#manuellt-kop">
+            <TicketPercent size={20} aria-hidden="true" />
+            <strong>Registrera friskvårdsköp</strong>
             <ArrowRight size={17} aria-hidden="true" />
           </Link>
           <Link href="/admin/artiklar/ny">
-            <FileText size={21} aria-hidden="true" />
-            <span>
-              <strong>Skriv en artikel</strong>
-              <small>Dela dina tankar och din kunskap</small>
-            </span>
+            <FileText size={20} aria-hidden="true" />
+            <strong>Skriv en artikel</strong>
             <ArrowRight size={17} aria-hidden="true" />
           </Link>
           <Link href="/admin/kurser/ny">
-            <BookOpen size={21} aria-hidden="true" />
-            <span>
-              <strong>Bygg en ny kurs</strong>
-              <small>Lektioner, video och kursmaterial</small>
-            </span>
+            <BookOpen size={20} aria-hidden="true" />
+            <strong>Skapa en kurs</strong>
             <ArrowRight size={17} aria-hidden="true" />
           </Link>
-          <Link href="/admin/elever">
-            <CalendarDays size={21} aria-hidden="true" />
-            <span>
-              <strong>Hantera elever</strong>
-              <small>{enrollments.length} tilldelade kurstillgångar</small>
-            </span>
+          <Link href="/admin/elever#tilldela-kurs">
+            <Users size={20} aria-hidden="true" />
+            <strong>Tilldela en kurs</strong>
             <ArrowRight size={17} aria-hidden="true" />
           </Link>
         </section>
-      </div>
-      <div className="admin-tip">
-        <Sprout size={22} aria-hidden="true" />
-        <div>
-          <strong>En sak i taget.</strong>
-          <p>
-            Börja med dina behandlingar och bokningsbara tider. Dina artiklar
-            och kurser kan växa fram i sin egen takt.
-          </p>
-        </div>
       </div>
     </>
   );

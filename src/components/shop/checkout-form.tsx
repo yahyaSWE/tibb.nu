@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CreditCard, MapPin, Truck } from "lucide-react";
+import { ArrowRight, ChevronDown, MapPin, Truck } from "lucide-react";
 import type { ShopProduct, ShopSettings } from "@/lib/shop-types";
 import { WELLNESS_ADDRESS_THRESHOLD_ORE } from "@/lib/shop-types";
 import { formatMoney } from "@/lib/time";
@@ -12,7 +12,7 @@ import { cartSummary, checkoutDestination } from "./cart-data";
 import { useShopCart } from "./cart-store";
 import { useQuoteChoices, normalizedCoupon } from "./quote-choices";
 import { useShopQuote } from "./use-shop-quote";
-import { CouponEntry, QuoteFeedback, QuoteTotals } from "./quote-controls";
+import { CouponEntry, DeliveryChoices, QuoteFeedback, QuoteBreakdown } from "./quote-controls";
 import { KustomPaymentMethods } from "./kustom-payment-methods";
 import "./shop.css";
 
@@ -51,11 +51,11 @@ export function CheckoutForm({
   const summary = cartSummary(cart.lines, products);
   const servicesOnly = summary.rows.length > 0 && summary.rows.every(row => row.product?.isService);
   const hasWellness = summary.rows.some(row => row.product?.wellnessEligible);
-  const delivery = servicesOnly ? "pickup" : chosenDelivery;
+  const delivery = servicesOnly ? "pickup" :
+    settings.shippingEnabled && settings.pickupEnabled ? chosenDelivery :
+    settings.shippingEnabled ? "shipping" : "pickup";
   const availableDelivery =
     servicesOnly || (delivery === "shipping" ? settings.shippingEnabled : settings.pickupEnabled);
-  const deliveryNeedsChange =
-    !availableDelivery && (settings.shippingEnabled || settings.pickupEnabled);
   const quoteState = useShopQuote({items:cart.lines,delivery,postcode:values.postcode,couponCode:choices.couponCode},products,settings,cart.ready && summary.valid && availableDelivery && settings.enabled);
   const quote = quoteState.quote;
   const shippingAddressRequired = delivery === "shipping" && settings.shippingEnabled;
@@ -98,12 +98,14 @@ export function CheckoutForm({
   );
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || !canCheckout) return;
+    if (submitting.current || !canCheckout || !consent) return;
     submitting.current = true;
     setPending(true);
     setError(null);
     try {
-      const contact = !addressRequired && !values.address.trim() && !values.city.trim() ? { ...values, postcode: "" } : values;
+      const contact = !addressRequired && (!hasWellness || (!values.address.trim() && !values.city.trim()))
+        ? { ...values, address: "", postcode: "", city: "" }
+        : values;
       const payload = { items: cart.lines, ...contact, delivery, consent, couponCode: choices.couponCode, expectedQuote: quote!.fingerprint };
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)));
       const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
@@ -164,41 +166,79 @@ export function CheckoutForm({
         </Link>
       </div>
     );
+  const addressFields = (
+    <div className="form-grid shop-address-fields">
+      {field("address", "Gatuadress", {
+        required: addressRequired,
+        autoComplete: shippingAddressRequired ? "shipping street-address" : "street-address",
+        minLength: 3,
+        maxLength: 200,
+      })}
+      {field("postcode", "Postnummer", {
+        required: addressRequired,
+        autoComplete: "postal-code",
+        maxLength: 6,
+        pattern: "[0-9]{3} ?[0-9]{2}",
+      })}
+      {field("city", "Ort", {
+        required: addressRequired,
+        autoComplete: "address-level2",
+        minLength: 2,
+        maxLength: 100,
+      })}
+    </div>
+  );
+
   return (
-    <div className="shop-checkout-layout">
-      <form
-        onSubmit={submit}
-        className="shop-checkout-form"
-        aria-busy={pending}
-      >
-        {error && (
-          <div
-            ref={errorRef}
-            tabIndex={-1}
-            className="notice notice-error"
-            role="alert"
-          >
-            {error}
+    <form className="shop-checkout-layout" onSubmit={submit} aria-busy={pending}
+      onInvalidCapture={event => {
+        if (event.target instanceof HTMLInputElement) {
+          event.target.closest("details")?.setAttribute("open", "");
+        }
+      }}>
+      <aside className="shop-summary shop-checkout-summary" aria-label="Din beställning">
+        <div className="shop-checkout-total">
+          <div>
+            <h2>Totalt</h2>
+            <small>Inklusive moms</small>
           </div>
+          <strong aria-live="polite">{quote ? formatMoney(quote.totalOre) : "Beräknas i kassan"}</strong>
+        </div>
+        <details className="shop-checkout-items">
+          <summary>Visa beställningen <ChevronDown size={16} aria-hidden="true" /></summary>
+          <ul className="shop-checkout-lines">
+            {summary.rows.map(row => {
+              const line = quote?.items.find(item => item.productId === row.productId);
+              return (
+                <li key={row.productId}>
+                  <span>{row.quantity} × {row.product?.name || "Otillgänglig produkt"}</span>
+                  <strong>{row.product ? formatMoney(line?.originalLineTotalOre ?? row.totalOre) : "—"}</strong>
+                </li>
+              );
+            })}
+          </ul>
+          {quote && <QuoteBreakdown quote={quote} />}
+          <Link href="/butik/varukorg" className="inline-link">Ändra varukorgen</Link>
+        </details>
+      </aside>
+      <div className="shop-checkout-form">
+        {error && (
+          <div ref={errorRef} tabIndex={-1} className="notice notice-error" role="alert">{error}</div>
         )}
         {!summary.valid && (
           <div className="notice notice-error" role="alert">
-            En eller flera varor är inte längre tillgängliga i valt antal.{" "}
-            <Link href="/butik/varukorg" className="inline-link">
-              Justera varukorgen
-            </Link>{" "}
-            innan du betalar.
+            Kontrollera antal och lagerstatus innan du fortsätter.{" "}
+            <Link href="/butik/varukorg" className="inline-link">Ändra varukorgen</Link>
           </div>
         )}
-        {!servicesOnly && !settings.shippingEnabled && !settings.pickupEnabled && (
-          <p className="notice notice-error" role="alert">
-            Beställningar öppnar när ett leveransalternativ finns tillgängligt.
-          </p>
+        {!availableDelivery && (
+          <p className="notice notice-error" role="alert">Beställning kan göras när ett leveranssätt finns tillgängligt.</p>
         )}
         <fieldset disabled={pending}>
-          <legend>Dina kontaktuppgifter</legend>
+          <legend>Kontaktuppgifter</legend>
+          {servicesOnly && <p className="shop-contact-hint">Klippkort och kvitto skickas till din e-post efter betalning.</p>}
           <div className="form-grid">
-            {field("name", hasWellness ? "För- och efternamn på ditt personliga klippkort" : "Namn", {
+            {field("name", "För- och efternamn", {
               required: true,
               autoComplete: "name",
               minLength: 2,
@@ -210,190 +250,90 @@ export function CheckoutForm({
               autoComplete: "email",
               maxLength: 254,
             })}
-            {field("phone", "Telefonnummer (valfritt)", {
-              type: "tel",
-              autoComplete: "tel",
-              maxLength: 30,
-            })}
           </div>
-        </fieldset>
-        <fieldset
-          disabled={pending}
-          aria-describedby={
-            deliveryNeedsChange ? "checkout-delivery-unavailable" : undefined
-          }
-        >
-          <legend>{servicesOnly ? "Ditt digitala klippkort" : "Leverans"}</legend>
-          {servicesOnly && <p>Klippkort och kvitto levereras digitalt efter styrkt betalning. Ingen fraktavgift tillkommer.</p>}
-          {deliveryNeedsChange && (
-            <p
-              id="checkout-delivery-unavailable"
-              className="notice notice-error"
-              role="alert"
-            >
-              Det valda leveranssättet är inte längre tillgängligt. Välj ett
-              annat leveranssätt nedan för att fortsätta.
-            </p>
-          )}
-          <div className="shop-delivery-options">
-            {!servicesOnly && settings.shippingEnabled && (
-              <label
-                className={`shop-delivery-option${delivery === "shipping" ? " selected" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="delivery"
-                  value="shipping"
-                  checked={delivery === "shipping"}
-                  onChange={() => changeDelivery("shipping")}
-                />
-                <Truck size={20} aria-hidden="true" />
-                <span>
-                  <strong>Leverans inom Sverige</strong>
-                  <small>
-                    {settings.shippingRuleMode ? "Frakt beräknas från vikt och postnummer" : "Frakt visas i prisberäkningen"}
-                  </small>
-                </span>
-              </label>
-            )}
-            {!servicesOnly && settings.pickupEnabled && (
-              <label
-                className={`shop-delivery-option${delivery === "pickup" ? " selected" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="delivery"
-                  value="pickup"
-                  checked={delivery === "pickup"}
-                  onChange={() => changeDelivery("pickup")}
-                />
-                <MapPin size={20} aria-hidden="true" />
-                <span>
-                  <strong>Hämta själv</strong>
-                  <small>Ingen fraktkostnad</small>
-                </span>
-              </label>
-            )}
-          </div>
-          {(shippingAddressRequired || hasWellness) && (
-            <div className="form-grid shop-address-fields">
-              {field("address", addressRequired ? "Gatuadress" : "Gatuadress för kvittot (valfritt)", {
-                required: addressRequired,
-                autoComplete: "shipping street-address",
-                minLength: 3,
-                maxLength: 200,
-              })}
-              {field("postcode", "Postnummer", {
-                required: addressRequired,
-                autoComplete: "shipping postal-code",
-                maxLength: 6,
-                pattern: "[0-9]{3} ?[0-9]{2}",
-              })}
-              {field("city", "Ort", {
-                required: addressRequired,
-                autoComplete: "shipping address-level2",
-                minLength: 2,
-                maxLength: 100,
-              })}
-              {shippingAddressRequired ? <p className="muted">Leveransland: Sverige.</p> : hasWellness && <p className="muted">Kundadress behövs vid köp över 4 000 kr.</p>}
-            </div>
-          )}
-          {!servicesOnly && delivery === "pickup" && settings.pickupEnabled && (
-            <div className="shop-pickup-details">
-              <h3>Hämtningsplats</h3>
-              <p>{settings.pickupAddress}</p>
-              {settings.pickupInstructions && (
-                <TextContent text={settings.pickupInstructions} />
-              )}
-            </div>
-          )}
-        </fieldset>
-        <CouponEntry draft={choices.couponDraft} code={choices.couponCode} onDraft={couponDraft=>choices.update({couponDraft})} onApply={()=>{choices.update({couponCode:normalizedCoupon(choices.couponDraft)});quoteState.refresh();}} onRemove={()=>choices.update({couponDraft:"",couponCode:""})} pending={quoteState.pending} disabled={pending} confirmedCode={quote?.couponCode}/>
-        {settings.terms && (
-          <details className="shop-checkout-terms">
-            <summary>Läs köpvillkoren</summary>
-            <TextContent text={settings.terms} />
+          <details className="shop-checkout-extra">
+            <summary>Lägg till telefonnummer (valfritt)</summary>
+            {field("phone", "Telefonnummer", { type: "tel", autoComplete: "tel", maxLength: 30 })}
           </details>
-        )}
-        <fieldset disabled={pending} className="shop-checkout-consent">
-          <legend className="sr-only">Bekräfta villkoren</legend>
-          <label className="consent-check">
-            <input
-              type="checkbox"
-              name="consent"
-              checked={consent}
-              onChange={(event) => setAcceptedTerms(event.target.checked ? settings.terms : null)}
-              required
-            />
-            <span>
-              Jag har läst{" "}
-              <Link
-                href="/butik/villkor"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                köpvillkoren
-              </Link>{" "}
-              och{" "}
-              <Link
-                href="/integritet"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                informationen om personuppgifter
-              </Link>
-              .
-            </span>
-          </label>
         </fieldset>
-        <button
-          type="submit"
-          className="button button-primary"
-          disabled={pending || !canCheckout || !consent}
-        >
-          <CreditCard size={18} aria-hidden="true" />
-          {pending
-            ? "Förbereder betalningen…"
-            : quote ? `Fortsätt till betalning · ${formatMoney(quote.totalOre)}` : "Fortsätt till betalning"}{" "}
-          {!pending && <ArrowRight size={17} aria-hidden="true" />}
-        </button>
-        <p className="muted">
-          Du fortsätter till {paymentProvider === "kustom" ? "Kustom Checkout" : "Stripe"} för att slutföra köpet. Beställningen är
-          betald först när betalningen har bekräftats.
-        </p>
-        {showKustomPaymentMethods && <KustomPaymentMethods />}
-        <noscript>
-          <p className="notice notice-error">
-            Kassan behöver JavaScript. Aktivera det i webbläsaren för att
-            beställa.
-          </p>
-        </noscript>
-      </form>
-      <aside className="shop-summary">
-        <h2>Din beställning</h2>
-        <ul className="shop-checkout-lines">
-          {summary.rows.map((row) => (
-            <li key={row.productId}>
+        {!servicesOnly && availableDelivery && (
+          <fieldset disabled={pending}>
+            <legend>Leverans</legend>
+            {settings.shippingEnabled && settings.pickupEnabled ? (
+              <DeliveryChoices settings={settings} delivery={delivery} onChange={changeDelivery} />
+            ) : delivery === "shipping" ? (
+              <p className="shop-delivery-note"><Truck size={19} aria-hidden="true" /> Leverans inom Sverige</p>
+            ) : (
+              <p className="shop-delivery-note"><MapPin size={19} aria-hidden="true" /> Hämta själv · fri frakt</p>
+            )}
+            {shippingAddressRequired && addressFields}
+            {delivery === "pickup" && (
+              <div className="shop-pickup-details">
+                <strong>Hämtningsplats</strong>
+                <p>{settings.pickupAddress}</p>
+                {settings.pickupInstructions && <TextContent text={settings.pickupInstructions} />}
+              </div>
+            )}
+          </fieldset>
+        )}
+        {hasWellness && !shippingAddressRequired && (
+          <fieldset disabled={pending} className="shop-receipt-address">
+            <legend className="sr-only">Adress för friskvårdskvittot</legend>
+            {receiptAddressRequired ? (
+              <div>
+                <h2>Adress för friskvårdskvittot</h2>
+                <p>Kundadress behövs för det här köpet.</p>
+                {addressFields}
+              </div>
+            ) : (
+              <details className="shop-checkout-extra">
+                <summary>Lägg till adress på kvittot (valfritt)</summary>
+                {addressFields}
+              </details>
+            )}
+          </fieldset>
+        )}
+        <details className="shop-checkout-extra shop-checkout-coupon">
+          <summary>Rabattkod{quote?.couponCode ? " · " + quote.couponCode : ""}</summary>
+          <CouponEntry
+            draft={choices.couponDraft}
+            code={choices.couponCode}
+            onDraft={couponDraft => choices.update({ couponDraft })}
+            onApply={() => {
+              choices.update({ couponCode: normalizedCoupon(choices.couponDraft) });
+              quoteState.refresh();
+            }}
+            onRemove={() => choices.update({ couponDraft: "", couponCode: "" })}
+            pending={quoteState.pending}
+            disabled={pending}
+            confirmedCode={quote?.couponCode}
+          />
+        </details>
+        <div className="shop-checkout-pay">
+          <fieldset disabled={pending} className="shop-checkout-consent">
+            <legend className="sr-only">Godkänn villkoren</legend>
+            <label className="consent-check">
+              <input type="checkbox" name="consent" checked={consent} required
+                onChange={event => setAcceptedTerms(event.target.checked ? settings.terms : null)} />
               <span>
-                {row.quantity} × {row.product?.name || "Otillgänglig produkt"}
-                {row.error && (
-                  <small className="shop-item-error">{row.error}</small>
-                )}
+                Jag har läst och godkänner{" "}
+                <Link href="/butik/villkor" target="_blank" rel="noopener noreferrer">köpvillkoren</Link>{" "}
+                och har läst{" "}
+                <Link href="/integritet" target="_blank" rel="noopener noreferrer">integritetsinformationen</Link>.
               </span>
-              <strong>{quote ? formatMoney(quote.items.find(item=>item.productId===row.productId)?.lineTotalOre??0) : "—"}</strong>
-            </li>
-          ))}
-        </ul>
-        <QuoteFeedback pending={quoteState.pending} error={quoteState.error} needsPostcode={quoteState.needsPostcode} onRetry={quoteState.refresh}/>
-        {quote && <QuoteTotals quote={quote}/>}
-        <p className="muted">
-          Priser i SEK inklusive moms. Priser, leveransval och lager
-          kontrolleras igen när du fortsätter till betalning.
-        </p>
-        <Link href="/butik/varukorg" className="inline-link">
-          Ändra varukorgen
-        </Link>
-      </aside>
-    </div>
+            </label>
+          </fieldset>
+          <QuoteFeedback pending={quoteState.pending} error={quoteState.error} needsPostcode={quoteState.needsPostcode} onRetry={quoteState.refresh} />
+          {couponEdited && <p className="muted">Använd eller ta bort den ändrade rabattkoden för att fortsätta.</p>}
+          <button type="submit" className="button button-primary" disabled={pending || !canCheckout}>
+            {pending ? "Öppnar betalningen…" : quote ? `Till betalning · ${formatMoney(quote.totalOre)}` : "Till betalning"}
+            {!pending && <ArrowRight size={17} aria-hidden="true" />}
+          </button>
+          <p className="muted">Du slutför betalningen hos {paymentProvider === "kustom" ? "Kustom Checkout" : "Stripe"}.</p>
+          {showKustomPaymentMethods && <KustomPaymentMethods />}
+        </div>
+        <noscript><p className="notice notice-error">Aktivera JavaScript i webbläsaren för att kunna beställa.</p></noscript>
+      </div>
+    </form>
   );
 }

@@ -19,7 +19,6 @@ export default async function ProductsPage() {
   return (
     <>
       <AdminHeading
-        eyebrow="Din butik"
         title="Produkter"
         description={`${products.length} produkter · ${published} publicerade · ${products.length - published} utkast`}
         action={

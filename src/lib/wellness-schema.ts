@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS wellness_receipts (
   snapshot_json TEXT NOT NULL, amount_ore INTEGER NOT NULL, pdf BLOB, created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS wellness_receipt_order ON wellness_receipts(order_reference,created_at);
+CREATE TABLE IF NOT EXISTS wellness_order_voids (
+  order_reference TEXT PRIMARY KEY REFERENCES shop_orders(reference),
+  retained_reference TEXT NOT NULL REFERENCES shop_orders(reference),
+  correction_id TEXT NOT NULL UNIQUE REFERENCES wellness_receipts(id),
+  actor_id INTEGER NOT NULL REFERENCES users(id),
+  reason TEXT NOT NULL, created_at TEXT NOT NULL,
+  CHECK(order_reference<>retained_reference)
+);
+CREATE INDEX IF NOT EXISTS wellness_order_void_retained ON wellness_order_voids(retained_reference);
 CREATE TABLE IF NOT EXISTS wellness_downloads (
   token_hash TEXT PRIMARY KEY, receipt_id TEXT NOT NULL REFERENCES wellness_receipts(id), expires_at TEXT NOT NULL
 );

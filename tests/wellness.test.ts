@@ -15,6 +15,8 @@ import { getWellnessPdf, regenerateWellnessPdfCopy } from "../src/lib/wellness-p
 import { dispatchWellnessEmails } from "../src/lib/wellness-email";
 import { saveBusinessSettings } from "../src/lib/business-settings";
 import { DEFAULT_BUSINESS_SETTINGS } from "../src/lib/business-config";
+import { voidDuplicateWellnessOrder, wellnessOrderDocuments } from "../src/lib/wellness";
+import { resendWellnessReceipt } from "../src/lib/wellness-email";
 
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "RESEND_API_KEY", "EMAIL_FROM"]) delete process.env[key];
 Object.assign(process.env, { TIBB_DATABASE_PATH: ":memory:", APP_URL: "https://wellness.example.test", SHOP_PAYMENT_PROVIDER: "kustom", KUSTOM_ENVIRONMENT: "playground", KUSTOM_API_USERNAME: "synthetic-test-user", KUSTOM_API_PASSWORD: "synthetic-test-password", KUSTOM_LIVE_ENABLED: "0" });
@@ -218,6 +220,53 @@ test("manual purchases require explicit verified external evidence and cannot do
   assert.equal(await recordManualWellnessPurchase(adminId,input),reference);
   await assert.rejects(recordManualWellnessPurchase(adminId,{...input,operationId:randomUUID()}),/redan/);
 });
+test("voiding a duplicate archives its original receipt and blocks only its unused passes", async () => {
+  const { first } = await fixture([1, 0]);
+  const input = {
+    name: "Testkund Dubblett", email: "duplicates@example.test", address: "", postcode: "", city: "",
+    paidAt: new Date().toISOString(), method: "Swish", verified: true, items: [{ productId: first, quantity: 8 }],
+  };
+  const register = (changes: Partial<typeof input> = {}) => recordManualWellnessPurchase(adminId, {
+    ...input, ...changes, operationId: randomUUID(), proofReference: `test-${randomUUID()}`,
+  });
+  const [retained, duplicate, unrelated] = [await register(), await register(), await register({ email: "unrelated@example.test" })];
+  const retainOrderId = (await getShopOrderByReference(retained))!.id;
+  const target = await pass(duplicate, first);
+  const original = (await receipts(duplicate))[0];
+  const request = { reference: duplicate, retainOrderId, confirmed: true, reason: "Samma betalning registrerad två gånger." };
+
+  await assert.rejects(voidDuplicateWellnessOrder(studentId, request));
+  await assert.rejects(voidDuplicateWellnessOrder(adminId, { ...request, confirmed: false }), /Bekräfta/);
+  await assert.rejects(voidDuplicateWellnessOrder(adminId, { ...request, retainOrderId: (await getShopOrderByReference(unrelated))!.id }), /samma kund/);
+  await changeWellnessPass(adminId, { passId: target.id, operationId: randomUUID(), reason: "Testbesök" });
+  await assert.rejects(voidDuplicateWellnessOrder(adminId, request), /använda/);
+  const redemption = await getDb().prepare("SELECT id FROM wellness_redemptions WHERE pass_id=?").get(String(target.id));
+  assert.ok(redemption);
+  await changeWellnessPass(adminId, { passId: target.id, operationId: randomUUID(), reason: "Testbesök rättat", reverseId: String(redemption.id) });
+  await voidDuplicateWellnessOrder(adminId, request);
+  await voidDuplicateWellnessOrder(adminId, request);
+
+  assert.equal((await getShopOrderByReference(duplicate))?.status, "cancelled");
+  assert.equal((await getShopOrderByReference(retained))?.status, "paid");
+  assert.equal((await pass(duplicate, first)).status, "blocked");
+  assert.equal((await pass(retained, first)).status, "active");
+  const documents = await wellnessOrderDocuments(duplicate);
+  assert.equal(documents.voided, true);
+  assert.equal(documents.passes.length, 0);
+  assert.deepEqual(documents.receipts.map(receipt => receipt.kind), ["correction"]);
+  const stored = await receipts(duplicate);
+  const correction = stored.find(receipt => receipt.kind === "correction")!;
+  assert.equal(stored.length, 2);
+  assert.equal(stored.find(receipt => receipt.id === original.id)?.snapshot_json, original.snapshot_json);
+  assert.equal(correction.amount_ore, -400000);
+  assert.equal(JSON.parse(String(correction.snapshot_json)).duplicateOfOrder, retainOrderId);
+  assert.equal(await getDb().prepare("SELECT id FROM wellness_email_outbox WHERE receipt_id=?").get(String(correction.id)), undefined);
+  await assert.rejects(resendWellnessReceipt(adminId, String(original.id)), /makulerade originalet/);
+  const admin = await getWellnessAdmin(adminId, input.email);
+  assert.deepEqual(admin.passes.map(row => row.order_reference), [retained]);
+  assert.equal(admin.orders.find(row => row.reference === duplicate)?.retained_order_id, retainOrderId);
+});
+
 test("download tokens are private and time limited, and live API use requires an explicit deployment gate",async()=>{
   const row=(await getDb().prepare("SELECT id FROM wellness_receipts LIMIT 1").get())!;
   const link=await wellnessDownloadLink(String(row.id));const token=new URL(link,"https://test.example").searchParams.get("token")!;

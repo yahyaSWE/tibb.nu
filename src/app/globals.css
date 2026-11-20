@@ -1710,37 +1710,6 @@ textarea.field {
 .admin-main .panel h3 {
   font-size: 26px;
 }
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 17px;
-  margin-bottom: 28px;
-}
-.stat-card {
-  padding: 23px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fffefa;
-}
-.stat-card > span,
-.stat-card > p {
-  font-size: 11px;
-  color: var(--muted);
-}
-.stat-card strong {
-  display: block;
-  font-family: var(--serif);
-  font-size: 44px;
-  font-weight: 500;
-  color: var(--green);
-  line-height: 1.2;
-  margin-top: 10px;
-}
-.stat-card svg {
-  width: 20px;
-  height: 20px;
-  color: var(--olive);
-}
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -1870,16 +1839,6 @@ textarea.field {
 .settings-section h3 {
   margin-bottom: 18px;
 }
-.admin-starter-note {
-  background: #e9eddf;
-  border-left: 3px solid var(--olive);
-  padding: 16px 20px;
-  font-size: 12px;
-  margin-bottom: 25px;
-}
-.admin-starter-note p {
-  color: #667358;
-}
 .setup-token {
   font-family: monospace;
 }
@@ -1947,9 +1906,6 @@ textarea.field {
   }
   .admin-main {
     padding: 34px 28px;
-  }
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
   }
   .card-grid {
     grid-template-columns: 1fr 1fr;
@@ -2498,20 +2454,6 @@ textarea.field {
   }
   .admin-heading p {
     font-size: 12px;
-  }
-  .stats-grid {
-    gap: 12px;
-    margin-bottom: 22px;
-  }
-  .stat-card {
-    padding: 18px;
-  }
-  .stat-card strong {
-    font-size: 38px;
-  }
-  .stat-card > span,
-  .stat-card > p {
-    font-size: 10px;
   }
   .data-table td,
   .data-table th {

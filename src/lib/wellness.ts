@@ -15,6 +15,7 @@ import { WELLNESS_ADDRESS_THRESHOLD_ORE } from "./shop-types";
 export type WellnessSeller = { legalName: string; organizationNumber: string; vatNumber: string; address: string; email: string; website: string };
 export type WellnessReceipt = {
   number: string; kind: "purchase" | "correction"; originalNumber?: string;
+  duplicateOfOrder?: number;
   orderNumber: number; orderReference: string; issuedAt: string; paidAt: string;
   paymentMethod: string; paymentReference: string; seller: WellnessSeller;
   customer: { name: string; address: string; email: string };
@@ -100,7 +101,7 @@ export async function snapshotWellnessOrder(order: ShopOrder) {
 }
 
 async function newReceipt(order: ShopOrder, evidence: Record<string, unknown>,
-  items: WellnessReceipt["items"], eventKey: string, kind: WellnessReceipt["kind"], originalNumber?: string) {
+  items: WellnessReceipt["items"], eventKey: string, kind: WellnessReceipt["kind"], originalNumber?: string, duplicateOfOrder?: number) {
   const existing = await getDb().prepare("SELECT id FROM wellness_receipts WHERE event_key=?").get(eventKey);
   if (existing) return String(existing.id);
   const seller = await getDb().prepare("SELECT seller_json FROM wellness_order_snapshots WHERE order_reference=?").get(order.reference);
@@ -109,13 +110,13 @@ async function newReceipt(order: ShopOrder, evidence: Record<string, unknown>,
   await getDb().prepare("INSERT INTO wellness_receipt_sequences(year,last_number) VALUES(?,1) ON CONFLICT(year) DO UPDATE SET last_number=last_number+1").run(year);
   const sequence = Number((await getDb().prepare("SELECT last_number FROM wellness_receipt_sequences WHERE year=?").get(year))!.last_number);
   const number = `FV-${year}-${String(sequence).padStart(5, "0")}`; const id = randomUUID();
-  const snapshot: WellnessReceipt = { number, kind, originalNumber, orderNumber: order.id, orderReference: order.reference,
+  const snapshot: WellnessReceipt = { number, kind, originalNumber, duplicateOfOrder, orderNumber: order.id, orderReference: order.reference,
     issuedAt: issued, paidAt: String(evidence.paid_at), paymentMethod: String(evidence.method), paymentReference: String(evidence.reference),
     seller: JSON.parse(String(seller.seller_json)), customer: { name: order.name, email: order.email, address: order.address ? `${order.address}, ${order.postcode} ${order.city}` : "" },
     items, totalOre: items.reduce((sum, item) => sum + item.totalOre, 0), vat: wellnessTotals(items) };
   await getDb().prepare("INSERT INTO wellness_receipts(id,number,order_reference,event_key,kind,snapshot_json,amount_ore,created_at) VALUES(?,?,?,?,?,?,?,?)")
     .run(id, number, order.reference, eventKey, kind, JSON.stringify(snapshot), snapshot.totalOre, issued);
-  await getDb().prepare("INSERT INTO wellness_email_outbox(id,receipt_id,event_key,recipient,next_attempt_at,created_at) VALUES(?,?,?,?,?,?)")
+  if (!duplicateOfOrder) await getDb().prepare("INSERT INTO wellness_email_outbox(id,receipt_id,event_key,recipient,next_attempt_at,created_at) VALUES(?,?,?,?,?,?)")
     .run(randomUUID(), id, `issue:${id}`, order.email, issued, issued);
   return id;
 }
@@ -186,6 +187,64 @@ export async function recordManualWellnessPurchase(actorId: number, input: unkno
   });
 }
 function equalManualFingerprint(a: string, b: string) { return a === b; }
+
+export async function voidDuplicateWellnessOrder(actorId: number, input: unknown) {
+  await assertAdmin(actorId);
+  const value = z.object({
+    reference: z.string().regex(/^[a-f0-9]{32}$/),
+    retainOrderId: z.number().int().positive(),
+    confirmed: z.literal(true, { error: "Bekräfta att det bara finns en betalning." }),
+    reason: text(300, 3),
+  }).parse(input);
+  return transaction(async () => {
+    await assertAdmin(actorId);
+    const order = await getShopOrderByReference(value.reference);
+    const retained = await getDb().prepare("SELECT reference FROM shop_orders WHERE id=?").get(value.retainOrderId);
+    if (!order || !retained || order.id === value.retainOrderId) throw new DomainError("Ange ordernumret till det andra köpet som ska behållas.");
+    const keep = await getShopOrderByReference(String(retained.reference));
+    const previous = await getDb().prepare("SELECT retained_reference,reason FROM wellness_order_voids WHERE order_reference=?").get(order.reference);
+    if (previous) {
+      if (previous.retained_reference !== retained.reference || previous.reason !== value.reason) throw new DomainError("Köpet har redan makulerats.");
+      return;
+    }
+    const evidence = await getDb().prepare("SELECT * FROM wellness_payment_evidence WHERE order_reference=?").get(order.reference);
+    if (evidence?.source !== "manual" || order.status !== "paid" || order.paymentStatus !== "paid" || order.fulfillment !== "unfulfilled") {
+      throw new DomainError("Endast manuella, betalda friskvårdsköp som ännu inte har levererats kan makuleras som dubbletter.");
+    }
+    const lineKey = (purchase: ShopOrder) => JSON.stringify(purchase.items.map(item => [item.productId, item.quantity, item.vatPercent,
+      item.lineTotalOre ?? item.priceOre * item.quantity, !!item.wellness]).sort((a, b) => Number(a[0]) - Number(b[0])));
+    if (!keep || keep.status !== "paid" || keep.paymentStatus !== "paid" || keep.email.trim().toLowerCase() !== order.email.trim().toLowerCase() ||
+        keep.totalOre !== order.totalOre || lineKey(keep) !== lineKey(order)) {
+      throw new DomainError("Ordern som behålls måste vara betald och ha samma kund, tjänster, antal och belopp.");
+    }
+    const original = await getDb().prepare("SELECT id,number,snapshot_json FROM wellness_receipts WHERE order_reference=? AND kind='purchase'").get(order.reference);
+    if (!original || !(await getDb().prepare("SELECT id FROM wellness_receipts WHERE order_reference=? AND kind='purchase'").get(keep.reference))) {
+      throw new DomainError("Båda köpen behöver ha ett utfärdat friskvårdskvitto.");
+    }
+    if (await getDb().prepare("SELECT order_reference FROM wellness_order_voids WHERE retained_reference=? LIMIT 1").get(order.reference)) {
+      throw new DomainError("Köpet är redan angivet som original för en annan makulering.");
+    }
+    const passes = await getDb().prepare("SELECT status,remaining,original_quantity,refunded_quantity FROM wellness_passes WHERE order_reference=?").all(order.reference);
+    if (!passes.length || passes.some(pass => pass.status !== "active" || pass.remaining !== pass.original_quantity || Number(pass.refunded_quantity))) {
+      throw new DomainError("Dubbletten får inte ha använda, spärrade eller återbetalda klipp. Korrigera eventuell klippregistrering först.");
+    }
+    const timestamp = now();
+    if (await getDb().prepare("SELECT id FROM wellness_email_outbox WHERE receipt_id=? AND status='sending' AND lease_until>? LIMIT 1").get(String(original.id), timestamp)) {
+      throw new DomainError("Kvittot skickas just nu. Försök igen om en stund.");
+    }
+    const snapshot: WellnessReceipt = JSON.parse(String(original.snapshot_json));
+    const items = snapshot.items.map(item => ({ ...item, quantity: -item.quantity, totalOre: -item.totalOre,
+      taxOre: item.taxOre === undefined ? undefined : -item.taxOre, validUntil: "" }));
+    const correctionId = await newReceipt(order, { ...evidence, method: "Ingen återbetalning", paid_at: timestamp },
+      items, `duplicate:${order.reference}`, "correction", String(original.number), keep.id);
+    await getDb().prepare("INSERT INTO wellness_order_voids(order_reference,retained_reference,correction_id,actor_id,reason,created_at) VALUES(?,?,?,?,?,?)")
+      .run(order.reference, keep.reference, correctionId, actorId, value.reason, timestamp);
+    await getDb().prepare("UPDATE shop_orders SET status='cancelled' WHERE reference=?").run(order.reference);
+    await getDb().prepare("UPDATE wellness_passes SET status='blocked' WHERE order_reference=?").run(order.reference);
+    await getDb().prepare("UPDATE wellness_email_outbox SET status='skipped',lease_token=NULL,lease_until=NULL WHERE receipt_id=? AND status IN ('pending','sending','failed')").run(String(original.id));
+  });
+}
+
 export async function changeWellnessPass(actorId: number, input: unknown) {
   return transaction(async () => {
     await assertAdmin(actorId);
@@ -212,19 +271,35 @@ export async function changeWellnessPass(actorId: number, input: unknown) {
 export async function getWellnessAdmin(actorId: number, search = "") {
   await assertAdmin(actorId);
   const needle = `%${search.slice(0, 100).replace(/[!%_]/g, "!$&")}%`;
-  const passes = await getDb().prepare("SELECT p.*,o.name,o.email,e.source AS evidence_source FROM wellness_passes p JOIN shop_orders o ON o.reference=p.order_reference LEFT JOIN wellness_payment_evidence e ON e.order_reference=p.order_reference WHERE o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!' ORDER BY p.created_at DESC LIMIT 200").all(needle, needle);
-  const orders = await getDb().prepare("SELECT o.*,k.method,k.captured,CASE WHEN e.order_reference IS NOT NULL THEN 1 ELSE k.customer_paid END AS customer_paid FROM shop_orders o LEFT JOIN kustom_checkouts k ON k.order_reference=o.reference LEFT JOIN wellness_payment_evidence e ON e.order_reference=o.reference WHERE EXISTS(SELECT 1 FROM wellness_order_snapshots s WHERE s.order_reference=o.reference) AND (o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!') ORDER BY o.created_at DESC LIMIT 200").all(needle, needle);
-  const receipts = await getDb().prepare(`SELECT r.id,r.number,r.order_reference,r.kind,r.created_at,r.amount_ore,o.total_ore AS order_total_ore,
+  const passes = await getDb().prepare(`SELECT p.*,o.id AS order_id,o.name,o.email,e.source AS evidence_source
+    FROM wellness_passes p JOIN shop_orders o ON o.reference=p.order_reference
+    LEFT JOIN wellness_payment_evidence e ON e.order_reference=o.reference
+    WHERE NOT EXISTS (SELECT 1 FROM wellness_order_voids v WHERE v.order_reference=o.reference)
+      AND (o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!') ORDER BY p.created_at DESC LIMIT 200`).all(needle, needle);
+  const orders = await getDb().prepare(`SELECT o.id,o.reference,o.name,o.email,o.total_ore,o.status,o.fulfillment,k.method,k.captured,
+    k.order_reference AS kustom_order,e.source AS evidence_source,e.reference AS payment_reference,
+    CASE WHEN e.order_reference IS NOT NULL THEN 1 ELSE k.customer_paid END AS customer_paid,
+    v.reason AS void_reason, v.created_at AS voided_at, retained.id AS retained_order_id
+    FROM shop_orders o LEFT JOIN kustom_checkouts k ON k.order_reference=o.reference
+    LEFT JOIN wellness_payment_evidence e ON e.order_reference=o.reference
+    LEFT JOIN wellness_order_voids v ON v.order_reference=o.reference LEFT JOIN shop_orders retained ON retained.reference=v.retained_reference
+    WHERE EXISTS(SELECT 1 FROM wellness_order_snapshots s WHERE s.order_reference=o.reference)
+      AND (o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!') ORDER BY o.created_at DESC LIMIT 200`).all(needle, needle);
+  const receipts = await getDb().prepare(`SELECT r.id,r.number,r.order_reference,r.kind,r.created_at,r.amount_ore,o.total_ore AS order_total_ore,o.id AS order_id,
+    v.correction_id AS void_correction_id,
     (SELECT status FROM wellness_email_outbox e WHERE e.receipt_id=r.id ORDER BY e.created_at DESC LIMIT 1) AS email_status
-    FROM wellness_receipts r JOIN shop_orders o ON o.reference=r.order_reference ORDER BY r.created_at DESC LIMIT 200`).all();
+    FROM wellness_receipts r JOIN shop_orders o ON o.reference=r.order_reference LEFT JOIN wellness_order_voids v ON v.order_reference=r.order_reference
+    WHERE o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!' ORDER BY r.created_at DESC LIMIT 200`).all(needle, needle);
   const history = await getDb().prepare("SELECT r.*,p.service_name FROM wellness_redemptions r JOIN wellness_passes p ON p.id=r.pass_id ORDER BY r.created_at DESC LIMIT 100").all();
   return { passes, orders, receipts, history };
 }
 export async function wellnessOrderDocuments(reference: string) {
-  if (!/^[a-f0-9]{32}$/.test(reference)) return { receipts: [], passes: [] };
-  const receipts = await getDb().prepare("SELECT id,number,kind FROM wellness_receipts WHERE order_reference=? ORDER BY created_at").all(reference);
+  if (!/^[a-f0-9]{32}$/.test(reference)) return { receipts: [], passes: [], voided: false };
+  const voidRecord = await getDb().prepare("SELECT correction_id FROM wellness_order_voids WHERE order_reference=?").get(reference);
+  const receipts = await getDb().prepare("SELECT id,number,kind FROM wellness_receipts WHERE order_reference=? AND (? IS NULL OR id=?) ORDER BY created_at")
+    .all(reference, voidRecord ? String(voidRecord.correction_id) : null, voidRecord ? String(voidRecord.correction_id) : null);
   const passes = await getDb().prepare("SELECT id,service_name,original_quantity,remaining,refunded_quantity,status,valid_until FROM wellness_passes WHERE order_reference=?").all(reference);
-  return { receipts, passes };
+  return { receipts, passes: voidRecord ? [] : passes, voided: !!voidRecord };
 }
 export async function wellnessDownloadLink(receiptId: string) {
   const token = randomToken();

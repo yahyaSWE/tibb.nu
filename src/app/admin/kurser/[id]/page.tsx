@@ -65,7 +65,16 @@ export default async function CourseBuilderPage({
   return (
     <>
       <AdminHeading
-        eyebrow="Kursbyggare"
+        sections={[
+          ["kursuppgifter", "Grunduppgifter"],
+          ["kursinformation", "Kursinformation"],
+          ["forsaljning", "Försäljning"],
+          ["lektioner", "Lektioner"],
+          ["ny-lektion", "Ny lektion"],
+          ["elevresultat", "Elevresultat"],
+          ["kursatkomst", "Kursåtkomst"],
+          ["kurskop", "Kursköp"],
+        ]}
         title={course.title}
         description={`${lessons.length} lektioner · ${activities.length} aktiviteter · ${studentCount} ${studentCount === 1 ? "elev" : "elever"} med separat kursåtkomst · ${course.published ? "Publicerad" : "Utkast"}`}
         action={
@@ -76,9 +85,6 @@ export default async function CourseBuilderPage({
             >
               Förhandsgranska kurs
             </Link>
-            <a href="#elevresultat" className="text-link">
-              Elevresultat
-            </a>
             <Link href="/admin/kurser" className="text-link">
               Alla kurser
             </Link>
@@ -87,16 +93,16 @@ export default async function CourseBuilderPage({
       />
       <AdminNotice searchParams={searchParams} />
       <div className="stack">
-        <section className="panel form-panel">
+        <section id="kursuppgifter" tabIndex={-1} className="panel form-panel admin-section-target">
           <SectionHeading title="Kursens grunduppgifter" />
           <CourseForm course={course} returnTo={returnTo} />
         </section>
         <CourseInformationForm courseId={course.id} information={information} />
-        <section className="panel form-panel">
+        <section id="forsaljning" tabIndex={-1} className="panel form-panel admin-section-target">
           <SectionHeading title="Försäljning och grupp efter köp" />
           <CourseSalesForm settings={sales} groups={groups} stripeReady={coursePurchaseReady()} />
         </section>
-        <section className="panel">
+        <section id="lektioner" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading
             title="Lektioner"
             description="Text, video och material visas i elevportalen i den ordning du väljer."
@@ -149,7 +155,7 @@ export default async function CourseBuilderPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel form-panel">
+        <section id="ny-lektion" tabIndex={-1} className="panel form-panel admin-section-target">
           <SectionHeading title="Ny lektion" />
           <LessonForm
             courseId={course.id}
@@ -162,7 +168,7 @@ export default async function CourseBuilderPage({
           />
         </section>
         <section className="panel">
-          <div id="elevresultat">
+          <div id="elevresultat" className="admin-section-target" tabIndex={-1}>
             <SectionHeading
               title="Elevresultat och inlämningar"
               description="Se sparade quizförsök, granska skrivuppgifter och ge återkoppling. Resultat från tidigare aktivitetsversioner bevaras."
@@ -170,7 +176,7 @@ export default async function CourseBuilderPage({
           </div>
           <CourseActivityResultsPanel results={results} />
         </section>
-        <section className="panel">
+        <section id="kursatkomst" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading
             title="Manuellt tilldelad kursåtkomst"
             description="Eleven skapar först sitt konto och verifierar sin e-postadress från elevportalen. Tilldela sedan tillgång med samma adress."
@@ -240,7 +246,7 @@ export default async function CourseBuilderPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel">
+        <section id="kurskop" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Kursköp" description="Bekräftade engångsköp och den gruppåtkomst som ingick. Återbetalningar och tvister hanteras i Stripe." />
           <CoursePurchasesList purchases={purchases} admin />
         </section>

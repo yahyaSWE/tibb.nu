@@ -31,7 +31,6 @@ export default async function EditProductPage({
   return (
     <>
       <AdminHeading
-        eyebrow="Din butik"
         title={product.name}
         description={`${product.published ? "Publicerad" : "Utkast"} · ${product.stock} tillgängliga exemplar`}
         action={

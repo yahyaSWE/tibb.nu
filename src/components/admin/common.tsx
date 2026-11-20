@@ -25,25 +25,44 @@ export async function AdminNotice({
 }
 
 export function AdminHeading({
-  eyebrow,
   title,
   description,
   action,
+  sections,
 }: {
-  eyebrow?: string;
   title: string;
   description: string;
   action?: ReactNode;
+  sections?: readonly (readonly [id: string, label: string])[];
 }) {
   return (
-    <header className="admin-heading">
-      <div>
-        <p className="eyebrow">{eyebrow || "Din verksamhet"}</p>
-        <h1>{title}</h1>
-        <p className="muted">{description}</p>
-      </div>
+    <>
+      <header className="admin-heading">
+        <div>
+          <h1>{title}</h1>
+          {description && <p className="muted">{description}</p>}
+        </div>
+        {action}
+      </header>
+      {sections && <AdminSectionNav sections={sections} />}
+    </>
+  );
+}
+
+export function AdminSectionNav({
+  sections,
+  action,
+}: {
+  sections: readonly (readonly [id: string, label: string])[];
+  action?: ReactNode;
+}) {
+  return (
+    <nav className="admin-section-nav" aria-label="På den här sidan">
+      <ul>
+        {sections.map(([id, label]) => <li key={id}><a href={"#" + id}>{label}</a></li>)}
+      </ul>
       {action}
-    </header>
+    </nav>
   );
 }
 

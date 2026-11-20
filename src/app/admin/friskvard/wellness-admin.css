@@ -1,1 +1,95 @@
-.wellness-admin-summary{display:flex;gap:28px;flex-wrap:wrap;margin:24px 0}.wellness-admin-summary strong{display:block;font-size:26px;font-variant-numeric:tabular-nums}.wellness-admin-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.75fr);gap:24px;padding:24px 0;border-top:1px solid var(--line)}.wellness-admin-row h3{font-size:25px;margin-bottom:10px}.wellness-admin-row>details{grid-column:1/-1}.wellness-admin-search,.wellness-admin-buttons{display:flex;gap:15px;align-items:center;flex-wrap:wrap}.wellness-admin-search .field{flex:1}.wellness-admin-detail{padding:22px 0}.wellness-admin-buttons>span{flex:1}.wellness-admin-row form input{width:100%}@media(max-width:700px){.wellness-admin-row{grid-template-columns:1fr}.wellness-admin-summary{gap:18px}.wellness-admin-buttons{align-items:flex-start}.wellness-admin-buttons>span{flex-basis:100%}}
+.wellness-admin-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.wellness-admin-sections > section,
+.wellness-admin-entry {
+  min-width: 0;
+  scroll-margin-top: 18px;
+}
+
+.wellness-admin-entry:target {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
+}
+
+.wellness-admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, .75fr);
+  gap: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.wellness-admin-row h3 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.wellness-admin-row > details {
+  grid-column: 1 / -1;
+}
+
+.wellness-admin-search,
+.wellness-admin-buttons {
+  display: flex;
+  gap: 12px 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.wellness-admin-search .field {
+  flex: 1;
+  min-width: min(100%, 190px);
+}
+
+.wellness-admin-search input {
+  width: 100%;
+}
+
+.wellness-admin-detail {
+  padding-block: 12px 4px;
+  overflow-wrap: anywhere;
+}
+
+.wellness-admin-entry {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.wellness-admin-entry > summary,
+.wellness-admin-void > summary {
+  cursor: pointer;
+  min-height: 40px;
+  padding-block: 9px;
+  color: var(--deep);
+  overflow-wrap: anywhere;
+}
+
+.wellness-admin-entry-state {
+  display: inline-block;
+  margin-inline-start: 10px;
+  color: var(--green);
+  font-size: .8rem;
+  font-weight: 650;
+}
+
+.wellness-admin-void {
+  border-top: 1px solid var(--line);
+}
+
+.wellness-admin-void form {
+  max-width: 65ch;
+}
+
+.wellness-admin-void form .button {
+  justify-self: start;
+}
+
+@media (max-width: 750px) {
+  .wellness-admin-row {
+    grid-template-columns: 1fr;
+  }
+}

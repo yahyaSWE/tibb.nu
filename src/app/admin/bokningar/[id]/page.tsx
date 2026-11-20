@@ -39,6 +39,12 @@ export default async function BookingDetailPage({
   return (
     <>
       <AdminHeading
+        sections={[
+          ["bokningsuppgifter", "Bokningsuppgifter"],
+          ["hantera-bokning", "Hantera bokningen"],
+          ...(booking.deliveryMode === "remote" ? [["distansmote", "Distansmöte"]] as const : []),
+          ["bokningsmejl", "Bokningsmejl"],
+        ]}
         title={booking.name}
         description={`${booking.treatmentName} · ${dateTime(booking.start)}`}
         action={
@@ -49,7 +55,7 @@ export default async function BookingDetailPage({
       />
       <AdminNotice searchParams={searchParams} />
       <div className="split-grid">
-        <section className="panel">
+        <section id="bokningsuppgifter" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Bokningsuppgifter" />
           <dl className="detail-list">
             <div>
@@ -127,7 +133,7 @@ export default async function BookingDetailPage({
             </div>
           </dl>
         </section>
-        <section className="panel">
+        <section id="hantera-bokning" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Hantera bokningen" />
           {booking.status === "cancelled" ? (
             <div className="notice">
@@ -201,7 +207,7 @@ export default async function BookingDetailPage({
           )}
         </section>
       </div>
-      {booking.deliveryMode === "remote" && <section className="panel form-panel">
+      {booking.deliveryMode === "remote" && <section id="distansmote" tabIndex={-1} className="panel form-panel admin-section-target">
         <SectionHeading title="Distansmöte" description="Lägg till länken från till exempel Google Meet, Zoom eller Teams. Kunden hittar den på sin privata bokningssida via länken i bokningsbekräftelsen." />
         {booking.status === "pending" || booking.status === "confirmed" ? <form action={saveBookingMeetingLinkAction} className="stack">
           <ReturnTo path={`/admin/bokningar/${id}`} />
@@ -213,7 +219,7 @@ export default async function BookingDetailPage({
           <p className="muted">Den sparade länken visas på bokningssidan. Inget nytt mejl skickas när du ändrar den.</p>
         </form> : <p className="muted">Bokningen är {booking.status === "cancelled" ? "avbokad" : "genomförd"}. Möteslänken visas inte längre för kunden.</p>}
       </section>}
-      <section className="panel form-panel">
+      <section id="bokningsmejl" tabIndex={-1} className="panel form-panel admin-section-target">
         <SectionHeading title="Bokningsmejl" description="Accepterat betyder att Resend har tagit emot meddelandet. Kontrollera faktisk leverans och eventuella studsar i Resend." />
         {!email.configured && <p className="notice">E-posttjänsten är inte ansluten. Bokningen finns kvar; bekräftelser kan skickas när Resend är konfigurerat.</p>}
         <dl className="detail-list">

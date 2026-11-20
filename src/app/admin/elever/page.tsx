@@ -28,12 +28,13 @@ export default async function StudentsPage({
   return (
     <>
       <AdminHeading
+        sections={[["registrerade-elever", "Registrerade elever"], ["tilldela-kurs", "Tilldela kurs"], ["tilldelade-kurser", "Tilldelade kurser"]]}
         title="Elever"
         description="Se registrerade elever och styr vilka kurser de har tillgång till."
       />
       <AdminNotice searchParams={searchParams} />
       <div className="stack">
-        <section className="panel">
+        <section id="registrerade-elever" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Registrerade elever" />
           {students.length ? (
             <div className="table-scroll">
@@ -78,7 +79,7 @@ export default async function StudentsPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel form-panel">
+        <section id="tilldela-kurs" tabIndex={-1} className="panel form-panel admin-section-target">
           <SectionHeading title="Tilldela en kurs" />
           {courses.length ? (
             <form action={enrollStudentAction} className="stack">
@@ -133,7 +134,7 @@ export default async function StudentsPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel">
+        <section id="tilldelade-kurser" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Tilldelade kurser" />
           {enrollments.length ? (
             <div className="table-scroll">

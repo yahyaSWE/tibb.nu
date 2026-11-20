@@ -11,7 +11,6 @@ export default async function NewProductPage() {
   return (
     <>
       <AdminHeading
-        eyebrow="Din butik"
         title="Ny produkt"
         description="Lägg in produktens uppgifter och spara som utkast eller välj att publicera den."
         action={

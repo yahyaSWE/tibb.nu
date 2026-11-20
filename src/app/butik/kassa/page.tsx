@@ -16,17 +16,13 @@ export default async function CheckoutPage() {
   if (!settings.enabled) notFound();
   const products = await shopProductsForRender();
   return (
-    <section className="shop section container">
+    <section className="shop shop-purchase section container">
       <Link href="/butik/varukorg" className="back-link">
         <ArrowLeft size={17} aria-hidden="true" /> Till varukorgen
       </Link>
-      <div className="page-heading">
-        <p className="eyebrow">Nästa steg</p>
-        <h1 className="page-title">Kassa.</h1>
-        <p className="muted">
-          Välj leverans och se ditt totalbelopp innan du betalar.
-        </p>
-      </div>
+      <header className="shop-purchase-heading">
+        <h1 className="page-title">Kassa</h1>
+      </header>
       <CheckoutForm
         products={products.map(({ richDescription: _content, ...product }) => product)}
         settings={settings}

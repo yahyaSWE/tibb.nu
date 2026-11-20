@@ -48,6 +48,7 @@ function wrap(text: string, font: PDFFont, size: number, measure: number) {
 export async function renderWellnessPdf(receipt: WellnessReceipt, options: { omitCustomerAddress?: boolean } = {}) {
   const doc = await PDFDocument.create();
   const purchase = receipt.kind === "purchase";
+  const duplicate = receipt.duplicateOfOrder !== undefined;
   const title = purchase ? "Friskvårdskvitto" : "Korrigeringsunderlag";
   doc.setTitle(title + " " + receipt.number);
   doc.setAuthor(receipt.seller.legalName);
@@ -97,18 +98,19 @@ export async function renderWellnessPdf(receipt: WellnessReceipt, options: { omi
   y -= 29;
   text(receipt.number, left, y, bold, 11);
   text("Order " + receipt.orderNumber, left + 135, y, body, 10, secondary);
-  aligned(purchase ? "Betald" : "Återbetalning", y, right, bold, 11);
+  aligned(purchase ? "Betald" : duplicate ? "Makulerad dubblett" : "Återbetalning", y, right, bold, 11);
   y -= 19;
   line(y);
   y -= 20;
 
   const metadata = [
     "Utfärdat " + date(receipt.issuedAt),
-    (purchase ? "Betald " : "Återbetald ") + date(receipt.paidAt),
+    (purchase ? "Betald " : duplicate ? "Makulerad " : "Återbetald ") + date(receipt.paidAt),
   ];
   if (receipt.originalNumber) metadata.push("Avser " + receipt.originalNumber);
   paragraph(metadata.join("   |   "));
-  paragraph("Betalsätt: " + receipt.paymentMethod);
+  if (duplicate) paragraph(`Felregistrerat dubblettköp. Order ${receipt.duplicateOfOrder} behålls. Ingen återbetalning har gjorts.`);
+  else paragraph("Betalsätt: " + receipt.paymentMethod);
   paragraph("Betalningsreferens: " + receipt.paymentReference);
   y -= 13;
 

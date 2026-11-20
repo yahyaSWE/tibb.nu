@@ -85,6 +85,7 @@ export default async function AvailabilityPage({
   return (
     <>
       <AdminHeading
+        sections={[["skapa-tider", "Skapa tider"], ["sparra-tider", "Spärra tider"], ["sparade-perioder", "Sparade perioder"], ["sparrade-tider", "Spärrade tider"], ["kommande-tider", "Kommande tider"]]}
         title="Tillgängliga tider"
         description="Välj dina arbetsdagar, ge plats för pauser och stäng tider när du är ledig. Allt hanteras i svensk tid."
         action={
@@ -96,7 +97,7 @@ export default async function AvailabilityPage({
       />
       <AdminNotice searchParams={searchParams} />
       <div className="availability-builder-grid">
-        <section className="panel availability-schedule-panel">
+        <section id="skapa-tider" tabIndex={-1} className="panel availability-schedule-panel admin-section-target">
           <div className="availability-panel-heading">
             <span className="availability-panel-icon">
               <Clock3 size={22} aria-hidden="true" />
@@ -132,7 +133,7 @@ export default async function AvailabilityPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel availability-block-panel">
+        <section id="sparra-tider" tabIndex={-1} className="panel availability-block-panel admin-section-target">
           <div className="availability-panel-heading">
             <span className="availability-panel-icon">
               <ShieldOff size={22} aria-hidden="true" />
@@ -148,7 +149,7 @@ export default async function AvailabilityPage({
           />
         </section>
       </div>
-      <section className="panel availability-periods-panel">
+      <section id="sparade-perioder" tabIndex={-1} className="panel availability-periods-panel admin-section-target">
         <SectionHeading
           title="Sparade perioder"
           description="Tiderna skapas när du sparar en period. Att ta bort perioden tar bort dess lediga framtida tider och bevarar bokningar."
@@ -199,7 +200,7 @@ export default async function AvailabilityPage({
           </EmptyState>
         )}
       </section>
-      <section className="panel availability-blocks-panel">
+      <section id="sparrade-tider" tabIndex={-1} className="panel availability-blocks-panel admin-section-target">
         <SectionHeading
           title="Spärrade tider och dagar"
           description="Ta bort en spärr för att öppna befintliga lediga tider för bokning igen."
@@ -262,7 +263,7 @@ export default async function AvailabilityPage({
           </EmptyState>
         )}
       </section>
-      <section className="panel availability-upcoming-panel">
+      <section id="kommande-tider" tabIndex={-1} className="panel availability-upcoming-panel admin-section-target">
         <SectionHeading
           title="Kommande tider"
           description="Här ser du både bokningsbara tider, bokade besök och tider som är spärrade."

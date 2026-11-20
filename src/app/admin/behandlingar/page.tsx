@@ -21,12 +21,13 @@ export default async function TreatmentsPage({
   return (
     <>
       <AdminHeading
+        sections={[["dina-behandlingar", "Dina behandlingar"], ["ny-behandling", "Ny behandling"]]}
         title="Behandlingar"
         description="Bestäm vad du erbjuder, hur långt besöket är och vad det kostar."
       />
       <AdminNotice searchParams={searchParams} />
       <div className="split-grid">
-        <section className="panel">
+        <section id="dina-behandlingar" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Dina behandlingar" />
           {treatments.length ? (
             <div className="table-scroll">
@@ -78,7 +79,7 @@ export default async function TreatmentsPage({
             </EmptyState>
           )}
         </section>
-        <section className="panel">
+        <section id="ny-behandling" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading
             title="Ny behandling"
             description="Du kan ändra längd, pris och synlighet när som helst."

@@ -3,42 +3,58 @@ import { requireAdmin } from "@/lib/auth";
 import { getShopOrders } from "@/lib/shop";
 import {
   AdminHeading,
+  type AdminSearchParams,
   EmptyState,
   SectionHeading,
 } from "@/components/admin/common";
 import { ShopOrdersTable } from "@/components/admin/shop-tables";
 
-export default async function ShopOrdersPage() {
+export default async function ShopOrdersPage({ searchParams }: { searchParams: AdminSearchParams }) {
   const user = await requireAdmin();
-  const orders = await getShopOrders(user.id);
+  const [orders, query] = await Promise.all([getShopOrders(user.id), searchParams]);
   const toDeliver = orders.filter(
     (order) =>
       order.status === "paid" &&
+      order.items.some(item => !item.isService && !item.wellness) &&
       ["unfulfilled", "ready"].includes(order.fulfillment),
-  ).length;
+  );
   const awaitingPayment = orders.filter(
     (order) => order.status === "pending",
-  ).length;
+  );
+  const filters = [
+    { key: "alla", label: "Alla", orders },
+    { key: "leverans", label: "Att leverera", orders: toDeliver },
+    { key: "betalning", label: "Väntar på betalning", orders: awaitingPayment },
+  ];
+  const selected = filters.find(filter => filter.key === query.visa) ?? filters[0];
   return (
     <>
       <AdminHeading
-        eyebrow="Din butik"
         title="Beställningar"
-        description={`${orders.length} beställningar · ${toDeliver} att leverera eller lämna ut · ${awaitingPayment} väntar på betalning`}
+        description="Följ betalningar och hantera leveranser och utlämning."
         action={
           <Link href="/admin/butik" className="button button-secondary">
             Butiksinställningar
           </Link>
         }
       />
+      <nav className="admin-filter-tabs" aria-label="Filtrera beställningar">
+        {filters.map(filter => (
+          <Link key={filter.key} aria-current={filter === selected ? "page" : undefined}
+            className={`button button-small ${filter === selected ? "button-primary" : "button-secondary"}`}
+            href={filter.key === "alla" ? "/admin/bestallningar" : `/admin/bestallningar?visa=${filter.key}`}>
+            {filter.label} ({filter.orders.length})
+          </Link>
+        ))}
+      </nav>
       <section className="panel">
         <SectionHeading
           title="Kundernas beställningar"
-          description="Betalningsstatus hämtas från Stripe. Öppna en betald beställning för att uppdatera leveransen."
+          description="Öppna en beställning för att se betalningen eller uppdatera leveransen."
         />
-        {orders.length ? (
+        {selected.orders.length ? (
           <ShopOrdersTable
-            orders={orders.map(
+            orders={selected.orders.map(
               ({
                 id,
                 name,
@@ -63,8 +79,10 @@ export default async function ShopOrdersPage() {
             )}
           />
         ) : (
-          <EmptyState title="Inga beställningar ännu">
-            När kunder beställer från din butik visas deras beställningar här.
+          <EmptyState title={selected.key === "alla" ? "Inga beställningar ännu" : "Inga beställningar i det här urvalet"}>
+            {selected.key === "alla" ? "När kunder beställer från din butik visas deras beställningar här." : (
+              <Link className="text-link" href="/admin/bestallningar">Visa alla beställningar</Link>
+            )}
           </EmptyState>
         )}
       </section>

@@ -3,13 +3,10 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { ArrowRight, Check, ShoppingBag, Trash2 } from "lucide-react";
-import type { ShopProduct, ShopSettings } from "@/lib/shop-types";
+import type { ShopProduct } from "@/lib/shop-types";
 import { formatMoney } from "@/lib/time";
 import { cartSummary, MAX_CART_QUANTITY } from "./cart-data";
 import { useShopCart } from "./cart-store";
-import { useQuoteChoices, normalizedCoupon } from "./quote-choices";
-import { useShopQuote } from "./use-shop-quote";
-import { CouponEntry,DeliveryChoices,PostcodeField,QuoteFeedback,QuoteTotals } from "./quote-controls";
 import "./shop.css";
 
 export function ShopCartLink() {
@@ -106,16 +103,10 @@ export function AddToCart({
   );
 }
 
-export function CartPageContent({ products,settings }: { products: ShopProduct[];settings:ShopSettings }) {
+export function CartPageContent({ products }: { products: ShopProduct[] }) {
   const cart = useShopCart();
   const summary = cartSummary(cart.lines, products);
-  const choices=useQuoteChoices();
-  const servicesOnly=summary.rows.length>0&&summary.rows.every(row=>row.product?.isService);
-  const delivery=servicesOnly?"pickup":choices.delivery??(settings.shippingEnabled?"shipping":"pickup");
-  const availableDelivery=servicesOnly||(delivery==="shipping"?settings.shippingEnabled:settings.pickupEnabled);
-  const quoteState=useShopQuote({items:cart.lines,delivery,postcode:choices.postcode,couponCode:choices.couponCode},products,settings,cart.ready&&summary.valid&&availableDelivery&&settings.enabled);
-  const quote=quoteState.quote;
-  const couponEdited=normalizedCoupon(choices.couponDraft)!==choices.couponCode;
+  const digital = summary.rows.every(row => row.product?.isService);
   if (!cart.ready)
     return (
       <p role="status" className="notice">
@@ -144,7 +135,6 @@ export function CartPageContent({ products,settings }: { products: ShopProduct[]
         </p>
       )}
       <div className="shop-cart-layout">
-        <div className="shop-cart-main">
         <div className="shop-cart-items">
           {summary.rows.map((row) => {
             const maximum = Math.max(
@@ -212,7 +202,7 @@ export function CartPageContent({ products,settings }: { products: ShopProduct[]
                   </select>
                 </label>
                 <strong className="shop-price">
-                  {quote ? formatMoney(quote.items.find(item=>item.productId===row.productId)?.lineTotalOre??0) : "—"}
+                  {row.product ? formatMoney(row.totalOre) : "—"}
                 </strong>
                 <button
                   type="button"
@@ -227,34 +217,26 @@ export function CartPageContent({ products,settings }: { products: ShopProduct[]
             );
           })}
         </div>
-        <section className="shop-cart-options" aria-labelledby="cart-delivery-title">
-          <h2 id="cart-delivery-title">{servicesOnly ? "Digital leverans och rabattkod" : "Leverans och rabattkod"}</h2>
-          {servicesOnly ? <p>Klippkort och kvitto levereras digitalt efter styrkt betalning. Ingen fraktavgift tillkommer.</p> : <DeliveryChoices settings={settings} delivery={delivery} onChange={next=>choices.update({delivery:next})}/>}
-          {!availableDelivery&&<p className="notice notice-error">Välj ett tillgängligt leveransalternativ.</p>}
-          {!servicesOnly&&delivery==="shipping"&&settings.shippingRuleMode&&<PostcodeField value={choices.postcode} onChange={postcode=>choices.update({postcode})}/>}
-          <CouponEntry draft={choices.couponDraft} code={choices.couponCode} onDraft={couponDraft=>choices.update({couponDraft})} onApply={()=>{choices.update({couponCode:normalizedCoupon(choices.couponDraft)});quoteState.refresh();}} onRemove={()=>choices.update({couponDraft:"",couponCode:""})} pending={quoteState.pending} confirmedCode={quote?.couponCode}/>
-        </section>
-        </div>
-        <aside className="shop-summary">
-          <h2>Din varukorg</h2>
-          <QuoteFeedback pending={quoteState.pending} error={quoteState.error} needsPostcode={quoteState.needsPostcode} onRetry={quoteState.refresh}/>
-          {quote&&<QuoteTotals quote={quote}/>}
+        <aside className="shop-summary shop-cart-summary">
+          <dl className="shop-order-totals">
+            <div className="shop-total">
+              <dt>Delsumma</dt>
+              <dd>{formatMoney(summary.subtotalOre)}</dd>
+            </div>
+          </dl>
           <p className="muted">
-            Priser i SEK inklusive moms. Priser och lager kontrolleras när du
-            fortsätter till betalning.
+            {digital ? "Inklusive moms. Eventuella rabatter räknas av i kassan." :
+              "Inklusive moms. Frakt och eventuella rabatter beräknas i kassan."}
           </p>
-          {summary.valid && quote && !couponEdited ? (
+          {summary.valid ? (
             <Link href="/butik/kassa" className="button button-primary">
               Till kassan <ArrowRight size={17} aria-hidden="true" />
             </Link>
           ) : (
             <p className="notice notice-error">
-              {!summary.valid ? "Ändra antalet eller ta bort otillgängliga varor för att fortsätta." : "Bekräfta leverans och rabattkod så att totalpriset kan beräknas."}
+              Ändra antalet eller ta bort otillgängliga varor för att fortsätta.
             </p>
           )}
-          <Link href="/butik" className="inline-link">
-            Fortsätt handla
-          </Link>
         </aside>
       </div>
     </>

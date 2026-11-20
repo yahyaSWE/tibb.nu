@@ -39,7 +39,13 @@ export default async function ShopOrderPage({
   return (
     <>
       <AdminHeading
-        eyebrow="Din butik"
+        sections={[
+          ["orderrader", "Produkter"],
+          ["leveransstatus", "Leveransstatus"],
+          ["kund", "Kund"],
+          ["betalning", "Betalning"],
+          ["ordermejl", "Ordermejl"],
+        ]}
         title={`Beställning #${order.id}`}
         description={`Skapad ${dateTime(order.createdAt)} · ${order.delivery === "shipping" ? "Frakt" : "Hämtning"}`}
         action={
@@ -74,7 +80,7 @@ export default async function ShopOrderPage({
         )}
         <div className="shop-detail-grid">
           <div className="stack">
-            <section className="panel">
+            <section id="orderrader" tabIndex={-1} className="panel admin-section-target">
               <SectionHeading title="Produkter" />
               <div className="table-scroll">
                 <table className="data-table">
@@ -130,7 +136,7 @@ export default async function ShopOrderPage({
                 beställningstillfället.
               </p>
             </section>
-            <section className="panel">
+            <section id="leveransstatus" tabIndex={-1} className="panel admin-section-target">
               <SectionHeading title="Leveransstatus" />
               <ShopFulfillmentForm order={{ id: order.id, delivery: order.delivery, status: order.status, fulfillment: order.fulfillment, trackingNumber: order.trackingNumber }} captured={!!payment?.captured && Number(payment.refunded_ore) === 0} />
             </section>
@@ -147,7 +153,7 @@ export default async function ShopOrderPage({
             </section>
           </div>
           <div className="stack">
-            <section className="panel">
+            <section id="kund" tabIndex={-1} className="panel admin-section-target">
               <SectionHeading title="Kund" />
               <dl className="shop-order-data">
                 <div>
@@ -219,7 +225,7 @@ export default async function ShopOrderPage({
                 )}
               </dl>
             </section>
-            <section className="panel">
+            <section id="betalning" tabIndex={-1} className="panel admin-section-target">
               <SectionHeading title="Betalning" />
               <ShopPaymentBadge status={order.paymentStatus} />
               <p className="small muted">
@@ -227,7 +233,7 @@ export default async function ShopOrderPage({
                 manuellt här. Eventuell manuell återbetalning hanteras i Stripe.
               </p>
             </section>
-            <section className="panel stack">
+            <section id="ordermejl" tabIndex={-1} className="panel stack admin-section-target">
               <SectionHeading title="Orderbekräftelse via e-post" description="Accepterat betyder att Resend har tagit emot meddelandet. Kontrollera faktisk leverans i Resend." />
               {!email.configured && <p className="notice">E-posttjänsten är inte ansluten. Beställningen finns kvar; bekräftelsen väntar tills Resend har konfigurerats.</p>}
               <dl className="shop-order-data">

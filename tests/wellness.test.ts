@@ -348,20 +348,24 @@ test("manual refunds record an already completed external repayment exactly once
 });
 test("receipt attachment delivery retries the same provider key and concurrent workers cannot duplicate a mail",async()=>{
   const {order}=await fixture([1,0]);const fake=gateway(order);await createKustomCheckout(order.reference,fake.client);fake.complete();await reconcileKustomOrder(order.reference,{client:fake.client});
-  const original=globalThis.fetch;const keys:string[]=[];let accepted=0;let first=true;
+  const original=globalThis.fetch;const keys:string[]=[];const bodies:string[]=[];let accepted=0;let first=true;
   process.env.RESEND_API_KEY='synthetic-mail-key';process.env.EMAIL_FROM='Tibb Test <noreply@example.test>';
   globalThis.fetch=async (_url,init)=>{
     const headers=new Headers(init?.headers);keys.push(headers.get('Idempotency-Key')!);
-    const body=JSON.parse(String(init?.body));assert.equal(body.subject,'Ditt friskvårdskvitto från Tibb.nu');assert.ok(body.attachments[0].filename.endsWith('.pdf'));
+    bodies.push(String(init?.body));
+    const body=JSON.parse(bodies.at(-1)!);assert.equal(body.subject,'Ditt friskvårdskvitto från Tibb.nu');assert.ok(body.attachments[0].filename.endsWith('.pdf'));
+    assert.match(body.html, />Ditt friskvårdskvitto<\/h1>/);
     assert.equal((await PDFDocument.load(Buffer.from(body.attachments[0].content,'base64'))).getPageCount(),1);
     if(first){first=false;accepted++;throw new Error('synthetic lost response after provider acceptance');}
     return Response.json({id:'synthetic-accepted-message'});
   };
   try{
     await dispatchWellnessEmails({reference:order.reference});
+    process.env.EMAIL_FROM='Changed <changed@example.test>';
     await getDb().prepare("UPDATE wellness_email_outbox SET next_attempt_at='2000-01-01T00:00:00.000Z' WHERE receipt_id IN (SELECT id FROM wellness_receipts WHERE order_reference=?)").run(order.reference);
     await Promise.all([dispatchWellnessEmails({reference:order.reference}),dispatchWellnessEmails({reference:order.reference})]);
     assert.equal(keys.length,2);assert.equal(new Set(keys).size,1);assert.equal(accepted,1);
+    assert.equal(bodies[0],bodies[1]);
     assert.equal((await getDb().prepare("SELECT status FROM wellness_email_outbox WHERE receipt_id IN (SELECT id FROM wellness_receipts WHERE order_reference=?)").get(order.reference))!.status,'sent');
   }finally{globalThis.fetch=original;delete process.env.RESEND_API_KEY;delete process.env.EMAIL_FROM;}
 });

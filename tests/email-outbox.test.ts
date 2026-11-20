@@ -15,7 +15,7 @@ process.env.TIBB_DATABASE_PATH = ":memory:";
 const originalFetch = globalThis.fetch;
 let adminId: number, treatmentId: number;
 let sequence = 0;
-type Delivery = { key: string; payload: { from: string; to: string[]; subject: string; text: string } };
+type Delivery = { key: string; payload: { from: string; to: string[]; subject: string; text: string; html?: string } };
 let deliveries: Delivery[] = [];
 before(async () => {
   adminId = (await createFirstAdmin({ name: "Outbox Admin", email: "outbox-admin@example.test", passwordHash: hashPassword("isolated outbox test password") })).id;
@@ -93,7 +93,11 @@ test("parallel dispatchers claim each job once and messages contain no treatment
   assert.ok(customer.payload.text.includes(value.reference));
   assert.match(customer.payload.text, /Skicka in din anamnes minst 24 timmar före mötet/);
   assert.match(customer.payload.text, /https:\/\/trusted\.example\.test\/anamnes/);
-  assert.ok(!deliveries.find((delivery) => delivery.payload.to[0] === "notify@example.test")!.payload.text.includes(value.reference));
+  assert.ok(customer.payload.html?.includes(`/bokning/bekraftelse?ref=${value.reference}"`));
+  assert.match(customer.payload.html!, />Fyll i anamnesen<\/a>/);
+  const admin = deliveries.find((delivery) => delivery.payload.to[0] === "notify@example.test")!;
+  assert.ok(!JSON.stringify(admin.payload).includes(value.reference));
+  assert.match(admin.payload.html!, />Visa bokningen i admin<\/a>/);
   const status = await getBookingEmailStatus(value.id);
   assert.equal(status.customer?.status, "sent");
   assert.equal(status.admin?.status, "sent");
@@ -119,6 +123,7 @@ test("uncertain provider acceptance retries with exactly the same idempotency ke
   assert.equal((await getBookingEmailStatus(value.id)).customer?.status, "pending");
   await getDb().prepare("UPDATE booking_email_outbox SET next_attempt_at=? WHERE booking_id=?").run("2000-01-01T00:00:00.000Z", value.id);
   process.env.EMAIL_FROM = "Changed sender <changed@example.test>";
+  process.env.APP_URL = "https://changed.example.test";
   assert.equal((await dispatchBookingEmailOutbox({ bookingId: value.id })).sent, 1);
   assert.equal(accepted.size, 1);
   assert.deepEqual(deliveries[0], deliveries[1]);
@@ -146,6 +151,7 @@ test("crashed worker leases recover, while cancelled and past bookings suppress 
   await getDb().prepare("UPDATE booking_email_outbox SET status='sending',lease_until=?,lease_token='old-worker',first_attempt_at=?,attempts=1 WHERE booking_id=?")
     .run("2000-01-01T00:00:00.000Z", new Date().toISOString(), recoverable.id);
   assert.equal((await dispatchBookingEmailOutbox({ bookingId: recoverable.id })).sent, 2);
+  assert.ok(deliveries.every(delivery => delivery.payload.html === undefined));
   const cancelled = await booking();
   await updateBooking(adminId, cancelled.id, "cancelled", "pending");
   await dispatchBookingEmailOutbox({ bookingId: cancelled.id });

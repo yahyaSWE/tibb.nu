@@ -13,7 +13,7 @@ import { resolveAccountReturnTo, UNAVAILABLE_SELECTED_COURSE } from "../src/lib/
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "TRUST_PROXY", "RESEND_API_KEY", "EMAIL_FROM", "APP_URL"]) delete process.env[key];
 process.env.TIBB_DATABASE_PATH = ":memory:";
 const originalFetch = globalThis.fetch;
-type Sent = { from: string; to: string[]; subject: string; text: string };
+type Sent = { from: string; to: string[]; subject: string; text: string; html?: string };
 let sent: Sent[] = [];
 let adminId: number;
 let sequence = 0;
@@ -120,6 +120,8 @@ test("selected course is carried by verification email and resend links across b
   const destination = `/kurser/${slug}`;
   await sendVerificationEmail(user.id, destination);
   const initial = mailedUrl();
+  assert.ok(sent[0].html?.includes(`href="${initial.href.replaceAll("&", "&amp;")}"`));
+  assert.match(sent[0].html!, /Bekräfta e-postadressen/);
   assert.equal(initial.searchParams.get("returnTo"), destination);
   await assert.rejects(verifyEmail({ token: initial.searchParams.get("token")!, password: "wrong fixture password" }), /lösenord/);
   assert.equal((await getUser(user.id))!.emailVerifiedAt, null);
@@ -264,6 +266,8 @@ test("untrusted local requests limit each subject without a shared global-site l
 });
 
 test("provider validates trusted origins and sender syntax without trusting a request host", async () => {
+  process.env.EMAIL_FROM = "www.tibb.nu";
+  assert.match(emailConfigurationStatus().reason!, /fullständig e-postadress/);
   process.env.EMAIL_FROM = "sender@example.test>";
   assert.equal(emailConfigurationStatus().configured, false);
   process.env.EMAIL_FROM = "Tibb <sender@example.test>";

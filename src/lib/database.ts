@@ -216,6 +216,13 @@ export class DatabaseAdapter {
             await tx.execute(`ALTER TABLE shop_products ADD COLUMN ${name} ${definition}`);
         }
         await tx.executeMultiple(WELLNESS_SCHEMA);
+        for (const table of ["booking_email_outbox", "shop_email_outbox", "wellness_email_outbox"]) {
+          const columns = await tx.execute(`PRAGMA table_info(${table})`);
+          if (!columns.rows.some(row => row.name === "html"))
+            await tx.execute(`ALTER TABLE ${table} ADD COLUMN html TEXT`);
+          if (table === "wellness_email_outbox" && !columns.rows.some(row => row.name === "sender"))
+            await tx.execute("ALTER TABLE wellness_email_outbox ADD COLUMN sender TEXT");
+        }
         const receiptColumns = await tx.execute("PRAGMA table_info(wellness_receipts)");
         if (!receiptColumns.rows.some(row => row.name === "static_pdf"))
           await tx.execute("ALTER TABLE wellness_receipts ADD COLUMN static_pdf BLOB");

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, getSettings, transaction } from "./db";
 import { getShopOrderById } from "./shop";
 import { emailAppUrl, emailConfigurationStatus, requireEmailConfiguration, sendEmail } from "./email-provider";
+import { renderEmailTemplate } from "./email-template";
 const RETRY_WINDOW = 23 * 60 * 60 * 1000;
 type Delivery = { status: "pending" | "sending" | "sent" | "failed" | "skipped"; attempts: number };
 
@@ -32,7 +33,7 @@ export async function getShopOrderEmailStatus(orderId: number) {
   return result;
 }
 
-async function claim(id: string, sender: string) {
+async function claim(id: string, { from, origin }: ReturnType<typeof requireEmailConfiguration>) {
   return transaction(async () => {
     const now = new Date().toISOString();
     const job = await getDb().prepare("SELECT e.*,o.status AS order_status,o.payment_status FROM shop_email_outbox e JOIN shop_orders o ON o.id=e.order_id WHERE e.id=? AND ((e.status='pending' AND e.next_attempt_at<=?) OR (e.status='sending' AND e.lease_until<=?))").get(id, now, now);
@@ -46,21 +47,25 @@ async function claim(id: string, sender: string) {
       return null;
     }
     const lease = randomUUID();
-    await getDb().prepare("UPDATE shop_email_outbox SET status='sending',sender=COALESCE(sender,?),attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?),lease_until=?,lease_token=? WHERE id=?")
-      .run(sender, now, new Date(Date.now() + 90000).toISOString(), lease, id);
-    return { id, lease, from: String(job.sender || sender), to: String(job.recipient), subject: String(job.subject), text: String(job.body), attempts: Number(job.attempts) + 1 };
+    const text = String(job.body);
+    const html = Number(job.attempts) === 0
+      ? renderEmailTemplate({ title: job.audience === "customer" ? "Din beställning är betald" : "Ny betald beställning", text, origin })
+      : job.html === null ? null : String(job.html);
+    await getDb().prepare("UPDATE shop_email_outbox SET status='sending',sender=COALESCE(sender,?),html=?,attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?),lease_until=?,lease_token=? WHERE id=?")
+      .run(from, html, now, new Date(Date.now() + 90000).toISOString(), lease, id);
+    return { id, lease, from: String(job.sender || from), to: String(job.recipient), subject: String(job.subject), text, html, attempts: Number(job.attempts) + 1 };
   });
 }
 
 export async function dispatchShopOrderEmails(options: { orderId?: number; limit?: number } = {}) {
   const result = { configured: emailConfigurationStatus().configured, processed: 0, sent: 0, failed: 0 };
   if (!result.configured) return result;
-  const { from } = requireEmailConfiguration();
+  const config = requireEmailConfiguration();
   const now = new Date().toISOString();
   const rows = await getDb().prepare(`SELECT id FROM shop_email_outbox WHERE ((status='pending' AND next_attempt_at<=?) OR (status='sending' AND lease_until<=?))${options.orderId === undefined ? "" : " AND order_id=?"} ORDER BY created_at,id LIMIT ?`)
     .all(now, now, ...(options.orderId === undefined ? [] : [options.orderId]), Math.max(1, Math.min(10, options.limit ?? 10)));
   async function deliver(id: string) {
-    const job = await claim(id, from);
+    const job = await claim(id, config);
     if (!job) return;
     result.processed++;
     try {

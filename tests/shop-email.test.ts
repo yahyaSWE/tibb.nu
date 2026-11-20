@@ -12,7 +12,7 @@ process.env.STRIPE_SECRET_KEY = "sk_test_isolated_not_live";
 process.env.SHOP_STRIPE_WEBHOOK_SECRET = "whsec_isolated_not_live";
 const originalFetch = globalThis.fetch;
 let productId: number;
-type Delivery = { key: string; body: { from: string; to: string[]; subject: string; text: string } };
+type Delivery = { key: string; body: { from: string; to: string[]; subject: string; text: string; html?: string } };
 let deliveries: Delivery[] = [];
 before(async () => {
   const admin = await createFirstAdmin({ name: "Shop mail admin", email: "mail-admin@example.test", passwordHash: hashPassword("isolated shop mail test password") });
@@ -62,6 +62,8 @@ test("parallel workers send neutral messages exactly once without product, custo
   assert.equal(results.reduce((sum, result) => sum + result.sent, 0), 2);
   assert.equal(new Set(deliveries.map(value => value.key)).size, 2);
   assert.ok(deliveries.every(value => !JSON.stringify(value.body).includes("PRIVATE_")));
+  assert.match(deliveries.find(value => value.body.to.includes("buyer@example.test"))!.body.html!, />Öppna beställningen<\/a>/);
+  assert.match(deliveries.find(value => value.body.to.includes("notify@example.test"))!.body.html!, />Visa beställningen i admin<\/a>/);
   assert.ok(deliveries.find(value => value.body.to.includes("buyer@example.test"))!.body.text.includes(value.reference));
   assert.ok(!deliveries.find(value => value.body.to.includes("notify@example.test"))!.body.text.includes(value.reference));
   await dispatchShopOrderEmails({ orderId: value.id });

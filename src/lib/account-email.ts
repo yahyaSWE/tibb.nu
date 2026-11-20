@@ -3,6 +3,7 @@ import { DomainError, getDb, getUser, getUserByEmail, transaction, type User } f
 import { randomToken, tokenHash, hashPassword, verifyPassword } from "./security";
 import { emailSchema, passwordSchema } from "./validation";
 import { requireEmailConfiguration, sendEmail } from "./email-provider";
+import { renderEmailTemplate } from "./email-template";
 import { safeAccountReturnTo } from "./account-return";
 
 const tokenSchema = z.string().regex(/^[a-f0-9]{64}$/, "Länken är ogiltig eller har löpt ut.");
@@ -37,6 +38,11 @@ async function deliverToken(user: User, kind: TokenKind, returnTo?: string) {
   // An uncertain response can follow actual acceptance. Keep the hashed link
   // valid until expiry instead of breaking a message already in the recipient's inbox.
   await sendEmail({ to: user.email, subject: kind === "verify-email" ? "Bekräfta din e-postadress hos Tibb.nu" : "Återställ ditt lösenord hos Tibb.nu", text,
+    html: renderEmailTemplate({
+      title: kind === "verify-email" ? "Bekräfta din e-postadress" : "Återställ ditt lösenord",
+      text,
+      origin: config.origin,
+    }),
     idempotencyKey: `account-${issued.hash}` });
 }
 export async function sendVerificationEmail(userId: number, returnTo?: string) {

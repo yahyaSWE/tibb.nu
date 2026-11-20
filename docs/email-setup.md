@@ -11,7 +11,7 @@ Förberett 2026-10-08, konfigurationsexempel uppdaterade 2026-10-23. Tibb.nu anv
 | Variabel | Innehåll |
 | --- | --- |
 | `RESEND_API_KEY` | Hemlig API-nyckel från verksamhetens Resend-konto. |
-| `EMAIL_FROM` | Exempel: `Tibb.nu <kontakt@tibb.nu>`, om `tibb.nu` är verifierad för utskick i Resend. Använd annars en avsändaradress på den domän/subdomän du faktiskt har verifierat. |
+| `EMAIL_FROM` | En fullständig avsändaradress, till exempel `Tibb.nu <utskick@tibb.nu>` när `tibb.nu` är verifierad för utskick i Resend. |
 | `APP_URL` | `https://www.tibb.nu`, utan underkatalog, query eller fragment. Variabeln används även för betalningarnas återlänkar; kontrollera kundresan på samma huvudadress. |
 | `EMAIL_NOTIFICATION_TO` | Valfri verklig administratörsadress för bokningsaviseringar; annars används kontaktadressen i Admin → Inställningar. |
 | `CRON_SECRET` | Valfritt separat slumpmässigt värde med minst 32 tecken för återförsöksjobbet. |
@@ -19,6 +19,8 @@ Förberett 2026-10-08, konfigurationsexempel uppdaterade 2026-10-23. Tibb.nu anv
 Skapa API-nyckeln med **Sending access**, gärna begränsad till den verifierade avsändardomänen. `EMAIL_NOTIFICATION_TO` är administratörens mottagare, inte kundens adress; kunden får sin bekräftelse på adressen som anges vid bokningen. `CRON_SECRET` kommer inte från Resend och behövs inte för det första utskicket. Behåll ett befintligt fungerande värde eftersom andra skyddade rensningsjobb också kan använda det. En hemlighet aktiverar inte schemaläggning i sig.
 
 Sätt produktionsvärden endast i **Production**. Preview ska använda separata testvärden och kontrollerade mottagare, eller sakna e-postkonfiguration. Publicera på nytt efter ändrade miljövariabler. Kopiera inga produktionsnycklar till testdatabaser eller automatiserade tester. Testerna ersätter nätverksanrop med lokala mocks.
+
+Appen skickar HTML och vanlig text till Resend vid varje nytt utskick. Samma layout används för kontoverifiering, lösenordsåterställning, boknings- och orderbekräftelser, adminaviseringar, friskvårdskvitton och korrigeringsunderlag. Mallarna ligger i appens kod och används automatiskt när servern har en giltig e-postkonfiguration.
 
 ## Verifiering och återställning
 

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getDb, getBookingById, getSettings, transaction } from "./db";
 import { emailAppUrl, emailConfigurationStatus, requireEmailConfiguration, sendEmail } from "./email-provider";
+import { renderEmailTemplate } from "./email-template";
 import { formatDateTime } from "./time";
 import { anamnesPreparation } from "./booking-details";
 
@@ -44,7 +45,7 @@ export async function getBookingEmailStatus(bookingId: number): Promise<BookingE
   };
   return result;
 }
-async function claim(id: string, from: string) {
+async function claim(id: string, { from, origin }: ReturnType<typeof requireEmailConfiguration>) {
   return transaction(async () => {
     const now = new Date().toISOString();
     const job = await getDb().prepare(
@@ -60,16 +61,21 @@ async function claim(id: string, from: string) {
       return null;
     }
     const lease = randomUUID();
+    const text = String(job.body);
+    // Preserve the exact request when retrying, including jobs first sent before HTML was added.
+    const html = Number(job.attempts) === 0
+      ? renderEmailTemplate({ title: job.audience === "customer" ? "Din tid är bokad" : "Ny bekräftad bokning", text, origin })
+      : job.html === null ? null : String(job.html);
     await getDb().prepare(
-      "UPDATE booking_email_outbox SET status='sending',sender=COALESCE(sender,?),attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?),lease_until=?,lease_token=? WHERE id=?",
-    ).run(from, now, new Date(Date.now() + 90000).toISOString(), lease, id);
-    return { id, lease, from: String(job.sender || from), to: String(job.recipient), subject: String(job.subject), text: String(job.body), attempts: Number(job.attempts) + 1 };
+      "UPDATE booking_email_outbox SET status='sending',sender=COALESCE(sender,?),html=?,attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?),lease_until=?,lease_token=? WHERE id=?",
+    ).run(from, html, now, new Date(Date.now() + 90000).toISOString(), lease, id);
+    return { id, lease, from: String(job.sender || from), to: String(job.recipient), subject: String(job.subject), text, html, attempts: Number(job.attempts) + 1 };
   });
 }
 export async function dispatchBookingEmailOutbox(options: { bookingId?: number; limit?: number } = {}) {
   const status = emailConfigurationStatus();
   if (!status.configured) return { configured: false, processed: 0, sent: 0, failed: 0 };
-  const { from } = requireEmailConfiguration();
+  const config = requireEmailConfiguration();
   const limit = Math.max(1, Math.min(10, options.limit ?? 10));
   const now = new Date().toISOString();
   const jobs = await getDb().prepare(
@@ -78,7 +84,7 @@ export async function dispatchBookingEmailOutbox(options: { bookingId?: number; 
   const result = { configured: true, processed: 0, sent: 0, failed: 0 };
   // At most two requests concurrently; no network request holds a DB lock.
   async function deliver(id: string) {
-    const job = await claim(id, from);
+    const job = await claim(id, config);
     if (!job) return;
     result.processed++;
     try {

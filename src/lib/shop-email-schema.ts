@@ -2,7 +2,7 @@ export const SHOP_EMAIL_SCHEMA = `
 CREATE TABLE IF NOT EXISTS shop_email_outbox (
   id TEXT PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES shop_orders(id),
   audience TEXT NOT NULL CHECK(audience IN ('customer','admin')),
-  recipient TEXT NOT NULL, sender TEXT, subject TEXT NOT NULL, body TEXT NOT NULL,
+  recipient TEXT NOT NULL, sender TEXT, subject TEXT NOT NULL, body TEXT NOT NULL, html TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed','skipped')),
   attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, first_attempt_at TEXT,
   next_attempt_at TEXT NOT NULL, lease_until TEXT, lease_token TEXT, sent_at TEXT, provider_id TEXT,

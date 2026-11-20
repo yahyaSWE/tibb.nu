@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS wellness_downloads (
 );
 CREATE TABLE IF NOT EXISTS wellness_email_outbox (
   id TEXT PRIMARY KEY, receipt_id TEXT NOT NULL REFERENCES wellness_receipts(id),
-  event_key TEXT NOT NULL UNIQUE, recipient TEXT NOT NULL,
+  event_key TEXT NOT NULL UNIQUE, recipient TEXT NOT NULL, sender TEXT, html TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed','skipped')),
   attempts INTEGER NOT NULL DEFAULT 0, lease_token TEXT, lease_until TEXT, next_attempt_at TEXT NOT NULL,
   first_attempt_at TEXT, sent_at TEXT, created_at TEXT NOT NULL

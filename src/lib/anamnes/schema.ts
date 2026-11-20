@@ -14,6 +14,20 @@ export const ANAMNES_SCHEMA = `
     created_at TEXT NOT NULL, expires_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS self_test_cases_expiry ON self_test_cases(expires_at);
+  CREATE TABLE IF NOT EXISTS intake_email_outbox (
+    submission_id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK(kind IN ('anamnes','self-test')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TEXT NOT NULL, first_attempt_at TEXT,
+    lease_token TEXT, lease_until TEXT,
+    sender TEXT, subject TEXT, body TEXT, html TEXT, sent_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS intake_email_due ON intake_email_outbox(status,next_attempt_at);
+  CREATE TRIGGER IF NOT EXISTS anamnes_email_cleanup BEFORE DELETE ON anamnes_cases
+    BEGIN DELETE FROM intake_email_outbox WHERE submission_id=OLD.id AND kind='anamnes'; END;
+  CREATE TRIGGER IF NOT EXISTS self_test_email_cleanup BEFORE DELETE ON self_test_cases
+    BEGIN DELETE FROM intake_email_outbox WHERE submission_id=OLD.id AND kind='self-test'; END;
   CREATE TABLE IF NOT EXISTS anamnes_case_reviews (
     case_id TEXT NOT NULL REFERENCES anamnes_cases(id) ON DELETE CASCADE,
     revision INTEGER NOT NULL CHECK(revision>=1), encrypted_payload TEXT NOT NULL,

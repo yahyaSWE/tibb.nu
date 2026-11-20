@@ -45,3 +45,26 @@ export const SHOP_COMMERCE_SCHEMA = `
     DELETE FROM shop_bundle_items WHERE bundle_id=OLD.id OR product_id=OLD.id;
   END;
 `;
+
+export const BOOKING_COUPON_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS coupon_booking_scopes (
+    coupon_id INTEGER PRIMARY KEY REFERENCES shop_coupons(id) ON DELETE CASCADE,
+    scope TEXT NOT NULL CHECK(scope IN ('shop','booking','both'))
+  );
+  CREATE TABLE IF NOT EXISTS booking_coupon_uses (
+    booking_id INTEGER PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+    coupon_id INTEGER NOT NULL REFERENCES shop_coupons(id),
+    code TEXT NOT NULL, discount_ore INTEGER NOT NULL CHECK(discount_ore>0),
+    redeemed INTEGER NOT NULL DEFAULT 0 CHECK(redeemed IN (0,1))
+  );
+  CREATE INDEX IF NOT EXISTS booking_coupon_capacity ON booking_coupon_uses(coupon_id);
+  CREATE TRIGGER IF NOT EXISTS booking_coupon_reference BEFORE INSERT ON booking_coupon_uses
+    WHEN NOT EXISTS(SELECT 1 FROM bookings WHERE id=NEW.booking_id)
+      OR NOT EXISTS(SELECT 1 FROM shop_coupons WHERE id=NEW.coupon_id)
+    BEGIN SELECT RAISE(ABORT,'Foreign key constraint failed'); END;
+  CREATE TRIGGER IF NOT EXISTS booking_coupon_paid AFTER UPDATE OF payment_status ON bookings
+    WHEN NEW.payment_status='paid'
+    BEGIN UPDATE booking_coupon_uses SET redeemed=1 WHERE booking_id=NEW.id; END;
+  CREATE TRIGGER IF NOT EXISTS booking_coupon_cleanup BEFORE DELETE ON bookings
+    BEGIN DELETE FROM booking_coupon_uses WHERE booking_id=OLD.id; END;
+`;

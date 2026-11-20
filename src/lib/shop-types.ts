@@ -87,6 +87,7 @@ export type ShopCoupon = {
   id: number; code: string; name: string; type: "percent" | "fixed"; value: number;
   minSubtotalOre: number; active: boolean; startsAt: string | null; endsAt: string | null;
   maxUses: number | null; combineWithOffers: boolean; uses: number;
+  appliesTo: "shop" | "booking" | "both";
 };
 export type ShopShippingRule = {
   id: number; name: string; carrier: string; service: string; active: boolean; priority: number;

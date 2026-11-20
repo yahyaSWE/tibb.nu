@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { queueBookingEmails } from "./email-outbox";
 import { membershipCourseAccessSql } from "./membership-access";
 import { coursePurchaseAccessSql } from "./course-purchase-access";
+import { bookingCouponPrice } from "./coupons";
 import type {
   Article,
   Booking,
@@ -153,6 +154,7 @@ function booking(row: Row): Booking {
     practitionerName: str(row.practitioner_name),
     durationMinutes: integer(row.duration_minutes),
     priceOre: integer(row.price_ore),
+    ...(row.coupon_code ? { discount: { code: str(row.coupon_code), amountOre: integer(row.discount_ore) } } : {}),
     start: str(row.start),
     end: str(row.end),
     name: str(row.name),
@@ -266,23 +268,26 @@ export async function getSlots(
       }) satisfies Slot,
   );
 }
+const bookingSelect = `SELECT b.*,u.code AS coupon_code,u.discount_ore
+  FROM bookings b LEFT JOIN booking_coupon_uses u ON u.booking_id=b.id`;
+
 export async function getBookings() {
   await expireBookings();
   return (
-    await getDb().prepare("SELECT * FROM bookings ORDER BY start DESC").all()
+    await getDb().prepare(`${bookingSelect} ORDER BY b.start DESC`).all()
   ).map(booking);
 }
 export async function getBookingById(id: number) {
   await expireBookings();
   const row = await getDb()
-    .prepare("SELECT * FROM bookings WHERE id=?")
+    .prepare(`${bookingSelect} WHERE b.id=?`)
     .get(id);
   return row ? booking(row) : undefined;
 }
 export async function getBookingByReference(reference: string) {
   await expireBookings();
   const row = await getDb()
-    .prepare("SELECT * FROM bookings WHERE reference=?")
+    .prepare(`${bookingSelect} WHERE b.reference=?`)
     .get(reference);
   return row ? booking(row) : undefined;
 }
@@ -636,12 +641,25 @@ export async function rateLimit(
     return true;
   });
 }
+export async function quoteBookingCoupon(slotId: number, code: string) {
+  const row = await getDb().prepare(
+    `SELECT t.price_ore FROM slots s JOIN treatments t ON s.treatment_id=t.id
+      JOIN practitioners p ON s.practitioner_id=p.id
+      WHERE s.id=? AND s.start>? AND s.archived=0 AND t.active=1 AND p.active=1`,
+  ).get(slotId, new Date().toISOString());
+  if (!row) throw new DomainError("Den valda tiden är inte längre tillgänglig.");
+  const { coupon, discountOre, totalOre } = await bookingCouponPrice(code, integer(row.price_ore));
+  return { slotId, code: coupon.code, discountOre, totalOre };
+}
+
 export async function reserveBooking(input: {
   slotId: number;
   name: string;
   email: string;
   phone: string;
   paymentMethod: "onsite" | "stripe" | "kustom";
+  couponCode?: string;
+  expectedPriceOre?: number;
 }): Promise<Booking> {
   return await transaction(async () => {
     await expireBookings();
@@ -699,7 +717,12 @@ export async function reserveBooking(input: {
       input.paymentMethod !== "onsite"
         ? new Date(Math.min(Date.now() + 35 * 60000, input.paymentMethod === "kustom" ? Date.parse(str(row.start)) : Infinity)).toISOString()
         : null;
-    await getDb()
+    const originalPrice = integer(row.price_ore);
+    const discount = input.couponCode?.trim() ? await bookingCouponPrice(input.couponCode, originalPrice) : null;
+    const price = discount?.totalOre ?? originalPrice;
+    if (discount && input.expectedPriceOre !== price)
+      throw new DomainError("Priset med rabattkoden har ändrats. Kontrollera koden och försök igen.");
+    const inserted = await getDb()
       .prepare(
         "INSERT INTO bookings(reference,treatment_id,practitioner_id,practitioner_name,slot_id,treatment_name,duration_minutes,price_ore,start,end,name,email,phone,status,payment_method,expires_at,created_at,delivery_mode,online_payment_provider) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       )
@@ -711,7 +734,7 @@ export async function reserveBooking(input: {
         input.slotId,
         str(row.name),
         integer(row.duration_minutes),
-        integer(row.price_ore),
+        price,
         str(row.start),
         str(row.end),
         input.name,
@@ -724,6 +747,10 @@ export async function reserveBooking(input: {
         str(row.delivery_mode),
         input.paymentMethod === "kustom" ? "kustom" : null,
       );
+    if (discount) {
+      await getDb().prepare("INSERT INTO booking_coupon_uses(booking_id,coupon_id,code,discount_ore) VALUES(?,?,?,?)")
+        .run(Number(inserted.lastInsertRowid), discount.coupon.id, discount.coupon.code, discount.discountOre);
+    }
     const result = (await getBookingByReference(reference))!;
     const { recordBookingTermsSnapshot } = await import("./business-settings");
     await recordBookingTermsSnapshot(result);

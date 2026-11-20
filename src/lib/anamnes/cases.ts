@@ -13,6 +13,7 @@ import { AnalysisReceiptSchema, verifyAnalysisReceipt } from "./ai";
 import { normalizeConsultationDetails } from "./consultation";
 import { IntakeContactSchema as ContactSchema } from "../intake-contact";
 import { encryptIntake as encrypt, decryptIntake as decrypt } from "./secure-storage";
+import { queueIntakeEmail } from "../intake-email";
 
 const IdSchema = z.string().uuid();
 
@@ -63,6 +64,7 @@ export async function submitAnamnes(input: unknown): Promise<{ reference: string
   await transaction(async () => {
     await pruneExpiredAnamnesCases();
     await getDb().prepare("INSERT INTO anamnes_cases(id,encrypted_payload,created_at,expires_at) VALUES(?,?,?,?)").run(id, encrypted, createdAt, expiresAt);
+    await queueIntakeEmail(id, "anamnes", createdAt);
   });
   return { reference: id, expiresAt };
 }

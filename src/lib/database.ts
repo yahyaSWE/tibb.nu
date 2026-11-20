@@ -19,7 +19,7 @@ import { databaseConfigured } from "./database-config";
 import { SHOP_SCHEMA } from "./shop-schema";
 import { SHOP_IMAGE_SCHEMA } from "./shop-image-schema";
 import { SHOP_EMAIL_SCHEMA } from "./shop-email-schema";
-import { SHOP_COMMERCE_SCHEMA } from "./shop-commerce-schema";
+import { BOOKING_COUPON_SCHEMA, SHOP_COMMERCE_SCHEMA } from "./shop-commerce-schema";
 import { SHOP_PRODUCT_CONTENT_SCHEMA } from "./shop-product-content-schema";
 import { MEMBERSHIP_SCHEMA } from "./membership-schema";
 import { MEMBERSHIP_UPLOAD_SCHEMA } from "./membership-upload-schema";
@@ -227,6 +227,7 @@ export class DatabaseAdapter {
         if (!receiptColumns.rows.some(row => row.name === "static_pdf"))
           await tx.execute("ALTER TABLE wellness_receipts ADD COLUMN static_pdf BLOB");
         await tx.executeMultiple(SERVICE_PAYMENT_SCHEMA);
+        await tx.executeMultiple(BOOKING_COUPON_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

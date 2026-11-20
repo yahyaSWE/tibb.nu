@@ -2,7 +2,9 @@
 
 Efter färdigt självtest på `/sjalvtest` eller anamnes på `/anamnes` kan besökaren välja att skicka sitt underlag. Namn och e-post krävs, telefon är valfritt. Inget elevkonto behövs. Ett separat, från början omarkerat inskickningsval krävs. Att bara göra testet, öppna resultatet eller fylla i kontaktfälten skickar inte uppgifterna.
 
-Admin → **Inskickade underlag** (`/admin/inskickade-underlag`) samlar båda typerna med namn, e-post, typ och datum. Öppna en rad för fullständiga svar, resultat och kontaktuppgifter. Anamnesens befintliga terapeutbedömningar och radering fungerar som tidigare. Självtestet har en separat detaljvy med radering. Ingen e-post skickas; Resend behövs inte för denna funktion.
+Admin → **Inskickade underlag** (`/admin/inskickade-underlag`) samlar båda typerna med namn, e-post, typ och datum. Öppna en rad för fullständiga svar, resultat och kontaktuppgifter. Anamnesens befintliga terapeutbedömningar och radering fungerar som tidigare. Självtestet har en separat detaljvy med radering.
+
+När någon skickar in en anamnes eller ett fem element-test köas en avisering till `kontakt@tibb.nu`. Mejlet innehåller typen av inskick och en länk till **Inskickade underlag** i admin. Svar, resultat och kontaktuppgifter finns i den behörighetsskyddade vyn. Första försöket görs efter inskickning. Det befintliga jobbet på `/api/email/outbox` behandlar väntande återförsök när det är schemalagt.
 
 ## Konfiguration
 

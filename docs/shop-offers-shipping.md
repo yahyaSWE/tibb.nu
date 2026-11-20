@@ -22,7 +22,9 @@ Du väljer om kunden måste köpa flera av **samma produkt**, eller om antalet f
 
 ## Rabattkoder
 
-Rabattkoder skapas i samma adminvy. En kod ger procent eller ett fast belopp på varorna, med valfritt minsta ordervärde, giltighetsperiod och maximalt antal användningar. Kunden kan använda en kod per beställning. Frakt ingår inte i rabattunderlaget.
+Rabattkoder skapas under **Admin → Rabatter**. Välj om koden gäller i butiken och på friskvårdsköp, vid vanliga behandlingsbokningar eller i båda flödena. Äldre koder behåller sin tidigare räckvidd tills du ändrar den. En kod ger procent eller ett fast belopp med valfritt minsta värde, giltighetsperiod och maximalt antal användningar. Frakt ingår inte i rabattunderlaget. Om båda flödena är valda delar de samma användningsgräns.
+
+Vid en behandlingsbokning väljer kunden först en tid och använder koden under **Har du en rabattkod?**. Formuläret visar det nya priset före betalning. Bokningsbekräftelsen och admin visar rabatten och priset som sparades vid bokning.
 
 Välj om koden får kombineras med andra erbjudanden. En kombinerbar kod räknas efter paketpris och mängdrabatt. En kod som inte får kombineras ersätter mängdrabatterna och kan inte användas i en varukorg med produktpaket. Kunden får ett meddelande om kombinationen inte är tillåten.
 

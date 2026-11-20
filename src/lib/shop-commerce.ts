@@ -4,6 +4,7 @@ import { assertAdmin } from "./admin";
 import { DomainError, getDb, transaction } from "./db";
 import { text } from "./validation";
 import { parseProductRichText } from "./product-rich-text";
+import { couponDiscountOre, findApplicableCoupon, listCoupons } from "./coupons";
 import type { ShopCoupon, ShopDiscount, ShopProduct, ShopQuantityOffer, ShopQuote, ShopQuoteInput, ShopQuoteItem, ShopSettings, ShopShippingRule } from "./shop-types";
 
 type Row = Record<string, unknown>;
@@ -17,6 +18,7 @@ const couponSchema = z.object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{2,49}$/), name: text(150, 2), type: z.enum(["percent", "fixed"]),
   value: z.number().int().min(1).max(10000000), minSubtotalOre: money, active: z.boolean(),
   startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), maxUses: z.number().int().min(1).max(1000000).nullable(), combineWithOffers: z.boolean(),
+  appliesTo: z.enum(["shop", "booking", "both"]).default("shop"),
 }).superRefine((v, ctx) => {
   if (v.type === "percent" && v.value > 99) ctx.addIssue({ code: "custom", path: ["value"], message: "Procentrabatten får vara 1–99 procent." });
   if (v.startsAt && v.endsAt && v.endsAt <= v.startsAt) ctx.addIssue({ code: "custom", path: ["endsAt"], message: "Sluttiden ska ligga efter starttiden." });
@@ -37,9 +39,7 @@ export const shopQuoteSchema = z.object({
   if (new Set(v.items.map((line) => line.productId)).size !== v.items.length) ctx.addIssue({ code: "custom", path: ["items"], message: "Varje produkt får bara finnas en gång i varukorgen." });
 });
 function offer(row: Row): ShopQuantityOffer { return { id: Number(row.id), name: String(row.name), scope: row.scope as ShopQuantityOffer["scope"], productIds: JSON.parse(String(row.product_ids_json)), minQuantity: Number(row.min_quantity), percent: Number(row.percent), active: !!row.active }; }
-function coupon(row: Row): ShopCoupon { return { id: Number(row.id), code: String(row.code), name: String(row.name), type: row.type as ShopCoupon["type"], value: Number(row.value), minSubtotalOre: Number(row.min_subtotal_ore), active: !!row.active, startsAt: row.starts_at ? String(row.starts_at) : null, endsAt: row.ends_at ? String(row.ends_at) : null, maxUses: row.max_uses == null ? null : Number(row.max_uses), combineWithOffers: !!row.combine_with_offers, uses: Number(row.uses ?? 0) }; }
 function rule(row: Row): ShopShippingRule { return { id: Number(row.id), name: String(row.name), carrier: String(row.carrier), service: String(row.service), active: !!row.active, priority: Number(row.priority), minWeightGrams: Number(row.min_weight_grams), maxWeightGrams: row.max_weight_grams == null ? null : Number(row.max_weight_grams), minSubtotalOre: Number(row.min_subtotal_ore), maxSubtotalOre: row.max_subtotal_ore == null ? null : Number(row.max_subtotal_ore), postcodePrefixes: JSON.parse(String(row.postcode_prefixes_json)), priceOre: Number(row.price_ore) }; }
-const usageSql = `(SELECT COUNT(*) FROM shop_coupon_uses u JOIN shop_orders o ON o.id=u.order_id WHERE u.coupon_id=c.id AND (u.state='paid' OR (u.state='reserved' AND o.status='pending' AND o.expires_at>?)))`;
 export async function getAdminShopQuantityOffers(actorId: number): Promise<ShopQuantityOffer[]> { await assertAdmin(actorId); return (await getDb().prepare("SELECT * FROM shop_quantity_offers ORDER BY id").all()).map(offer); }
 export async function saveShopQuantityOffer(actorId: number, id: number | null, input: Omit<ShopQuantityOffer, "id">): Promise<number> {
   return transaction(async () => {
@@ -51,15 +51,20 @@ export async function saveShopQuantityOffer(actorId: number, id: number | null, 
     return id ?? Number(result.lastInsertRowid);
   });
 }
-export async function getAdminShopCoupons(actorId: number): Promise<ShopCoupon[]> { await assertAdmin(actorId); return (await getDb().prepare(`SELECT c.*,${usageSql} uses FROM shop_coupons c ORDER BY id`).all(new Date().toISOString())).map(coupon); }
-export async function saveShopCoupon(actorId: number, id: number | null, input: Omit<ShopCoupon, "id" | "uses">): Promise<number> {
+export async function getAdminShopCoupons(actorId: number): Promise<ShopCoupon[]> { await assertAdmin(actorId); return listCoupons(); }
+export async function saveShopCoupon(actorId: number, id: number | null, input: Omit<ShopCoupon, "id" | "uses" | "appliesTo"> & Partial<Pick<ShopCoupon, "appliesTo">>): Promise<number> {
   return transaction(async () => {
     await assertAdmin(actorId); const v = couponSchema.parse(input);
     if (id !== null) { idSchema.parse(id); if (!(await getDb().prepare("SELECT id FROM shop_coupons WHERE id=?").get(id))) throw new DomainError("Rabattkoden finns inte."); }
     if (await getDb().prepare("SELECT id FROM shop_coupons WHERE code=? AND id!=?").get(v.code, id ?? -1)) throw new DomainError("Rabattkoden används redan.");
     const args = [v.code, v.name, v.type, v.value, v.minSubtotalOre, v.active ? 1 : 0, v.startsAt, v.endsAt, v.maxUses, v.combineWithOffers ? 1 : 0];
     const result = id === null ? await getDb().prepare("INSERT INTO shop_coupons(code,name,type,value,min_subtotal_ore,active,starts_at,ends_at,max_uses,combine_with_offers) VALUES(?,?,?,?,?,?,?,?,?,?)").run(...args) : await getDb().prepare("UPDATE shop_coupons SET code=?,name=?,type=?,value=?,min_subtotal_ore=?,active=?,starts_at=?,ends_at=?,max_uses=?,combine_with_offers=? WHERE id=?").run(...args, id);
-    return id ?? Number(result.lastInsertRowid);
+    const couponId = id ?? Number(result.lastInsertRowid);
+    if (input.appliesTo !== undefined) {
+      await getDb().prepare("INSERT INTO coupon_booking_scopes(coupon_id,scope) VALUES(?,?) ON CONFLICT(coupon_id) DO UPDATE SET scope=excluded.scope")
+        .run(couponId, v.appliesTo);
+    }
+    return couponId;
   });
 }
 export async function getAdminShopShippingRules(actorId: number): Promise<ShopShippingRule[]> { await assertAdmin(actorId); return (await getDb().prepare("SELECT * FROM shop_shipping_rules ORDER BY priority,price_ore,id").all()).map(rule); }
@@ -140,14 +145,9 @@ export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSe
   if (!servicesOnly && ((v.delivery === "shipping" && !settings.shippingEnabled) || (v.delivery === "pickup" && !settings.pickupEnabled))) throw new DomainError("Det leveranssättet är inte tillgängligt.");
   const sellingSubtotal = items.reduce((s, i) => s + i.lineTotalOre, 0);
   if (sellingSubtotal > 100000000) throw new DomainError("Beställningen är för stor. Kontakta verksamheten.");
-  const code = v.couponCode.trim().toUpperCase(); let selectedCoupon: ShopCoupon | undefined;
-  if (code) {
-    const row = await getDb().prepare(`SELECT c.*,${usageSql} uses FROM shop_coupons c WHERE c.code=?`).get(new Date().toISOString(), code);
-    selectedCoupon = row ? coupon(row) : undefined;
-    const now = new Date().toISOString();
-    if (!selectedCoupon || !selectedCoupon.active || (selectedCoupon.startsAt && selectedCoupon.startsAt > now) || (selectedCoupon.endsAt && selectedCoupon.endsAt <= now) || sellingSubtotal < selectedCoupon.minSubtotalOre || (selectedCoupon.maxUses !== null && selectedCoupon.uses >= selectedCoupon.maxUses)) throw new DomainError("Rabattkoden kan inte användas för den här beställningen.");
-    if (!selectedCoupon.combineWithOffers && items.some((i) => i.kind === "bundle")) throw new DomainError("Rabattkoden kan inte kombineras med paket. Ta bort koden eller paketet.");
-  }
+  const selectedCoupon = v.couponCode ? await findApplicableCoupon(v.couponCode, sellingSubtotal, "shop") : undefined;
+  if (selectedCoupon && !selectedCoupon.combineWithOffers && items.some((i) => i.kind === "bundle"))
+    throw new DomainError("Rabattkoden kan inte kombineras med paket. Ta bort koden eller paketet.");
   const discounts: ShopDiscount[] = [];
   for (const item of items) if (item.originalLineTotalOre > item.lineTotalOre) discounts.push({ kind: "bundle", name: item.name, amountOre: item.originalLineTotalOre - item.lineTotalOre });
   const offers = (!selectedCoupon || selectedCoupon.combineWithOffers) ? (await getDb().prepare("SELECT * FROM shop_quantity_offers WHERE active=1 ORDER BY percent DESC,id").all()).map(offer) : [];
@@ -158,7 +158,7 @@ export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSe
   if (selectedCoupon) {
     const subtotal = items.reduce((s, i) => s + i.lineTotalOre, 0);
     if (subtotal < selectedCoupon.minSubtotalOre) throw new DomainError("Varuvärdet efter erbjudanden är för lågt för den här rabattkoden.");
-    const amountOre = selectedCoupon.type === "fixed" ? selectedCoupon.value : Math.round(subtotal * selectedCoupon.value / 100);
+    const amountOre = couponDiscountOre(selectedCoupon, subtotal);
     if (amountOre >= subtotal) throw new DomainError("Rabattkoden skulle göra varorna kostnadsfria. Den kan inte användas för den här beställningen.");
     const shares = allocate(amountOre, items.map((i) => i.lineTotalOre)); items.forEach((i, index) => i.lineTotalOre -= shares[index]);
     discounts.push({ kind: "coupon", name: selectedCoupon.name, code: selectedCoupon.code, amountOre });

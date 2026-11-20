@@ -103,6 +103,10 @@ export default async function BookingDetailPage({
               <dt>Längd</dt>
               <dd>{booking.durationMinutes} minuter</dd>
             </div>
+            {booking.discount && <div>
+              <dt>Rabattkod {booking.discount.code}</dt>
+              <dd>−{kronor(booking.discount.amountOre)}</dd>
+            </div>}
             <div>
               <dt>Pris</dt>
               <dd>{kronor(booking.priceOre)}</dd>

@@ -16,7 +16,7 @@ export async function openKustomBooking(booking: Booking) {
   if (booking.paymentMethod !== "kustom" || booking.status !== "pending" || !booking.expiresAt || vat === null)
     throw new DomainError("Bokningen är inte öppen för Kustom-betalning.");
   return openKustomServicePayment({ reference: booking.reference, kind: "booking", amount: booking.priceOre,
-    vat, email: booking.email, deadline: booking.expiresAt });
+    discountOre: booking.discount?.amountOre, vat, email: booking.email, deadline: booking.expiresAt });
 }
 
 export async function getKustomBookingPaymentLink(reference: string) {
@@ -31,10 +31,10 @@ export async function wasKustomBookingCheckoutRejected(reference: string) {
   return row?.kind === "booking" && row.state === "cancelled" && !row.order_id && !row.candidate_id;
 }
 
-function serviceLine(kind: Kind, amount: number, vat: number) {
+function serviceLine(kind: Kind, amount: number, vat: number, discountOre: number) {
   return {
     reference: kind, type: "digital", name: kind === "booking" ? "Behandlingsbokning" : "Digital kurs",
-    quantity: 1, unit_price: amount, total_amount: amount, total_discount_amount: 0,
+    quantity: 1, unit_price: amount + discountOre, total_amount: amount, total_discount_amount: discountOre,
     tax_rate: vat * 100, total_tax_amount: Math.round(amount * vat / (100 + vat)),
   };
 }
@@ -44,17 +44,18 @@ function verify(remote: z.infer<typeof kustomCheckoutSchema>, reference: string,
   if ((id && id !== remote.order_id) || remote.merchant_reference1 !== reference || remote.purchase_currency.toUpperCase() !== "SEK" ||
       remote.order_amount !== line.total_amount || remote.order_lines.length !== 1 || actual.reference !== line.reference ||
       actual.quantity !== line.quantity || actual.unit_price !== line.unit_price || actual.total_amount !== line.total_amount ||
+      (actual.total_discount_amount ?? 0) !== line.total_discount_amount ||
       actual.tax_rate !== line.tax_rate || actual.total_tax_amount !== line.total_tax_amount) {
     throw new DomainError("Kustoms betalningsuppgifter matchar inte köpet.");
   }
 }
 
 export async function openKustomServicePayment(input: {
-  reference: string; kind: Kind; amount: number; vat: number; email: string; deadline: string;
+  reference: string; kind: Kind; amount: number; discountOre?: number; vat: number; email: string; deadline: string;
 }, client = kustomClient) {
-  const { reference, kind, amount, vat, email, deadline } = input;
+  const { reference, kind, amount, discountOre = 0, vat, email, deadline } = input;
   const config = kustomConfiguration();
-  const line = serviceLine(kind, amount, vat);
+  const line = serviceLine(kind, amount, vat, discountOre);
   const secret = randomToken();
   const existing = await transaction(async () => {
     const current = await payment(reference);

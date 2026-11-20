@@ -14,6 +14,7 @@ import { QUESTIONS } from '../src/lib/five-phases/questions';
 import { POST } from '../src/app/api/sjalvtest/submit/route';
 import { GET as configGET } from '../src/app/api/sjalvtest/submission-config/route';
 import { GET as retentionGET } from '../src/app/api/anamnes/retention/route';
+import { dispatchIntakeEmails } from '../src/lib/intake-email';
 
 assert.equal(process.env.INTAKE_SUBMISSION_FIXTURE,'1');
 assert.match(process.env.TIBB_DATABASE_PATH??'',/tibb-intake-submissions-[^/\\]+[/\\]owned-fixture\.sqlite$/);
@@ -129,6 +130,41 @@ test('anamnes still stores full report and contact; new inbox reads the same enc
   const encrypted=`v1.${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${ciphertext.toString('base64url')}`;
   await getDb().prepare('INSERT INTO anamnes_cases(id,encrypted_payload,created_at,expires_at) VALUES(?,?,?,?)').run(oldId,encrypted,item.createdAt,item.expiresAt);
   assert.equal((await getAnamnesCase(admin,oldId))!.contact.name,'Historical synthetic visitor');
+});
+
+test('both saved intake types email only a generic admin notice and retry the identical message', async t => {
+  const self = await submitSelfTest(input());
+  const anamnes = await submitAnamnes({
+    answers: {adult:'yes',pregnancy:'no',medication:'no',chronicDisease:'no',liverKidney:'no',allergy:'no',emergency:'no',clinicalRedFlags:'no'},
+    narrative: 'PRIVATE ANAMNES TEXT', contact, sendConsent: true, submissionConsentVersion: anamnesSubmissionConsentVersion(),
+  });
+  Object.assign(process.env, { RESEND_API_KEY: 'synthetic-key', EMAIL_FROM: 'Tibb.nu <fixture@example.test>', APP_URL: 'https://owned.example.test' });
+  t.after(() => { for (const key of ['RESEND_API_KEY', 'EMAIL_FROM', 'APP_URL']) delete process.env[key]; });
+  const requests: { body: string; key: string | null }[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    assert.equal(url, 'https://api.resend.com/emails');
+    requests.push({ body: String(init?.body), key: new Headers(init?.headers).get('Idempotency-Key') });
+    if (requests.length === 1) throw new Error('Simulated lost response');
+    return Response.json({ id: 'synthetic-accepted' });
+  });
+  assert.equal((await dispatchIntakeEmails({ reference: self.reference })).failed, 1);
+  await getDb().prepare("UPDATE intake_email_outbox SET next_attempt_at='2000-01-01' WHERE submission_id=?").run(self.reference);
+  process.env.EMAIL_FROM = 'Changed <changed@example.test>';
+  const retried = await Promise.all([dispatchIntakeEmails({ reference: self.reference }), dispatchIntakeEmails({ reference: self.reference })]);
+  assert.equal(retried.reduce((sum, result) => sum + result.sent, 0), 1);
+  assert.deepEqual(requests[0], requests[1]);
+  assert.equal((await dispatchIntakeEmails({ reference: anamnes.reference })).sent, 1);
+  assert.equal(requests.length, 3);
+  for (const request of requests) {
+    const message = JSON.parse(request.body);
+    assert.deepEqual(message.to, ['kontakt@tibb.nu']);
+    assert.match(message.html, /https:\/\/owned\.example\.test\/admin\/inskickade-underlag/);
+    for (const details of [...Object.values(contact), self.reference, anamnes.reference, 'PRIVATE ANAMNES TEXT']) {
+      assert.ok(!JSON.stringify(request).includes(details));
+    }
+  }
+  assert.match(JSON.parse(requests[0].body).subject, /självtest med fem faser/);
+  assert.match(JSON.parse(requests[2].body).subject, /anamnes/);
 });
 
 test('HTTP submission enforces same-origin, bounds, validation, no-store and rate limits',async()=>{

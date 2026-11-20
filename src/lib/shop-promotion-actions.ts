@@ -56,6 +56,7 @@ export async function saveShopCouponAction(_previous: ShopAdminActionState<ShopC
     const type = z.enum(["percent","fixed"], {error:"Välj rabatt i procent eller kronor."}).parse(values.type);
     id = await saveShopCoupon(user.id, editing ? idField(form) : null, {
       code:values.code,name:values.name,type,
+      appliesTo:z.enum(["shop","booking","both"], {error:"Välj var rabattkoden ska gälla."}).parse(values.appliesTo),
       value:type === "fixed" ? shopMoney(values.value,"rabattbelopp",10_000_000) : shopInteger(values.value,"rabattprocent",1,99),
       minSubtotalOre:shopMoney(values.minSubtotal,"minsta varuvärde"),
       active:values.active,

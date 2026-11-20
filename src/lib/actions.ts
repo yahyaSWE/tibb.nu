@@ -17,6 +17,7 @@ import {
   getBookingById,
   getUserByEmail,
   hasAdmin,
+  quoteBookingCoupon,
   reserveBooking,
   transaction,
 } from "./db";
@@ -34,6 +35,7 @@ import {
   field,
   idField,
   signupSchema,
+  text,
 } from "./validation";
 import { createCheckout, getStripe } from "./stripe";
 import { cancelKustomServicePayment, openKustomBooking } from "./kustom-service-payments";
@@ -155,6 +157,16 @@ export async function logoutAction(): Promise<void> {
   await destroySession();
   redirect("/");
 }
+export async function quoteBookingCouponAction(slotId: number, code: string) {
+  try {
+    const input = z.object({ slotId: z.number().int().positive(), code: text(50, 3) }).parse({ slotId, code });
+    await requestLimit("booking-coupon", input.code.toUpperCase(), 30);
+    return { quote: await quoteBookingCoupon(input.slotId, input.code), error: null };
+  } catch (error) {
+    return { quote: null, error: message(error) };
+  }
+}
+
 export async function createBookingAction(form: FormData): Promise<void> {
   await formAction(form, "/bokning", async () => {
     const input = bookingSchema.parse({
@@ -163,6 +175,8 @@ export async function createBookingAction(form: FormData): Promise<void> {
       email: field(form, "email"),
       phone: field(form, "phone"),
       paymentMethod: field(form, "paymentMethod"),
+      couponCode: field(form, "couponCode"),
+      expectedPriceOre: field(form, "expectedPriceOre") || undefined,
       consent: field(form, "consent"),
     });
     await requestLimit("booking", input.email, 10);

@@ -27,6 +27,8 @@ export const bookingSchema = z.object({
   email: emailSchema,
   phone: text(30),
   paymentMethod: z.enum(["onsite", "stripe", "kustom"]),
+  couponCode: text(50).optional(),
+  expectedPriceOre: z.coerce.number().int().positive().max(10_000_000).optional(),
   consent: z.literal("on", {
     error: "Godkänn att kontaktuppgifterna används för bokningen.",
   }),

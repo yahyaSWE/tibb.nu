@@ -11,6 +11,7 @@ import { AnamnesError } from '../anamnes/http';
 import { QUESTIONS } from './questions';
 import { calculateResult } from './scoring';
 import { ELEMENTS } from './types';
+import { queueIntakeEmail } from '../intake-email';
 
 const AnswerSchema=z.object({questionId:z.number().int(),value:z.union([z.literal(1),z.literal(2),z.literal(3),z.literal(4),z.literal(5)])}).strict();
 const AnswersSchema=z.array(AnswerSchema).length(QUESTIONS.length).superRefine((answers,ctx) => {
@@ -55,6 +56,7 @@ export async function submitSelfTest(input: unknown) {
   await transaction(async () => {
     await pruneExpiredSelfTests();
     await getDb().prepare('INSERT INTO self_test_cases(id,encrypted_payload,created_at,expires_at) VALUES(?,?,?,?)').run(id,encrypted,createdAt,expiresAt);
+    await queueIntakeEmail(id,'self-test',createdAt);
   });
   return {reference:id,expiresAt};
 }

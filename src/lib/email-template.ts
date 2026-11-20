@@ -16,6 +16,7 @@ const linkLabels: Readonly<Record<string, string>> = {
   "/bokning/bekraftelse": "Öppna bokningssidan",
   "/anamnes": "Fyll i anamnesen",
   "/bestallning/bekraftelse": "Öppna beställningen",
+  "/admin/inskickade-underlag": "Öppna inskickade underlag",
 };
 const entities: Readonly<Record<string, string>> = {
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",

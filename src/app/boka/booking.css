@@ -76,6 +76,20 @@
   margin-bottom: 8px;
   color: var(--muted);
 }
+.inner-page .booking-page .booking-coupon { margin-bottom: 16px; }
+.inner-page .booking-page .booking-coupon-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) auto;
+  align-items: end;
+  justify-content: start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.inner-page .booking-page .booking-coupon-fields > .button { min-height: 56px; }
+@media (max-width: 480px) {
+  .inner-page .booking-page .booking-coupon-fields { grid-template-columns: minmax(0, 1fr); }
+  .inner-page .booking-page .booking-coupon-fields > .button { justify-self: start; }
+}
 .inner-page .booking-page #booking-contact { scroll-margin-top: 24px; }
 .inner-page .booking-page .booking-visit-note { font-size: .875rem; color: var(--muted); margin-bottom: 8px; }
 .inner-page .booking-page .booking-form .field { min-width: 0; font-size: 1rem; font-weight: 600; }

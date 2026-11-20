@@ -83,6 +83,10 @@ export default async function ConfirmationPage({
             <dt>Längd</dt>
             <dd>{booking.durationMinutes} minuter</dd>
           </div>
+          {booking.discount && <div>
+            <dt>Rabattkod {booking.discount.code}</dt>
+            <dd>−{formatMoney(booking.discount.amountOre)}</dd>
+          </div>}
           <div>
             <dt>Pris</dt>
             <dd>{formatMoney(booking.priceOre)}</dd>

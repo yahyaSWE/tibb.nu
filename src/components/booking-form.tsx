@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
   ArrowRight,
@@ -14,13 +14,13 @@ import {
 } from "lucide-react";
 import type { Practitioner, Slot, Treatment } from "@/lib/types";
 import { formatDateTime, formatMoney } from "@/lib/time";
-import { createBookingAction } from "@/lib/actions";
+import { createBookingAction, quoteBookingCouponAction } from "@/lib/actions";
 import { BookingCalendar } from "./booking-calendar";
 
-function SubmitBooking({ label }: { label: string }) {
+function SubmitBooking({ label, disabled }: { label: string; disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className="button button-primary">
+    <button type="submit" disabled={pending || disabled} className="button button-primary">
       {pending ? "Din bokning behandlas…" : label}
       <ArrowRight size={17} aria-hidden="true" />
     </button>
@@ -73,9 +73,31 @@ export function BookingForm({
     (s) => s.treatmentId === treatmentId && s.practitionerId === practitionerId,
   );
   const chosenSlot = treatmentSlots.find((s) => s.id === slotId);
+  const [codeDraft, setCodeDraft] = useState("");
+  const [couponResult, setCouponResult] = useState<{
+    slotId: number; code: string; result: Awaited<ReturnType<typeof quoteBookingCouponAction>>;
+  }>();
+  const [checkingCoupon, startCouponCheck] = useTransition();
+  const code = codeDraft.trim().toUpperCase();
+  const currentCoupon = couponResult?.slotId === chosenSlot?.id && couponResult?.code === code ? couponResult.result : null;
+  const quote = currentCoupon?.quote;
+  const totalOre = quote?.totalOre ?? treatment?.priceOre ?? 0;
   const canPay = payOnSite || onlineEnabled;
   const bookingReady = !!chosenSlot && canPay;
   const place = treatment?.deliveryMode === "remote" ? "Distans · digitalt möte" : location;
+
+  function checkCoupon() {
+    if (!chosenSlot || !code || checkingCoupon) return;
+    const slot = chosenSlot.id;
+    startCouponCheck(async () => {
+      try {
+        const result = await quoteBookingCouponAction(slot, code);
+        setCouponResult({ slotId: slot, code, result });
+      } catch {
+        setCouponResult({ slotId: slot, code, result: { quote: null, error: "Det gick inte att kontrollera rabattkoden. Försök igen." } });
+      }
+    });
+  }
 
   function chooseTreatment(id: number) {
     setTreatmentId(id);
@@ -111,7 +133,8 @@ export function BookingForm({
   return (
     <div className="booking-layout">
       <div>
-        <form className="booking-form" action={createBookingAction}>
+        <form className="booking-form" action={createBookingAction}
+          onSubmit={event => { if (checkingCoupon || (code && !quote)) event.preventDefault(); }}>
           <input type="hidden" name="returnTo" value={`/boka?behandling=${treatmentId ?? ""}&behandlare=${practitionerId ?? ""}`} />
           {!canPay && <p className="notice">Bokningen öppnar när ett betalningsalternativ har aktiverats.</p>}
           <div className="booking-mobile-choices">
@@ -252,7 +275,7 @@ export function BookingForm({
           </fieldset>
           {bookingReady && chosenSlot && treatment && (
             <section className="booking-mobile-recap" aria-label="Vald bokning">
-              <p><strong>{formatDateTime(chosenSlot.start)}</strong><strong>{formatMoney(treatment.priceOre)}</strong></p>
+              <p><strong>{formatDateTime(chosenSlot.start)}</strong><strong>{formatMoney(totalOre)}</strong></p>
               <p>{treatment.name} · {treatment.durationMinutes} min</p>
               {place && <p>{place}</p>}
               <a className="text-link" href="#booking-contact">Fyll i dina uppgifter <ArrowRight size={16} aria-hidden="true" /></a>
@@ -313,6 +336,27 @@ export function BookingForm({
                   )}
                 </div>
               </fieldset> : <input type="hidden" name="paymentMethod" value={payment} />}
+              <details className="booking-extra booking-coupon">
+                <summary>Har du en rabattkod?</summary>
+                <div className="booking-coupon-fields">
+                  <label className="field">
+                    Rabattkod
+                    <input value={codeDraft} onChange={event => setCodeDraft(event.target.value)} maxLength={50}
+                      autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                      onKeyDown={event => {
+                        if (event.key === "Enter") { event.preventDefault(); checkCoupon(); }
+                      }} />
+                  </label>
+                  <button type="button" className="button button-secondary" onClick={checkCoupon} disabled={!code || checkingCoupon}>
+                    {checkingCoupon ? "Kontrollerar…" : "Använd kod"}
+                  </button>
+                </div>
+                {code && <button type="button" className="text-link" onClick={() => { setCodeDraft(""); setCouponResult(undefined); }}>Ta bort kod</button>}
+                {currentCoupon?.error && <p className="notice notice-error" role="alert">{currentCoupon.error}</p>}
+                {code && !currentCoupon && !checkingCoupon && <p>Använd eller ta bort koden för att fortsätta.</p>}
+                {quote && <p role="status">Rabatt {formatMoney(quote.discountOre)}. Nytt pris {formatMoney(quote.totalOre)}.</p>}
+              </details>
+              {quote && <><input type="hidden" name="couponCode" value={quote.code} /><input type="hidden" name="expectedPriceOre" value={quote.totalOre} /></>}
               {treatment?.deliveryMode === "remote" && <p className="booking-visit-note">Möteslänken läggs till på din privata bokningssida.</p>}
               {cancellationNotice && (
                 <p className="booking-visit-note">{cancellationNotice}</p>
@@ -327,7 +371,7 @@ export function BookingForm({
                   och <Link href="/villkor" target="_blank" rel="noopener noreferrer">bokningsvillkoren</Link>.
                 </span>
               </label>
-              {payment && <SubmitBooking label={payment === onlineProvider && treatment ? `Till betalning · ${formatMoney(treatment.priceOre)}` : "Bekräfta bokning"} />}
+              {payment && <SubmitBooking disabled={checkingCoupon || (!!code && !quote)} label={payment === onlineProvider && treatment ? `Till betalning · ${formatMoney(totalOre)}` : "Bekräfta bokning"} />}
               <p className="booking-payment-note">
                 {payment === onlineProvider
                   ? `Du går vidare till ${onlineProvider === "kustom" ? "Kustom" : "Stripe"} för att slutföra din betalning.`
@@ -367,9 +411,10 @@ export function BookingForm({
             <strong>{place}</strong>
           </div>
         )}
+        {quote && <div className="summary-item"><span>Rabatt</span><strong>−{formatMoney(quote.discountOre)}</strong></div>}
         <div className="summary-total">
           <span>Pris</span>
-          <strong>{treatment ? formatMoney(treatment.priceOre) : "—"}</strong>
+          <strong>{treatment ? formatMoney(totalOre) : "—"}</strong>
         </div>
         <p>
           Du får en bekräftelse på nästa sida. Spara den så att du har

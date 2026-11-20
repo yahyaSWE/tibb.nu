@@ -109,6 +109,7 @@ export type Booking = {
   practitionerName: string;
   durationMinutes: number;
   priceOre: number;
+  discount?: { code: string; amountOre: number };
   start: string;
   end: string;
   name: string;

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 import { SiteChrome } from "@/components/site-chrome";
+import { SiteSpeedInsights } from "@/components/site-speed-insights";
 import { KustomElementsScript } from "@/components/shop/kustom-elements-script";
 import { getSiteSettings } from "@/lib/site-data";
 import { getBusinessSettings } from "@/lib/business-settings";
@@ -84,6 +85,7 @@ export default async function RootLayout({
         </SiteChrome>
         {kustomElements && <KustomElementsScript {...kustomElements} />}
         <Analytics />
+        <SiteSpeedInsights />
       </body>
     </html>
   );

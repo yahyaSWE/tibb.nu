@@ -28,7 +28,10 @@ export async function POST(request: Request) {
         await reconcileKustomOrder(reference, { providerId });
         await getDb().prepare("UPDATE kustom_checkouts SET needs_reconcile=0 WHERE order_reference=?").run(reference);
         const order = await getShopOrderByReference(reference);
-        if (order) await dispatchShopOrderEmails({ orderId: order.id, limit: 2 });
+        if (order) {
+          await dispatchShopOrderEmails({ orderId: order.id, event: "agreement", limit: 1 });
+          await dispatchShopOrderEmails({ orderId: order.id, limit: 2 });
+        }
         await dispatchWellnessEmails({ reference, limit: 2 });
       } catch { /* The durable reconcile flag is recovered by the cron/admin path. */ }
     });

@@ -5,6 +5,8 @@ import { getAdminShopOrder } from "@/lib/shop";
 import { getDb } from "@/lib/db";
 import { kustomAdminOrderAction } from "@/lib/kustom-admin-actions";
 import { getShopOrderEmailStatus } from "@/lib/shop-email";
+import { getShopWithdrawal } from "@/lib/shop-withdrawals";
+import { markShopWithdrawalHandledAction } from "@/lib/shop-withdrawal-actions";
 import { ShopOrderEmailRetry } from "@/components/admin/shop-order-email";
 import {
   AdminHeading,
@@ -33,6 +35,7 @@ export default async function ShopOrderPage({
   const order = await getAdminShopOrder(user.id, orderId);
   if (!order) notFound();
   const email = await getShopOrderEmailStatus(order.id);
+  const withdrawal = await getShopWithdrawal(order.id);
   const payment = await getDb().prepare("SELECT method,authorized,captured,customer_paid,refunded_ore,state FROM kustom_checkouts WHERE order_reference=?").get(order.reference);
   const query = await searchParams;
   const emailLabels = { pending: "Väntar på utskick", sending: "Behandlas", sent: "Accepterat av e-posttjänsten", failed: "Försöken har avslutats – kontrollera Resend", skipped: "Utskick avbrutet" };
@@ -55,6 +58,15 @@ export default async function ShopOrderPage({
         }
       />
       <div className="stack">
+        {withdrawal && <section className="panel stack">
+          <h2>Ångrat köp</h2>
+          <p>{withdrawal.name} meddelade att köpet ångras {dateTime(withdrawal.receivedAt)}.</p>
+          {withdrawal.handled ? <p>Handlagd</p> : <>
+            <p>Kontrollera betalningen och hantera eventuell återbetalning innan du markerar ärendet som handlagt.</p>
+            <div><Link className="inline-link" href="/admin/friskvard#klippkort">Hantera klippkort och återbetalning</Link></div>
+            <form action={markShopWithdrawalHandledAction}><input type="hidden" name="orderId" value={order.id} /><button className="button button-secondary">Markera som handlagd</button></form>
+          </>}
+        </section>}
         {query.paymentError && <p className="notice notice-error" role="alert">{query.paymentError}</p>}
         {payment && <section className="panel stack"><h2>Kustom Checkout</h2><p>{payment.captured ? payment.customer_paid ? "Debitering och kundbetalning är styrkta." : "Köpet är debiterat. Kundbetalning för faktura eller delbetalning behöver styrkas separat innan betalt friskvårdskvitto utfärdas." : payment.authorized ? "Köpet är auktoriserat och väntar på debitering vid leverans." : payment.state === "uncertain" ? "Betalningssessionen behöver manuell kontroll. Skapa inte en ny betalningssession." : "Kunden har inte slutfört betalningen."} {String(payment.method)}</p><form action={kustomAdminOrderAction} className="wellness-admin-buttons"><input type="hidden" name="orderId" value={order.id}/><button className="button button-secondary" name="operation" value="reconcile">Kontrollera betalningsstatus</button><button className="button button-primary" name="operation" value="capture" disabled={!!payment.captured || order.status === "cancelled" || order.status === "refunded"}>Debitera när ordern levereras</button></form></section>}
         <div className="shop-status-row">

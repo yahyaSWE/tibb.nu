@@ -4,8 +4,35 @@ import { getDb, getSettings, transaction } from "./db";
 import { getShopOrderById } from "./shop";
 import { emailAppUrl, emailConfigurationStatus, requireEmailConfiguration, sendEmail } from "./email-provider";
 import { renderEmailTemplate } from "./email-template";
+import { formatMoney } from "./time";
+import { withdrawalFormText } from "./withdrawal-form-text";
 const RETRY_WINDOW = 23 * 60 * 60 * 1000;
 type Delivery = { status: "pending" | "sending" | "sent" | "failed" | "skipped"; attempts: number };
+const emailTable = { order: "shop_email_outbox", withdrawal: "shop_withdrawal_email_outbox", agreement: "shop_agreement_email_outbox" } as const;
+type EmailTable = typeof emailTable[keyof typeof emailTable];
+
+export async function queueWellnessAgreement(order: NonNullable<Awaited<ReturnType<typeof getShopOrderById>>>) {
+  if (!order.items.some(item => item.wellness)) return;
+  let origin: string;
+  try { origin = emailAppUrl(); } catch { return; }
+  const snapshot = await getDb().prepare("SELECT seller_json FROM wellness_order_snapshots WHERE order_reference=?").get(order.reference);
+  if (!snapshot) return;
+  const seller = JSON.parse(String(snapshot.seller_json));
+  const body = [
+    "Vi har bekräftat din beställning. Här är avtalet för ditt köp.",
+    `${seller.legalName}, organisationsnummer ${seller.organizationNumber}\n${seller.address}\n${seller.email}${seller.phone ? `\n${seller.phone}` : ""}`,
+    ...order.items.map(item => `${item.quantity} × ${item.name} – ${formatMoney(item.lineTotalOre ?? item.priceOre * item.quantity)}${item.wellness ? `, giltighet ${item.wellness.validityMonths} månader från betalning` : ""}`),
+    ...(order.shippingOre ? [`Leverans ${formatMoney(order.shippingOre)}`] : []),
+    `Totalt inklusive moms ${formatMoney(order.totalOre)}`,
+    `Köpvillkor\n${order.terms}`,
+    `Beställningsreferens ${order.reference}\nDu kan ångra köpet online eller kontakta oss.\n${origin}/friskvard/angra-kop`,
+    withdrawalFormText(seller),
+  ].join("\n\n");
+  const now = new Date().toISOString();
+  await getDb().prepare(`INSERT INTO shop_agreement_email_outbox
+    (id,order_id,audience,recipient,subject,body,created_at,next_attempt_at) VALUES(?,?,'customer',?,?,?,?,?) ON CONFLICT(order_id,audience) DO NOTHING`)
+    .run(randomUUID(), order.id, order.email, "Ditt köpeavtal för friskvård hos Tibb.nu", body, now, now);
+}
 
 export async function queueShopOrderEmails(orderId: number) {
   await transaction(async () => {
@@ -17,7 +44,7 @@ export async function queueShopOrderEmails(orderId: number) {
     const notification = process.env.EMAIL_NOTIFICATION_TO?.trim() || settings.email;
     const messages = [
       { audience: "customer", recipient: order.email, subject: "Din beställning hos Tibb.nu är betald",
-        body: `Tack för din beställning. Betalningen är bekräftad.\n\nDin privata beställningssida:\n${origin}/bestallning/bekraftelse?ref=${order.reference}\n\nSpara länken och dela den inte. Kontaktuppgifter finns på hemsidan.` },
+        body: `Tack för din beställning. Betalningen är bekräftad.\n\nDin privata beställningssida:\n${origin}/bestallning/bekraftelse?ref=${order.reference}\n\nSpara länken och dela den inte. Kontaktuppgifter finns på hemsidan.${order.items.some(item => item.wellness) ? `\n\n${origin}/friskvard/angra-kop` : ""}` },
       ...(z.email().safeParse(notification).success ? [{ audience: "admin", recipient: notification, subject: "Ny betald beställning hos Tibb.nu", body: `En ny beställning är betald.\n\nLogga in för att hantera den:\n${origin}/admin/bestallningar/${order.id}` }] : []),
     ];
     const now = new Date().toISOString();
@@ -33,47 +60,48 @@ export async function getShopOrderEmailStatus(orderId: number) {
   return result;
 }
 
-async function claim(id: string, { from, origin }: ReturnType<typeof requireEmailConfiguration>) {
+async function claim(table: EmailTable, id: string, { from, origin }: ReturnType<typeof requireEmailConfiguration>) {
   return transaction(async () => {
     const now = new Date().toISOString();
-    const job = await getDb().prepare("SELECT e.*,o.status AS order_status,o.payment_status FROM shop_email_outbox e JOIN shop_orders o ON o.id=e.order_id WHERE e.id=? AND ((e.status='pending' AND e.next_attempt_at<=?) OR (e.status='sending' AND e.lease_until<=?))").get(id, now, now);
+    const job = await getDb().prepare(`SELECT e.*,o.status AS order_status,o.payment_status FROM ${table} e JOIN shop_orders o ON o.id=e.order_id WHERE e.id=? AND ((e.status='pending' AND e.next_attempt_at<=?) OR (e.status='sending' AND e.lease_until<=?))`).get(id, now, now);
     if (!job) return null;
-    if (job.order_status !== "paid" || job.payment_status !== "paid") {
+    if (table === "shop_email_outbox" && (job.order_status !== "paid" || job.payment_status !== "paid")) {
       await getDb().prepare("UPDATE shop_email_outbox SET status='skipped',lease_token=NULL,lease_until=NULL WHERE id=?").run(id);
       return null;
     }
     if (Number(job.attempts) >= 5 || (job.first_attempt_at && Date.parse(String(job.first_attempt_at)) + RETRY_WINDOW <= Date.now())) {
-      await getDb().prepare("UPDATE shop_email_outbox SET status='failed',lease_token=NULL,lease_until=NULL WHERE id=?").run(id);
+      await getDb().prepare(`UPDATE ${table} SET status='failed',lease_token=NULL,lease_until=NULL WHERE id=?`).run(id);
       return null;
     }
     const lease = randomUUID();
     const text = String(job.body);
     const html = Number(job.attempts) === 0
-      ? renderEmailTemplate({ title: job.audience === "customer" ? "Din beställning är betald" : "Ny betald beställning", text, origin })
+      ? renderEmailTemplate({ title: table !== emailTable.order ? String(job.subject) : job.audience === "customer" ? "Din beställning är betald" : "Ny betald beställning", text, origin })
       : job.html === null ? null : String(job.html);
-    await getDb().prepare("UPDATE shop_email_outbox SET status='sending',sender=COALESCE(sender,?),html=?,attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?),lease_until=?,lease_token=? WHERE id=?")
+    await getDb().prepare(`UPDATE ${table} SET status='sending',sender=COALESCE(sender,?),html=?,attempts=attempts+1,first_attempt_at=COALESCE(first_attempt_at,?),lease_until=?,lease_token=? WHERE id=?`)
       .run(from, html, now, new Date(Date.now() + 90000).toISOString(), lease, id);
     return { id, lease, from: String(job.sender || from), to: String(job.recipient), subject: String(job.subject), text, html, attempts: Number(job.attempts) + 1 };
   });
 }
 
-export async function dispatchShopOrderEmails(options: { orderId?: number; limit?: number } = {}) {
+export async function dispatchShopOrderEmails(options: { orderId?: number; limit?: number; event?: keyof typeof emailTable } = {}) {
+  const table = emailTable[options.event ?? "order"];
   const result = { configured: emailConfigurationStatus().configured, processed: 0, sent: 0, failed: 0 };
   if (!result.configured) return result;
   const config = requireEmailConfiguration();
   const now = new Date().toISOString();
-  const rows = await getDb().prepare(`SELECT id FROM shop_email_outbox WHERE ((status='pending' AND next_attempt_at<=?) OR (status='sending' AND lease_until<=?))${options.orderId === undefined ? "" : " AND order_id=?"} ORDER BY created_at,id LIMIT ?`)
+  const rows = await getDb().prepare(`SELECT id FROM ${table} WHERE ((status='pending' AND next_attempt_at<=?) OR (status='sending' AND lease_until<=?))${options.orderId === undefined ? "" : " AND order_id=?"} ORDER BY created_at,id LIMIT ?`)
     .all(now, now, ...(options.orderId === undefined ? [] : [options.orderId]), Math.max(1, Math.min(10, options.limit ?? 10)));
   async function deliver(id: string) {
-    const job = await claim(id, config);
+    const job = await claim(table, id, config);
     if (!job) return;
     result.processed++;
     try {
       const providerId = await sendEmail({ ...job, idempotencyKey: `shop-order-${id}` });
-      await getDb().prepare("UPDATE shop_email_outbox SET status='sent',sent_at=?,provider_id=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?").run(new Date().toISOString(), providerId, id, job.lease);
+      await getDb().prepare(`UPDATE ${table} SET status='sent',sent_at=?,provider_id=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?`).run(new Date().toISOString(), providerId, id, job.lease);
       result.sent++;
     } catch {
-      await getDb().prepare("UPDATE shop_email_outbox SET status=?,next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?")
+      await getDb().prepare(`UPDATE ${table} SET status=?,next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE id=? AND lease_token=?`)
         .run(job.attempts >= 5 ? "failed" : "pending", new Date(Date.now() + 2 ** (job.attempts - 1) * 60000).toISOString(), id, job.lease);
       result.failed++;
     }

@@ -14,6 +14,7 @@ import { useQuoteChoices, normalizedCoupon } from "./quote-choices";
 import { useShopQuote } from "./use-shop-quote";
 import { CouponEntry, DeliveryChoices, QuoteFeedback, QuoteBreakdown } from "./quote-controls";
 import { KustomPaymentMethods } from "./kustom-payment-methods";
+import { withdrawalFormPath, withdrawalPath } from "@/lib/withdrawal-form-text";
 import "./shop.css";
 
 export function CheckoutForm({
@@ -219,7 +220,9 @@ export function CheckoutForm({
               const line = quote?.items.find(item => item.productId === row.productId);
               return (
                 <li key={row.productId}>
-                  <span>{row.quantity} × {row.product?.name || "Otillgänglig produkt"}</span>
+                  <span>{row.quantity} × {row.product?.name || "Otillgänglig produkt"}
+                    {row.product?.wellnessEligible && <small>Gäller i {row.product.validityMonths ?? 12} månader från betalning</small>}
+                  </span>
                   <strong>{row.product ? formatMoney(line?.originalLineTotalOre ?? row.totalOre) : "—"}</strong>
                 </li>
               );
@@ -320,6 +323,9 @@ export function CheckoutForm({
         <div className="shop-checkout-pay">
           <fieldset disabled={pending} className="shop-checkout-consent">
             <legend className="sr-only">Godkänn villkoren</legend>
+            {hasWellness && <p className="small">
+              <a className="inline-link" href={withdrawalFormPath}>Ladda ner ångerblanketten</a>. Du kan <Link className="inline-link" href={withdrawalPath} target="_blank" rel="noopener noreferrer">ångra köpet online</Link> efter beställningen.
+            </p>}
             <label className="consent-check">
               <input type="checkbox" name="consent" checked={consent} required
                 onChange={event => setAcceptedTerms(event.target.checked ? settings.terms : null)} />

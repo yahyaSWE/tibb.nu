@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { getShopOrders } from "@/lib/shop";
+import { getPendingShopWithdrawalIds } from "@/lib/shop-withdrawals";
 import {
   AdminHeading,
   type AdminSearchParams,
@@ -11,10 +12,10 @@ import { ShopOrdersTable } from "@/components/admin/shop-tables";
 
 export default async function ShopOrdersPage({ searchParams }: { searchParams: AdminSearchParams }) {
   const user = await requireAdmin();
-  const [orders, query] = await Promise.all([getShopOrders(user.id), searchParams]);
+  const [orders, query, withdrawals] = await Promise.all([getShopOrders(user.id), searchParams, getPendingShopWithdrawalIds(user.id)]);
   const toDeliver = orders.filter(
     (order) =>
-      order.status === "paid" &&
+      order.status === "paid" && !withdrawals.has(order.id) &&
       order.items.some(item => !item.isService && !item.wellness) &&
       ["unfulfilled", "ready"].includes(order.fulfillment),
   );
@@ -25,6 +26,7 @@ export default async function ShopOrdersPage({ searchParams }: { searchParams: A
     { key: "alla", label: "Alla", orders },
     { key: "leverans", label: "Att leverera", orders: toDeliver },
     { key: "betalning", label: "Väntar på betalning", orders: awaitingPayment },
+    { key: "angrade", label: "Ångrade köp", orders: orders.filter(order => withdrawals.has(order.id)) },
   ];
   const selected = filters.find(filter => filter.key === query.visa) ?? filters[0];
   return (

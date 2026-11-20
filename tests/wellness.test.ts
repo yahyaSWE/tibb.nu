@@ -17,6 +17,8 @@ import { saveBusinessSettings } from "../src/lib/business-settings";
 import { DEFAULT_BUSINESS_SETTINGS } from "../src/lib/business-config";
 import { voidDuplicateWellnessOrder, wellnessOrderDocuments } from "../src/lib/wellness";
 import { resendWellnessReceipt } from "../src/lib/wellness-email";
+import { dispatchShopOrderEmails } from "../src/lib/shop-email";
+import { getPendingShopWithdrawalIds, getShopWithdrawal, markShopWithdrawalHandled, submitShopWithdrawal } from "../src/lib/shop-withdrawals";
 
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "RESEND_API_KEY", "EMAIL_FROM"]) delete process.env[key];
 Object.assign(process.env, { TIBB_DATABASE_PATH: ":memory:", APP_URL: "https://wellness.example.test", SHOP_PAYMENT_PROVIDER: "kustom", KUSTOM_ENVIRONMENT: "playground", KUSTOM_API_USERNAME: "synthetic-test-user", KUSTOM_API_PASSWORD: "synthetic-test-password", KUSTOM_LIVE_ENABLED: "0" });
@@ -25,7 +27,7 @@ before(async () => {
   adminId = (await createFirstAdmin({ name: "Wellness Admin", email: "wellness-admin@example.test", passwordHash: hashPassword("synthetic wellness password") })).id;
   studentId = (await createUser({ name: "Other Customer", email: "other@example.test", passwordHash: hashPassword("synthetic customer password"), role: "student" })).id;
   await getDb().prepare("UPDATE shop_settings SET enabled=1,pickup_enabled=1,pickup_address='Fiktiv testadress 1',terms='Syntetiska testvillkor för testverksamheten' WHERE id=1").run();
-  await getDb().prepare("UPDATE settings SET email='wellness@example.test',address='Fiktiv testadress 1, 12345 Teststad' WHERE id=1").run();
+  await getDb().prepare("UPDATE settings SET email='wellness@example.test',address='Fiktiv testadress 1, 12345 Teststad',phone='0700000000' WHERE id=1").run();
   await saveBusinessSettings(adminId, { ...DEFAULT_BUSINESS_SETTINGS, legalName: "Fiktiv Testverksamhet AB" });
   await saveWellnessSeller(adminId, { vatNumber: "SE000000000001", address: "Fiktiv testadress 1, 12345 Teststad" });
 });
@@ -136,6 +138,55 @@ test("checkout completion/authorization alone cannot create a paid order, receip
   assert.equal((await getShopOrderByReference(order.reference))!.status,"pending");
   assert.equal((await receipts(order.reference)).length,0);
   assert.equal((await getDb().prepare("SELECT id FROM wellness_passes WHERE order_reference=?").all(order.reference)).length,0);
+});
+
+test("an explicit withdrawal is recorded once, stops capture and sends dated proof with retries", async (t) => {
+  const { order } = await fixture([1, 0]);
+  const request = { reference: order.reference, name: order.name, email: order.email, confirmed: true as const };
+  await assert.rejects(submitShopWithdrawal({ ...request, email: "wrong@example.test" }), /hittar ingen/);
+  await assert.rejects(submitShopWithdrawal({ ...request, confirmed: false as unknown as true }));
+  const [one, two] = await Promise.all([submitShopWithdrawal(request), submitShopWithdrawal(request)]);
+  assert.deepEqual(one, two);
+  assert.equal((await getShopWithdrawal(order.id))?.name, order.name);
+  assert.ok((await getPendingShopWithdrawalIds(adminId)).has(order.id));
+
+  const fake = gateway(order);
+  await createKustomCheckout(order.reference, fake.client);
+  fake.complete();
+  await reconcileKustomOrder(order.reference, { client: fake.client });
+  assert.equal(fake.calls.filter(call => call.path.endsWith("/captures")).length, 0);
+  const agreement = await getDb().prepare("SELECT body FROM shop_agreement_email_outbox WHERE order_id=?").get(order.id);
+  assert.match(String(agreement?.body), /Standardformulär/);
+  assert.match(String(agreement?.body), /Syntetiska testvillkor/);
+
+  process.env.RESEND_API_KEY = "synthetic-key";
+  process.env.EMAIL_FROM = "noreply@example.test";
+  const attempts = new Map<string, number>();
+  const messages: { text: string; to: string[] }[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: string, options: RequestInit) => {
+    const key = new Headers(options.headers).get("Idempotency-Key")!;
+    attempts.set(key, (attempts.get(key) ?? 0) + 1);
+    const message = JSON.parse(String(options.body));
+    if (message.to.includes(order.email) && attempts.get(key) === 1) return new Response(null, { status: 503 });
+    messages.push(message);
+    return Response.json({ id: key });
+  });
+  try {
+    const first = await dispatchShopOrderEmails({ orderId: order.id, event: "withdrawal" });
+    assert.equal(first.failed, 1);
+    await getDb().prepare("UPDATE shop_withdrawal_email_outbox SET next_attempt_at=? WHERE order_id=? AND status='pending'").run(one.receivedAt, order.id);
+    const retry = await dispatchShopOrderEmails({ orderId: order.id, event: "withdrawal" });
+    assert.equal(retry.sent, 1);
+    assert.deepEqual([...attempts.values()].sort(), [1, 2]);
+    assert.match(messages.find(message => message.to.includes(order.email))!.text, /svensk tid/);
+    assert.equal((await dispatchShopOrderEmails({ orderId: order.id, event: "withdrawal" })).sent, 0);
+  } finally {
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
+  }
+  await assert.rejects(markShopWithdrawalHandled(studentId, order.id), /behörighet/);
+  await markShopWithdrawalHandled(adminId, order.id);
+  assert.ok(!(await getPendingShopWithdrawalIds(adminId)).has(order.id));
 });
 test("verified digital card capture activates each service once, snapshots history, and creates one receipt/outbox entry", async () => {
   const { order, first, second } = await fixture(); const fake = gateway(order);

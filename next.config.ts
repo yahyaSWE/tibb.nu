@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
         source,
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       })),
-      ...["/verifiera-epost", "/aterstall-losenord", "/bokning/:path*", "/bestallning/:path*", "/kurskop/:path*", "/anamnes", "/api/anamnes/:path*"].map((source) => ({
+      ...["/verifiera-epost", "/aterstall-losenord", "/bokning/:path*", "/bestallning/:path*", "/friskvard/angra-kop", "/kurskop/:path*", "/anamnes", "/api/anamnes/:path*"].map((source) => ({
         source,
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       })),

@@ -19,13 +19,15 @@ export async function GET(request: Request) {
       const status = await wellnessCheckoutStatus(await getShopSettings());
       return Response.json(status, { headers: { "Cache-Control": "no-store" } });
     }
+    const withdrawals = await dispatchShopOrderEmails({ event: "withdrawal", limit: 5 });
+    const agreements = await dispatchShopOrderEmails({ event: "agreement", limit: 5 });
     const bookings = await dispatchBookingEmailOutbox({ limit: 5 });
     const cancellations = await dispatchBookingEmailOutbox({ limit: 3, event: "cancellation" });
     const bookingRefunds = await dispatchDueBookingRefunds(1);
     const orders = await dispatchShopOrderEmails({ limit: 5 });
     const wellness = await dispatchWellnessEmails({ limit: 5 });
     const intake = await dispatchIntakeEmails({ limit: 5 });
-    return Response.json({ ...bookings, cancellations, bookingRefunds, orders, wellness, intake }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ...bookings, cancellations, bookingRefunds, orders, withdrawals, agreements, wellness, intake }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Utskicksjobbet kunde inte slutföras. Kontrollera serverns anslutning." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }

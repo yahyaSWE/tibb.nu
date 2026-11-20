@@ -5,6 +5,7 @@ import { getShopSettings, wellnessCheckoutReady } from "@/lib/shop";
 import { createPageMetadata } from "@/lib/seo";
 import { WellnessBuilder } from "@/components/wellness-builder";
 import { getPublicWellnessServices, WELLNESS_RULES_URL } from "@/lib/wellness";
+import { withdrawalPath } from "@/lib/withdrawal-form-text";
 import "./wellness.css";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,7 @@ export default async function WellnessPage() {
               Se tjänster och priser <ArrowDown size={17} aria-hidden="true" />
             </a>
             <a className="text-link" href="#friskvardsbidrag">Så fungerar friskvårdsbidraget</a>
+            <Link className="text-link" href={withdrawalPath}>Ångra köp</Link>
           </div>
           {products.length > 0 && !available && <p className="wellness-intro-status">Onlineköp är pausat. Du kan fortfarande se priser och sätta ihop ett paket.</p>}
         </div>

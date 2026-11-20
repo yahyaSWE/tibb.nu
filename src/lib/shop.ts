@@ -63,13 +63,14 @@ export async function getShopSettings(): Promise<ShopSettings> {
   return { enabled: !!row.enabled, shippingEnabled: !!row.shipping_enabled, pickupEnabled: !!row.pickup_enabled, shippingPriceOre: Number(row.shipping_price_ore), freeShippingThresholdOre: row.free_shipping_threshold_ore == null ? null : Number(row.free_shipping_threshold_ore), pickupAddress: String(row.pickup_address), pickupInstructions: String(row.pickup_instructions), terms: String(row.terms), shippingRuleMode: !!row.shipping_rule_mode, packingWeightGrams: Number(row.packing_weight_grams) };
 }
 export async function wellnessCheckoutStatus(settings: ShopSettings) {
-  const blockers: ("payment" | "terms" | "paused" | "seller")[] = [];
+  const blockers: ("payment" | "terms" | "paused" | "seller" | "phone")[] = [];
   if (shopPaymentProvider() !== "kustom" || !kustomReady()) blockers.push("payment");
   if (settings.terms.length < 20) blockers.push("terms");
   if (!settings.enabled && (process.env.WELLNESS_CHECKOUT_ENABLED ?? (process.env.VERCEL_ENV === "production" ? "1" : "0")) !== "1") blockers.push("paused");
   const { getWellnessSeller } = await import("./wellness");
   try {
-    await getWellnessSeller(true);
+    const seller = await getWellnessSeller(true);
+    if ((seller.phone?.replace(/\D/g, "").length ?? 0) < 7) blockers.push("phone");
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     blockers.push("seller");
@@ -196,6 +197,8 @@ export async function updateShopFulfillment(actorId: number, id: number, input: 
     await assertAdmin(actorId);
     const value = z.object({ fulfillment: z.enum(["unfulfilled", "ready", "shipped", "collected"]), trackingNumber: text(100) }).parse(input);
     const current = await getShopOrderById(id);
+    if (await getDb().prepare("SELECT 1 AS found FROM shop_withdrawals WHERE order_id=? AND handled_at IS NULL").get(id))
+      throw new DomainError("Kunden har ångrat köpet. Handlägg ärendet innan beställningen lämnas ut.");
     const captured = current && await getDb().prepare("SELECT order_reference FROM kustom_checkouts WHERE order_reference=? AND captured=1 AND refunded_ore=0").get(current.reference);
     if (!current || (current.status !== "paid" && !(current.status === "pending" && captured))) throw new DomainError("Endast betalda eller verifierat Kustom-debiterade beställningar kan lämnas ut eller skickas.");
     if (current.delivery === "shipping" && !["unfulfilled", "shipped"].includes(value.fulfillment)) throw new DomainError("En fraktbeställning ska markeras som skickad.");

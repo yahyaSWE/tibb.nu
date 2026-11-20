@@ -12,7 +12,7 @@ import { text } from "./validation";
 import type { ShopOrder, ShopOrderItem } from "./shop-types";
 import { WELLNESS_ADDRESS_THRESHOLD_ORE } from "./shop-types";
 
-export type WellnessSeller = { legalName: string; organizationNumber: string; vatNumber: string; address: string; email: string; website: string };
+export type WellnessSeller = { legalName: string; organizationNumber: string; vatNumber: string; address: string; email: string; website: string; phone?: string };
 export type WellnessReceipt = {
   number: string; kind: "purchase" | "correction"; originalNumber?: string;
   duplicateOfOrder?: number;
@@ -48,16 +48,19 @@ export async function getWellnessSeller(requireComplete = false): Promise<Wellne
   const [business, settings, stored] = await Promise.all([getBusinessSettings(), getSettings(), getDb().prepare("SELECT value FROM app_meta WHERE key='wellness_seller_v1'").get()]);
   const custom = stored ? JSON.parse(String(stored.value)) : {};
   let website = ""; try { website = appUrl(); } catch { /* A draft can be prepared before configuration. */ }
-  const seller = { legalName: business.legalName, organizationNumber: business.organizationNumber,
+  const seller = { legalName: String(custom.legalName || business.legalName), organizationNumber: String(custom.organizationNumber || business.organizationNumber),
     vatNumber: String(custom.vatNumber || ""), address: String(custom.address || settings.address || ""),
-    email: settings.email, website };
+    email: settings.email, website, phone: String(custom.phone || settings.phone || "") };
   if (requireComplete && (!/^SE\d{12}$/.test(seller.vatNumber) || seller.address.length < 5 || !z.email().safeParse(seller.email).success || !website))
     throw new DomainError("Fyll i verksamhetens momsregistreringsnummer, adress, e-post och APP_URL innan friskvårdsköp kan tas emot.");
   return seller;
 }
 export async function saveWellnessSeller(actorId: number, input: unknown) {
   await assertAdmin(actorId);
-  const value = z.object({ vatNumber: z.string().trim().regex(/^SE\d{12}$/, "Ange det registrerade momsnumret, till exempel SE följt av tolv siffror."), address: text(1000, 5) }).parse(input);
+  const value = z.object({ vatNumber: z.string().trim().regex(/^SE\d{12}$/, "Ange det registrerade momsnumret, till exempel SE följt av tolv siffror."),
+    address: text(1000, 5), legalName: text(150).optional(),
+    organizationNumber: z.string().trim().regex(/^(?:\d{6}-?\d{4})?$/, "Ange ett organisationsnummer med tio siffror.").optional(),
+    phone: z.string().trim().regex(/^(?:\+?[\d ()-]{7,30})?$/, "Ange ett telefonnummer till verksamheten.").optional() }).parse(input);
   await getDb().prepare("INSERT INTO app_meta(key,value) VALUES('wellness_seller_v1',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(JSON.stringify(value));
 }
 export async function saveWellnessService(actorId: number, input: unknown) {
@@ -259,8 +262,11 @@ export async function changeWellnessPass(actorId: number, input: unknown) {
       if (duplicate.pass_id !== v.passId || duplicate.reason !== v.reason || String(duplicate.reverses_id || "") !== (v.reverseId || "")) throw new DomainError("Åtgärdsreferensen har redan använts för en annan registrering.");
       return;
     }
-    const pass = await getDb().prepare("SELECT p.*,o.payment_status FROM wellness_passes p JOIN shop_orders o ON o.reference=p.order_reference WHERE p.id=?").get(v.passId);
+    const pass = await getDb().prepare(`SELECT p.*,o.payment_status,w.received_at AS withdrawal_pending
+      FROM wellness_passes p JOIN shop_orders o ON o.reference=p.order_reference
+      LEFT JOIN shop_withdrawals w ON w.order_id=o.id AND w.handled_at IS NULL WHERE p.id=?`).get(v.passId);
     if (!pass || pass.status !== "active" || pass.payment_status !== "paid") throw new DomainError("Klippkortet är spärrat eller inte aktivt.");
+    if (pass.withdrawal_pending && !v.reverseId) throw new DomainError("Kunden har ångrat köpet. Handlägg ärendet innan fler klipp används.");
     let change = -1;
     if (v.reverseId) {
       const original = await getDb().prepare("SELECT id FROM wellness_redemptions WHERE id=? AND pass_id=? AND change=-1 AND NOT EXISTS(SELECT 1 FROM wellness_redemptions WHERE reverses_id=?)").get(v.reverseId, v.passId, v.reverseId);

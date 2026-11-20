@@ -163,9 +163,14 @@ export async function reconcileKustomOrder(reference: string, options: { client?
   await getDb().prepare("UPDATE kustom_checkouts SET authorized=1,method=?,updated_at=? WHERE order_reference=?")
     .run(managed.initial_payment_method.type, new Date().toISOString(), reference);
   await client.request(`/ordermanagement/v1/orders/${providerId}/acknowledge`, "POST", {}, operationKey(String(record.capture_key), "acknowledge"));
+  if (["AUTHORIZED", "CAPTURED", "CLOSED"].includes(managed.status)) {
+    const { queueWellnessAgreement } = await import("./shop-email");
+    await queueWellnessAgreement(order);
+  }
   // Digital passes are delivered at capture. Physical goods require the admin
   // to capture explicitly when fulfilling, rather than charging on redirect.
-  if (managed.status === "AUTHORIZED" && (options.capture || order.items.every(item => item.isService))) {
+  const withdrawing = await getDb().prepare("SELECT 1 AS found FROM shop_withdrawals WHERE order_id=? AND handled_at IS NULL").get(order.id);
+  if (!withdrawing && managed.status === "AUTHORIZED" && (options.capture || order.items.every(item => item.isService))) {
     await client.request(`/ordermanagement/v1/orders/${providerId}/captures`, "POST", {
       captured_amount: order.totalOre, order_lines: kustomOrderLines(order), reference,
     }, String(record.capture_key));

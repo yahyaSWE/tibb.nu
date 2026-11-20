@@ -27,7 +27,10 @@ export async function saveWellnessServiceAction(form: FormData) {
     vatPercent: Number(field(form, "vatPercent")), validityMonths: Number(field(form, "validityMonths")),
     active: field(form, "active") === "on", eligibilityConfirmed: field(form, "eligibilityConfirmed") === "on" }));
 }
-export async function saveWellnessSellerAction(form: FormData) { return run(id => saveWellnessSeller(id, { vatNumber: field(form, "vatNumber"), address: field(form, "address") })); }
+export async function saveWellnessSellerAction(form: FormData) {
+  return run(id => saveWellnessSeller(id, { vatNumber: field(form, "vatNumber"), address: field(form, "address"),
+    legalName: field(form, "legalName"), organizationNumber: field(form, "organizationNumber"), phone: field(form, "phone") }));
+}
 export async function useWellnessPassAction(form: FormData) { return run(id => changeWellnessPass(id, { passId: field(form, "passId"), operationId: field(form, "operationId"), reason: field(form, "reason"), ...(field(form, "reverseId") ? { reverseId: field(form, "reverseId") } : {}) })); }
 export async function resendWellnessAction(form: FormData) { return run(id => resendWellnessReceipt(id, field(form, "receiptId"))); }
 export async function voidDuplicateWellnessAction(form: FormData) {

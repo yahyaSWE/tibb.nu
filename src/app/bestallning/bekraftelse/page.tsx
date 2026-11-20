@@ -11,6 +11,8 @@ import { formatDateTime, formatMoney } from "@/lib/time";
 import { TextContent } from "@/components/learning/cards";
 import { OrderControls } from "@/components/shop/order-controls";
 import { ClearPurchasedCart } from "@/components/shop/shop-cart";
+import { getShopWithdrawal } from "@/lib/shop-withdrawals";
+import { WithdrawalForm } from "@/components/shop/withdrawal-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { ...PRIVATE_METADATA, title: "Din beställning" };
@@ -23,9 +25,11 @@ export default async function OrderConfirmationPage({
   if (typeof ref !== "string" || !/^[a-f0-9]{32}$/.test(ref)) notFound();
   const order = await getShopOrderByReference(ref);
   if (!order) notFound();
-  const [settings, email] = await Promise.all([
+  const wellness = order.items.some(item => item.wellness);
+  const [settings, email, withdrawal] = await Promise.all([
     getSiteSettings(),
     getShopOrderEmailStatus(order.id),
+    wellness ? getShopWithdrawal(order.id) : null,
   ]);
   const paid = order.status === "paid" && order.paymentStatus === "paid";
   const pending = order.status === "pending";
@@ -95,7 +99,12 @@ export default async function OrderConfirmationPage({
           </p>
         )}
         <WellnessOrderDocuments reference={order.reference} />
-        {pending && <OrderControls reference={order.reference} pending={pending} kustom={kustom} />}
+        {wellness && (withdrawal
+          ? <p className="notice">Vi tog emot ditt meddelande om att du ångrar köpet {formatDateTime(withdrawal.receivedAt)} svensk tid.</p>
+          : <details className="shop-checkout-terms"><summary>Ångra köp</summary>
+            <WithdrawalForm order={{ reference: order.reference, name: order.name, email: order.email }} />
+          </details>)}
+        {pending && !withdrawal && <OrderControls reference={order.reference} pending={pending} kustom={kustom} />}
         <dl className="detail-list">
           <div>
             <dt>Beställningsreferens</dt>

@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     const result = await reconcileKustomOrder(reference);
     after(async () => {
       const order = await getShopOrderByReference(reference);
+      if (order) await dispatchShopOrderEmails({ orderId: order.id, event: "agreement", limit: 1 });
       if (order?.paymentStatus === "paid") await dispatchShopOrderEmails({ orderId: order.id, limit: 2 });
       await dispatchWellnessEmails({ reference, limit: 2 });
     });

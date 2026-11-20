@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { PDFDocument } from "pdf-lib";
-import { bookingCancellationDecision } from "../src/lib/booking-cancellation-policy";
+import { bookingCancellationDecision, bookingCancellationStatusText } from "../src/lib/booking-cancellation-policy";
 import { dispatchBookingRefund, getBookingCancellation, requestBookingCancellation } from "../src/lib/booking-cancellations";
 import { createFirstAdmin, getBookingById, getDb, reserveBooking } from "../src/lib/db";
 import { dispatchBookingEmailOutbox } from "../src/lib/email-outbox";
@@ -49,6 +49,7 @@ test("the cancellation cutoff includes exactly 24 hours and late onsite payment 
   assert.equal(bookingCancellationDecision(value, 24, start.getTime() - 24 * hour), "refund");
   assert.equal(bookingCancellationDecision(value, 24, start.getTime() - 24 * hour + 1), "retain");
   assert.equal(bookingCancellationDecision({ ...value, paymentStatus: "pending", paymentMethod: "onsite" }, 24, start.getTime() - hour), "collect");
+  assert.match(bookingCancellationStatusText("collect", value), /har betalats/);
 });
 
 test("customer cancellation frees the slot, refunds exactly once through Kustom and delivers both branded alerts", async t => {

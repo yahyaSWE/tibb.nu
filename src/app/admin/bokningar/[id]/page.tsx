@@ -7,7 +7,7 @@ import { getBookingEmailStatus, type BookingEmailState } from "@/lib/email-outbo
 import { retryBookingEmailsAction } from "@/lib/account-actions";
 import { SubmitButton } from "@/components/admin/submit-button";
 import { getBookingCancellation, getBookingCancellationHours } from "@/lib/booking-cancellations";
-import { bookingCancellationDecision, bookingCancellationText } from "@/lib/booking-cancellation-policy";
+import { bookingCancellationDecision, bookingCancellationStatusText, bookingCancellationText } from "@/lib/booking-cancellation-policy";
 import {
   AdminHeading,
   AdminNotice,
@@ -149,8 +149,7 @@ export default async function BookingDetailPage({
           <SectionHeading title="Hantera bokningen" />
           {booking.status === "cancelled" ? <>
             <p className="notice">
-              {booking.paymentStatus === "refunded" ? "Hela det betalda bokningsbeloppet har återbetalats."
-                : cancellation ? bookingCancellationText(cancellation.decision, booking.priceOre) : "Bokningen är avbokad."}
+              {cancellation ? bookingCancellationStatusText(cancellation.decision, booking) : "Bokningen är avbokad."}
             </p>
             {paymentAction && <form action={handleCancelledBookingPaymentAction} className="stack">
               <ReturnTo path={`/admin/bokningar/${id}`} />

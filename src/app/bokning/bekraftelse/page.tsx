@@ -13,7 +13,7 @@ import { BookingPreparation } from "@/components/booking-preparation";
 import { BookingPaymentStatus } from "@/components/booking-payment-status";
 import { getKustomBookingPaymentLink, wasKustomBookingCheckoutRejected } from "@/lib/kustom-service-payments";
 import { getBookingCancellation, getBookingCancellationHours } from "@/lib/booking-cancellations";
-import { bookingCancellationDecision, bookingCancellationText } from "@/lib/booking-cancellation-policy";
+import { bookingCancellationDecision, bookingCancellationStatusText, bookingCancellationText } from "@/lib/booking-cancellation-policy";
 import { cancelCustomerBookingAction } from "@/lib/actions";
 import { SubmitButton } from "@/components/admin/submit-button";
 
@@ -71,8 +71,7 @@ export default async function ConfirmationPage({
           {pending
             ? kustomPending ? "Vi kontrollerar betalningen automatiskt. Bokningen visas här så snart den har bekräftats." : "Bokningen bekräftas när betalningen har verifierats. Uppdatera sidan om en stund."
             : checkoutRejected ? "Ingen betalning drogs och tiden är inte reserverad. Kontakta oss om du vill ha hjälp med bokningen." : cancelled
-              ? cancellation ? booking.paymentStatus === "refunded" ? "Hela det betalda bokningsbeloppet har återbetalats."
-                : bookingCancellationText(cancellation.decision, booking.priceOre) : "Bokningen har avbokats eller betalningstiden har löpt ut."
+              ? cancellation ? bookingCancellationStatusText(cancellation.decision, booking) : "Bokningen har avbokats eller betalningstiden har löpt ut."
               : "Spara den här sidan så att du har alla uppgifter inför ditt besök."}
         </p>
         {error && <p className="notice notice-error" role="alert">{error}</p>}

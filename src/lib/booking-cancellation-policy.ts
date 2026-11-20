@@ -23,3 +23,10 @@ export function bookingCancellationText(decision: CancellationDecision, amountOr
     case "unpaid": return "Ingen betalning ska tas ut för den avbokade tiden.";
   }
 }
+
+export function bookingCancellationStatusText(decision: CancellationDecision, booking: Pick<Booking, "priceOre" | "paymentStatus">) {
+  if (booking.paymentStatus === "refunded") return "Hela det betalda bokningsbeloppet har återbetalats.";
+  if (decision === "collect" && booking.paymentStatus === "paid")
+    return `Bokningsbeloppet på ${formatMoney(booking.priceOre)} har betalats.`;
+  return bookingCancellationText(decision, booking.priceOre);
+}

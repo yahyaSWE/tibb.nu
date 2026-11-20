@@ -116,9 +116,9 @@ function allocate(total: number, amounts: number[]): number[] {
   for (const share of [...shares].sort((a, b) => a.remainder === b.remainder ? a.index-b.index : a.remainder > b.remainder ? -1 : 1)) { if (!remaining) break; share.value++; remaining--; }
   return shares.sort((a, b) => a.index - b.index).map((p) => p.value);
 }
-export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSettings): Promise<{ quote: ShopQuote; inventory: InventoryLine[]; couponId: number | null }> {
+export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSettings, wellnessOnly = false): Promise<{ quote: ShopQuote; inventory: InventoryLine[]; couponId: number | null }> {
   const v = shopQuoteSchema.parse(input);
-  if (!settings.enabled) throw new DomainError("Butiken tar inte emot nya beställningar just nu.");
+  if (!settings.enabled && !wellnessOnly) throw new DomainError("Butiken tar inte emot nya beställningar just nu.");
   const products = new Map((await loadShopProducts()).map((p) => [p.id, p]));
   const inventoryMap = new Map<number, number>(); const items: ShopQuoteItem[] = [];
   let knownWeight = true, totalWeight = 0;
@@ -126,6 +126,7 @@ export async function calculateShopQuote(input: ShopQuoteInput, settings: ShopSe
   for (const line of [...v.items].sort((a, b) => a.productId - b.productId)) {
     const p = products.get(line.productId);
     if (!p || !publiclyAvailable(p, products)) throw new DomainError("En produkt i varukorgen är inte längre tillgänglig.");
+    if (wellnessOnly && !(p.isService && p.wellnessEligible)) throw new DomainError("Varukorgen kan bara innehålla friskvårdstjänster just nu.");
     if (!p.isService) { if (!p.weightGrams) knownWeight = false; else totalWeight += p.weightGrams * line.quantity; }
     const base = p.priceOre * line.quantity;
     const item: ShopQuoteItem = { productId: p.id, name: p.name, quantity: line.quantity, priceOre: p.priceOre, vatPercent: p.vatPercent, kind: p.kind, lineTotalOre: base, originalLineTotalOre: Math.max(p.priceOre, p.bundleOriginalPriceOre ?? 0) * line.quantity };

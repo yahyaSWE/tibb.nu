@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getShopSettings } from "@/lib/shop";
+import { getShopSettings, wellnessCheckoutReady } from "@/lib/shop";
 import { getBusinessSettings } from "@/lib/business-settings";
 import { getSiteSettings } from "@/lib/site-data";
 import { createPageMetadata, PRIVATE_METADATA } from "@/lib/seo";
@@ -19,7 +19,7 @@ export async function generateMetadata() {
 }
 export default async function ShopTermsPage() {
   const shop = await getShopSettings();
-  if (!shop.enabled) notFound();
+  if (!shop.enabled && !await wellnessCheckoutReady(shop)) notFound();
   const [business, site] = await Promise.all([
     getBusinessSettings(),
     getSiteSettings(),
@@ -44,7 +44,7 @@ export default async function ShopTermsPage() {
         </p>
       )}
       <p>
-        <Link href="/butik">Till butiken</Link> ·{" "}
+        <Link href={shop.enabled ? "/butik" : "/friskvard"}>{shop.enabled ? "Till butiken" : "Till friskvård"}</Link> ·{" "}
         <Link href="/integritet">Integritet och personuppgifter</Link>
       </p>
     </section>

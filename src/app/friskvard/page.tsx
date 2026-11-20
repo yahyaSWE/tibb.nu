@@ -1,10 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowDown, ArrowRight, ChevronDown } from "lucide-react";
-import { getShopSettings } from "@/lib/shop";
+import { getShopSettings, wellnessCheckoutReady } from "@/lib/shop";
 import { createPageMetadata } from "@/lib/seo";
 import { WellnessBuilder } from "@/components/wellness-builder";
-import { kustomReady, shopPaymentProvider } from "@/lib/shop-payment-config";
 import { getPublicWellnessServices, WELLNESS_RULES_URL } from "@/lib/wellness";
 import "./wellness.css";
 
@@ -44,7 +43,7 @@ const questions = [
 
 export default async function WellnessPage() {
   const [products, settings] = await Promise.all([getPublicWellnessServices(), getShopSettings()]);
-  const available = products.length > 0 && settings.enabled && shopPaymentProvider() === "kustom" && kustomReady();
+  const available = products.length > 0 && await wellnessCheckoutReady(settings);
 
   return (
     <div className="wellness-page container">

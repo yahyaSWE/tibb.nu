@@ -103,7 +103,7 @@ export function AddToCart({
   );
 }
 
-export function CartPageContent({ products }: { products: ShopProduct[] }) {
+export function CartPageContent({ products, wellnessOnly = false }: { products: ShopProduct[]; wellnessOnly?: boolean }) {
   const cart = useShopCart();
   const summary = cartSummary(cart.lines, products);
   const digital = summary.rows.every(row => row.product?.isService);
@@ -121,8 +121,8 @@ export function CartPageContent({ products }: { products: ShopProduct[] }) {
         <p className="muted">
           Utforska sortimentet och lägg till det du vill beställa.
         </p>
-        <Link href="/butik" className="button button-primary">
-          Till butiken <ArrowRight size={17} aria-hidden="true" />
+        <Link href={wellnessOnly ? "/friskvard" : "/butik"} className="button button-primary">
+          {wellnessOnly ? "Till friskvård" : "Till butiken"} <ArrowRight size={17} aria-hidden="true" />
         </Link>
       </div>
     );
@@ -146,7 +146,7 @@ export function CartPageContent({ products }: { products: ShopProduct[] }) {
                 <div>
                   <h2>
                     {row.product ? (
-                      <Link href={`/butik/${row.product.slug}`}>
+                      <Link href={wellnessOnly ? `/friskvard#service-${row.product.id}` : `/butik/${row.product.slug}`}>
                         {row.product.name}
                       </Link>
                     ) : (

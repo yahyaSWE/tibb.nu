@@ -42,7 +42,7 @@ Betalda produktbeställningar har en separat outbox med samma skydd och återfö
 
 Varje jobb har ett beständigt idempotensvärde och en atomisk arbetsreservation. Osäkra svar kan återförsökas med samma avsändare, mottagare och innehåll. Högst fem försök tillåts, med ökande väntetid, inom 23 timmar från första försöket. Därefter stoppas jobbet för att inte överskrida Resends 24-timmarsfönster för idempotens och skapa dubbletter. Kontrollera Resend innan ett stoppat utskick hanteras manuellt; den vanliga återförsöksknappen nollställer inte gränserna.
 
-Ett schemalagt jobb är **inte aktiverat automatiskt**. Efter att tjänsten anslutits kan ägaren konfigurera Vercel Cron för `GET /api/email/outbox` med den hemliga `Authorization: Bearer`-header som Vercel använder för `CRON_SECRET`. Endpointen kräver minst 32 tecken, hanterar högst tio förfallna jobb och returnerar enbart räknare. Anpassa frekvensen till projektets faktiska Vercel-plan; kontrollera jobbets status och begränsningar i dashboarden. Vercel Hobbys dagliga cron räcker inte säkert för återförsöksfönstret på 23 timmar; se [driftguiden](operations.md) för alternativ. Utan schemaläggning behandlar admin väntande återförsök manuellt.
+GitHub Actions anropar `GET /api/email/outbox` i produktion var femtonde minut. Samma körning behandlar även avbokningsmejl, friskvårdsutskick, intake-aviseringar och väntande bokningsåterbetalningar. Endpointen returnerar räknare. GitHub använder en kortlivad OIDC-token med behörighet för arbetsflödet på `main`, så `CRON_SECRET` är valfritt för detta jobb. Följ körningarna i [driftguiden](operations.md).
 
 ## Kontroller före skarp användning
 

@@ -62,6 +62,18 @@ export async function getShopSettings(): Promise<ShopSettings> {
   const row = (await getDb().prepare("SELECT * FROM shop_settings WHERE id=1").get())!;
   return { enabled: !!row.enabled, shippingEnabled: !!row.shipping_enabled, pickupEnabled: !!row.pickup_enabled, shippingPriceOre: Number(row.shipping_price_ore), freeShippingThresholdOre: row.free_shipping_threshold_ore == null ? null : Number(row.free_shipping_threshold_ore), pickupAddress: String(row.pickup_address), pickupInstructions: String(row.pickup_instructions), terms: String(row.terms), shippingRuleMode: !!row.shipping_rule_mode, packingWeightGrams: Number(row.packing_weight_grams) };
 }
+export async function wellnessCheckoutReady(settings: ShopSettings): Promise<boolean> {
+  if (shopPaymentProvider() !== "kustom" || !kustomReady() || settings.terms.length < 20) return false;
+  if (!settings.enabled && (process.env.WELLNESS_CHECKOUT_ENABLED ?? (process.env.VERCEL_ENV === "production" ? "1" : "0")) !== "1") return false;
+  const { getWellnessSeller } = await import("./wellness");
+  try {
+    await getWellnessSeller(true);
+    return true;
+  } catch (error) {
+    if (error instanceof DomainError) return false;
+    throw error;
+  }
+}
 export async function saveShopSettings(actorId: number, input: ShopSettings): Promise<ShopSettings> {
   return transaction(async () => {
     await assertAdmin(actorId);
@@ -225,9 +237,9 @@ export async function reserveShopOrder(input: unknown): Promise<ShopOrder> {
     }
     await expireShopOrders();
     const settings = await getShopSettings();
-    if (!settings.enabled) throw new DomainError("Butiken tar inte emot nya beställningar just nu.");
-    await assertReady(settings);
-    const {quote,inventory,couponId} = await calculateShopQuote(value,settings);
+    const wellnessOnly = !settings.enabled && await wellnessCheckoutReady(settings);
+    if (settings.enabled) await assertReady(settings);
+    const {quote,inventory,couponId} = await calculateShopQuote(value, settings, wellnessOnly);
     if (value.expectedQuote && value.expectedQuote !== quote.fingerprint) throw new DomainError("Priset, erbjudandet eller leveransen har ändrats. Beräkna priset igen och granska beställningen innan du fortsätter.");
     for (const item of inventory) {
       const current = (await getDb().prepare("SELECT updated_at FROM shop_products WHERE id=?").get(item.productId))!;
@@ -254,7 +266,9 @@ export async function reserveShopOrder(input: unknown): Promise<ShopOrder> {
 }
 export async function quoteShopCart(input: ShopQuoteInput): Promise<ShopQuote> {
   await expireShopOrders();
-  return (await calculateShopQuote(input,await getShopSettings())).quote;
+  const settings = await getShopSettings();
+  const wellnessOnly = !settings.enabled && await wellnessCheckoutReady(settings);
+  return (await calculateShopQuote(input, settings, wellnessOnly)).quote;
 }
 export async function attachShopCheckout(reference: string, sessionId: string, expiresAt: number): Promise<void> {
   await transaction(async () => {

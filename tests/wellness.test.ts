@@ -86,6 +86,30 @@ test("published wellness services remain visible when the shop checkout is close
   }
 });
 
+test("independent wellness checkout only quotes and reserves wellness services", async () => {
+  const { input } = await fixture([1, 0], true);
+  const wellnessInput = { ...input, items: [input.items[0]] };
+  const previous = process.env.WELLNESS_CHECKOUT_ENABLED;
+  await getDb().prepare("UPDATE shop_settings SET enabled=0 WHERE id=1").run();
+  process.env.WELLNESS_CHECKOUT_ENABLED = "1";
+  try {
+    assert.deepEqual(await getPublicShopProducts(), []);
+    await assert.rejects(quoteShopCart(input), /bara innehålla friskvård/);
+    await assert.rejects(reserveShopOrder(input), /bara innehålla friskvård/);
+    const quote = await quoteShopCart(wellnessInput);
+    const order = await reserveShopOrder({ ...wellnessInput, expectedQuote: quote.fingerprint });
+    assert.equal(order.totalOre, 50000);
+    assert.equal(order.shippingOre, 0);
+    assert.ok(order.items[0].wellness);
+    process.env.WELLNESS_CHECKOUT_ENABLED = "0";
+    await assert.rejects(quoteShopCart(wellnessInput), /tar inte emot/);
+  } finally {
+    if (previous === undefined) delete process.env.WELLNESS_CHECKOUT_ENABLED;
+    else process.env.WELLNESS_CHECKOUT_ENABLED = previous;
+    await getDb().prepare("UPDATE shop_settings SET enabled=1 WHERE id=1").run();
+  }
+});
+
 test("wellness prices and tax are integer öre; 500, 4000 and 4100 examples have exact VAT and no shipping", async () => {
   for (const [quantities, total] of [[[1,0],50000], [[8,0],400000], [[7,1],410000]] as const) {
     const { order } = await fixture([...quantities]);

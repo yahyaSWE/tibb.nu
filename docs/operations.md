@@ -6,7 +6,9 @@ Den här guiden förbereder rutiner. Den innebär inte att produktionsbackup, å
 
 Öppna Admin → Bokningar och kontrollera nya bokningar och deras betalningsstatus. Betalning på plats bekräftas utan Stripe; markera betalning först när den mottagits. Kontrollera bokningsmejl i varje bokning. ”Accepterat av Resend” beskriver API-mottagning; leverans eller studs kontrolleras i Resend.
 
-Misslyckade utskick ligger i databasen. Admin kan behandla väntande utskick. Automatiska återförsök behöver en scheduler som anropar den skyddade `/api/email/outbox` regelbundet med `Authorization: Bearer <CRON_SECRET>`. Följ [e-postguiden](email-setup.md). Vercel Hobby tillåter högst daglig cron, vilket inte räcker säkert för applikationens återförsöksfönster på 23 timmar. Tätare Vercel-cron behöver annan plannivå; en extern scheduler är också möjlig. Ingen betald tjänst eller scheduler har aktiverats här. [Vercels cronbegränsningar](https://vercel.com/docs/cron-jobs/usage-and-pricing).
+Misslyckade utskick och väntande bokningsåterbetalningar ligger i databasen. GitHub Actions kör den skyddade `/api/email/outbox` mot `www.tibb.nu` var femtonde minut med en kortlivad OIDC-token. Följ körningarna under Actions → Email and refund retries. Kör vid behov samma jobb manuellt från `main`. I publika repon stänger GitHub av schemat efter 60 dagars inaktivitet. Aktivera då arbetsflödet igen på fliken Actions. [GitHubs dokumentation om schemalagda körningar](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+
+Friskvårdskassan fungerar i produktion även när butiken är stängd. Då kan kassan bara ta emot publicerade friskvårdstjänster. Kustom, köpvillkor och kvittouppgifter måste vara klara. Sätt `WELLNESS_CHECKOUT_ENABLED=0` i Vercel Production om du vill pausa friskvårdskassan medan butiken är stängd.
 
 ## Kontoåterställning
 

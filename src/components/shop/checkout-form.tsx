@@ -21,11 +21,13 @@ export function CheckoutForm({
   settings,
   paymentProvider = "stripe",
   showKustomPaymentMethods = false,
+  wellnessOnly = false,
 }: {
   products: ShopProduct[];
   settings: ShopSettings;
   paymentProvider?: "stripe" | "kustom";
   showKustomPaymentMethods?: boolean;
+  wellnessOnly?: boolean;
 }) {
   const cart = useShopCart();
   const router = useRouter();
@@ -162,8 +164,8 @@ export function CheckoutForm({
       <div className="shop-empty">
         <h2>Din varukorg är tom.</h2>
         <p>Lägg till en vara innan du går till kassan.</p>
-        <Link href="/butik" className="button button-primary">
-          Till butiken
+        <Link href={wellnessOnly ? "/friskvard" : "/butik"} className="button button-primary">
+          {wellnessOnly ? "Till friskvård" : "Till butiken"}
         </Link>
       </div>
     );

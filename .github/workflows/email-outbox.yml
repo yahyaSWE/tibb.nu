@@ -1,0 +1,44 @@
+name: Email and refund retries
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+concurrency:
+  group: production-email-outbox
+  cancel-in-progress: false
+
+jobs:
+  retry:
+    if: github.repository == 'yahyaSWE/tibb.nu' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Process queued emails and booking refunds
+        run: |
+          node --input-type=module <<'JS'
+          const endpoint = 'https://www.tibb.nu/api/email/outbox';
+          const oidcUrl = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          oidcUrl.searchParams.set('audience', endpoint);
+          const oidc = await fetch(oidcUrl, {
+            headers: { Authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!oidc.ok) throw new Error(`GitHub OIDC returned HTTP ${oidc.status}`);
+          const { value: token } = await oidc.json();
+          const result = await fetch(endpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+            redirect: 'error',
+            signal: AbortSignal.timeout(110000),
+          });
+          if (!result.ok) throw new Error(`Email outbox returned HTTP ${result.status}`);
+          const summary = await result.json();
+          if (typeof summary.bookingRefunds !== 'number' || !summary.cancellations || !summary.orders || !summary.wellness || !summary.intake) {
+            throw new Error('Email outbox returned an unexpected response');
+          }
+          console.log('Production email and refund jobs completed.');
+          JS

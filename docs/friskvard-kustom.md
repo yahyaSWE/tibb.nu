@@ -34,7 +34,7 @@ Kustom använder `https://api.playground.kustom.co` respektive `https://api.kust
 1. Öppna **Friskvård** och skapa de två tjänsteutkasten. Friskvårdsakupunktur får utgångspriset 500 kr; individuell kostrådgivning får exempelpriset 600 kr. Utkasten är inaktiva tills de granskas och publiceras.
 2. Granska namn, icke-medicinsk friskvårdsbeskrivning, pris inklusive moms, momssats och giltighet i månader. Standard är 12 månader. Tjänsterna får inte avse medicinsk behandling, medicinsk örtrådgivning, örter, kosttillskott eller allmänna presentkort. Momssatsen är redigerbar och ska motsvara verksamhetens bedömning; inget generellt momsbefriat vårdpåstående görs.
 3. Fyll i det registrerade momsnumret och företagets fullständiga adress under Friskvård. Företagsnamn och organisationsnummer hämtas från verksamhetsinställningarna, och kontaktadressen från webbplatsinställningarna. Momsnummer härleds inte från organisationsnumret. Köp med friskvård blockeras om kvittouppgifter saknas.
-4. Ställ in butikens riktiga köpvillkor och kontaktadress, publicera tjänsterna och aktivera butiken efter test. En butik med endast digitala tjänster kan ha både frakt och hämtning avstängda. Ett rent tjänsteköp får ingen fraktavgift och kräver inte ett fysiskt hämtningsval. Blandade köp behåller ordinarie leveransflöde.
+4. Ställ in köpvillkor och kontaktadress och publicera tjänsterna. Friskvårdskassan kan öppna i produktion medan den ordinarie butiken är stängd. Admin → Friskvård visar om någon inställning saknas. Ett rent tjänsteköp får ingen fraktavgift och kräver inget fysiskt hämtningsval. Blandade köp behåller ordinarie leveransflöde när butiken är öppen.
 5. Konfigurera befintlig Resend-anslutning med en verifierad avsändare. Även utan fungerande e-post finns PDF och klippkort på den privata beställningssidan; admin kan se och skicka om underlagen.
 
 ## Betalningskedjan
@@ -56,7 +56,7 @@ Checkout-create saknar providerstöd för idempotens. Ett osäkert create-svar u
 
 Administratören kan kontrollera status på ordern eller under Friskvård. `/api/kustom/reconcile` kan dessutom köras återkommande med `Authorization: Bearer <CRON_SECRET>` (minst 32 tecken). Den behandlar ett litet antal order per körning och läser även återbetalningar gjorda i portalen. Konfigurera detta jobb i staging/drift; enbart initial checkout-push garanterar inte upptäckt av en senare portalåterbetalning.
 
-`/api/email/outbox` använder samma befintliga Cron-hemlighet och behandlar även friskvårdsutskick. Ingen ny automation eller extern schemaläggning skapas av koden. Planera dessa jobb i er drift, och övervaka fel och väntande order. En oklar Kustom-session frigör inte lager bara för att Tibb.nu:s gamla Stripe-reservationsgräns passerat. Kundens avbryt-knapp måste först få en verifierad avbruten Kustom-session; redan auktoriserade köp hänvisas till verksamheten.
+GitHub Actions kör `/api/email/outbox` var femtonde minut för bland annat friskvårdsutskick. Se [driftguiden](operations.md) för körningshistorik. En oklar Kustom-session behåller lagerreservationen även om den gamla tidsgränsen för Stripe passerat. Kundens avbryt-knapp kräver en verifierad avbruten Kustom-session. Vid redan auktoriserade köp hänvisas kunden till verksamheten.
 
 Fysisk leverans får hanteras när Kustom-capture är styrkt, även om en fakturakunds separata utlägg ännu inte är styrkt. Detta ger inte den kunden ett betalt friskvårdskvitto.
 

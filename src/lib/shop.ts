@@ -62,17 +62,22 @@ export async function getShopSettings(): Promise<ShopSettings> {
   const row = (await getDb().prepare("SELECT * FROM shop_settings WHERE id=1").get())!;
   return { enabled: !!row.enabled, shippingEnabled: !!row.shipping_enabled, pickupEnabled: !!row.pickup_enabled, shippingPriceOre: Number(row.shipping_price_ore), freeShippingThresholdOre: row.free_shipping_threshold_ore == null ? null : Number(row.free_shipping_threshold_ore), pickupAddress: String(row.pickup_address), pickupInstructions: String(row.pickup_instructions), terms: String(row.terms), shippingRuleMode: !!row.shipping_rule_mode, packingWeightGrams: Number(row.packing_weight_grams) };
 }
-export async function wellnessCheckoutReady(settings: ShopSettings): Promise<boolean> {
-  if (shopPaymentProvider() !== "kustom" || !kustomReady() || settings.terms.length < 20) return false;
-  if (!settings.enabled && (process.env.WELLNESS_CHECKOUT_ENABLED ?? (process.env.VERCEL_ENV === "production" ? "1" : "0")) !== "1") return false;
+export async function wellnessCheckoutStatus(settings: ShopSettings) {
+  const blockers: ("payment" | "terms" | "paused" | "seller")[] = [];
+  if (shopPaymentProvider() !== "kustom" || !kustomReady()) blockers.push("payment");
+  if (settings.terms.length < 20) blockers.push("terms");
+  if (!settings.enabled && (process.env.WELLNESS_CHECKOUT_ENABLED ?? (process.env.VERCEL_ENV === "production" ? "1" : "0")) !== "1") blockers.push("paused");
   const { getWellnessSeller } = await import("./wellness");
   try {
     await getWellnessSeller(true);
-    return true;
   } catch (error) {
-    if (error instanceof DomainError) return false;
-    throw error;
+    if (!(error instanceof DomainError)) throw error;
+    blockers.push("seller");
   }
+  return { ready: blockers.length === 0, blockers };
+}
+export async function wellnessCheckoutReady(settings: ShopSettings): Promise<boolean> {
+  return (await wellnessCheckoutStatus(settings)).ready;
 }
 export async function saveShopSettings(actorId: number, input: ShopSettings): Promise<ShopSettings> {
   return transaction(async () => {

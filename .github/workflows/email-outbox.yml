@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
+    inputs:
+      check_wellness:
+        description: Check wellness checkout configuration
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -19,6 +24,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Process queued emails and booking refunds
+        env:
+          CHECK_WELLNESS: ${{ inputs.check_wellness }}
         run: |
           node --input-type=module <<'JS'
           const endpoint = 'https://www.tibb.nu/api/email/outbox';
@@ -30,13 +37,18 @@ jobs:
           });
           if (!oidc.ok) throw new Error(`GitHub OIDC returned HTTP ${oidc.status}`);
           const { value: token } = await oidc.json();
-          const result = await fetch(endpoint, {
+          const checkWellness = process.env.CHECK_WELLNESS === 'true';
+          const result = await fetch(checkWellness ? `${endpoint}?check=wellness` : endpoint, {
             headers: { Authorization: `Bearer ${token}` },
             redirect: 'error',
             signal: AbortSignal.timeout(110000),
           });
           if (!result.ok) throw new Error(`Email outbox returned HTTP ${result.status}`);
           const summary = await result.json();
+          if (checkWellness) {
+            console.log(summary.ready ? 'Wellness checkout configuration is ready.' : `Wellness checkout configuration is incomplete (${summary.blockers.join(', ')}).`);
+            process.exit(0);
+          }
           if (typeof summary.bookingRefunds !== 'number' || !summary.cancellations || !summary.orders || !summary.wellness || !summary.intake) {
             throw new Error('Email outbox returned an unexpected response');
           }

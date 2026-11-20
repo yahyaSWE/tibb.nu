@@ -2,7 +2,7 @@ import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { getWellnessAdmin, getWellnessSeller } from "@/lib/wellness";
-import { getAdminShopProducts, getShopSettings } from "@/lib/shop";
+import { getAdminShopProducts, getShopSettings, wellnessCheckoutStatus } from "@/lib/shop";
 import { formatDateTime, formatMoney } from "@/lib/time";
 import { WELLNESS_ADDRESS_THRESHOLD_ORE } from "@/lib/shop-types";
 import { AdminHeading, AdminSectionNav } from "@/components/admin/common";
@@ -13,6 +13,7 @@ export default async function WellnessAdminPage({ searchParams }: { searchParams
   const user = await requireAdmin(); const params = await searchParams;
   const [data, seller, all, shop] = await Promise.all([getWellnessAdmin(user.id, params.q), getWellnessSeller(), getAdminShopProducts(user.id), getShopSettings()]);
   const services = all.filter(product => product.wellnessEligible);
+  const checkout = await wellnessCheckoutStatus(shop);
   const now = new Date().toISOString();
   const active = data.passes.filter(pass => pass.status === "active" && String(pass.valid_until) > now && Number(pass.remaining) > 0);
   return <>
@@ -22,7 +23,15 @@ export default async function WellnessAdminPage({ searchParams }: { searchParams
     </div>}/>
     {params.error && <p className="notice notice-error" role="alert">{params.error}</p>}
     {params.saved && <p className="notice notice-success" role="status">{params.saved === "duplicate" ? "Dubbletten har makulerats och dess klippkort har spärrats." : "Ändringen är sparad."}</p>}
-    {!shop.enabled && <p className="notice">Aktiva tjänster visas på friskvårdssidan. Aktivera försäljningen under <Link href="/admin/butik" className="inline-link">Admin → Butik</Link> när kassan är redo.</p>}
+    {checkout.ready && services.some(service => service.published)
+      ? <p className="notice notice-success">Friskvårdskassan är öppen.</p>
+      : <div className="notice"><p>Friskvårdskassan är pausad.</p><ul>
+        {checkout.blockers.includes("payment") && <li>Kustom Checkout behöver vara konfigurerat.</li>}
+        {checkout.blockers.includes("terms") && <li>Fyll i köpvillkoren under <Link href="/admin/butik#butik-leverans" className="inline-link">Butik och leverans</Link>.</li>}
+        {checkout.blockers.includes("seller") && <li>Kontrollera <a href="#kvittouppgifter" className="inline-link">kvittouppgifterna</a> och verksamhetens e-postadress.</li>}
+        {checkout.blockers.includes("paused") && <li>Onlineköp är avstängt i den här miljön.</li>}
+        {!services.some(service => service.published) && <li>Publicera minst en friskvårdstjänst.</li>}
+      </ul></div>}
     <AdminSectionNav
       sections={[
         ["klippkort", "Klippkort"], ["kop", "Köp"], ["kvitton", "Kvitton"],

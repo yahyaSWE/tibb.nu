@@ -4,6 +4,7 @@ import { canRunEmailOutbox } from "@/lib/cron-auth";
 import { dispatchWellnessEmails } from "@/lib/wellness-email";
 import { dispatchIntakeEmails } from "@/lib/intake-email";
 import { dispatchDueBookingRefunds } from "@/lib/booking-cancellations";
+import { getShopSettings, wellnessCheckoutStatus } from "@/lib/shop";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
@@ -14,6 +15,10 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   try {
+    if (new URL(request.url).searchParams.get("check") === "wellness") {
+      const status = await wellnessCheckoutStatus(await getShopSettings());
+      return Response.json(status, { headers: { "Cache-Control": "no-store" } });
+    }
     const bookings = await dispatchBookingEmailOutbox({ limit: 5 });
     const cancellations = await dispatchBookingEmailOutbox({ limit: 3, event: "cancellation" });
     const bookingRefunds = await dispatchDueBookingRefunds(1);

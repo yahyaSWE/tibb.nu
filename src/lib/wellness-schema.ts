@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS wellness_receipt_sequences (year INTEGER PRIMARY KEY,
 CREATE TABLE IF NOT EXISTS wellness_receipts (
   id TEXT PRIMARY KEY, number TEXT NOT NULL UNIQUE, order_reference TEXT NOT NULL REFERENCES shop_orders(reference),
   event_key TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('purchase','correction')),
-  snapshot_json TEXT NOT NULL, amount_ore INTEGER NOT NULL, pdf BLOB, created_at TEXT NOT NULL
+  snapshot_json TEXT NOT NULL, amount_ore INTEGER NOT NULL, pdf BLOB, static_pdf BLOB, created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS wellness_receipt_order ON wellness_receipts(order_reference,created_at);
 CREATE TABLE IF NOT EXISTS wellness_order_voids (

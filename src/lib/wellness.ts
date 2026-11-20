@@ -18,7 +18,7 @@ export type WellnessReceipt = {
   duplicateOfOrder?: number;
   orderNumber: number; orderReference: string; issuedAt: string; paidAt: string;
   paymentMethod: string; paymentReference: string; seller: WellnessSeller;
-  customer: { name: string; address: string; email: string };
+  customer: { name: string; address: string; email: string; personalIdentityNumber?: string };
   items: { name: string; quantity: number; priceOre: number; vatPercent: number; totalOre: number; validUntil: string; taxOre?: number }[];
   totalOre: number; vat: { percent: number; taxOre: number; netOre: number }[];
 };
@@ -101,7 +101,10 @@ export async function snapshotWellnessOrder(order: ShopOrder) {
 }
 
 async function newReceipt(order: ShopOrder, evidence: Record<string, unknown>,
-  items: WellnessReceipt["items"], eventKey: string, kind: WellnessReceipt["kind"], originalNumber?: string, duplicateOfOrder?: number) {
+  items: WellnessReceipt["items"], eventKey: string, kind: WellnessReceipt["kind"],
+  { originalNumber, duplicateOfOrder, personalIdentityNumber }: {
+    originalNumber?: string; duplicateOfOrder?: number; personalIdentityNumber?: string;
+  } = {}) {
   const existing = await getDb().prepare("SELECT id FROM wellness_receipts WHERE event_key=?").get(eventKey);
   if (existing) return String(existing.id);
   const seller = await getDb().prepare("SELECT seller_json FROM wellness_order_snapshots WHERE order_reference=?").get(order.reference);
@@ -112,7 +115,7 @@ async function newReceipt(order: ShopOrder, evidence: Record<string, unknown>,
   const number = `FV-${year}-${String(sequence).padStart(5, "0")}`; const id = randomUUID();
   const snapshot: WellnessReceipt = { number, kind, originalNumber, duplicateOfOrder, orderNumber: order.id, orderReference: order.reference,
     issuedAt: issued, paidAt: String(evidence.paid_at), paymentMethod: String(evidence.method), paymentReference: String(evidence.reference),
-    seller: JSON.parse(String(seller.seller_json)), customer: { name: order.name, email: order.email, address: order.address ? `${order.address}, ${order.postcode} ${order.city}` : "" },
+    seller: JSON.parse(String(seller.seller_json)), customer: { name: order.name, email: order.email, address: order.address ? `${order.address}, ${order.postcode} ${order.city}` : "", personalIdentityNumber },
     items, totalOre: items.reduce((sum, item) => sum + item.totalOre, 0), vat: wellnessTotals(items) };
   await getDb().prepare("INSERT INTO wellness_receipts(id,number,order_reference,event_key,kind,snapshot_json,amount_ore,created_at) VALUES(?,?,?,?,?,?,?,?)")
     .run(id, number, order.reference, eventKey, kind, JSON.stringify(snapshot), snapshot.totalOre, issued);
@@ -120,7 +123,7 @@ async function newReceipt(order: ShopOrder, evidence: Record<string, unknown>,
     .run(randomUUID(), id, `issue:${id}`, order.email, issued, issued);
   return id;
 }
-export async function activateWellnessOrder(reference: string) {
+export async function activateWellnessOrder(reference: string, personalIdentityNumber?: string) {
   return transaction(async () => {
     const order = await getShopOrderByReference(reference);
     const evidence = await getDb().prepare("SELECT * FROM wellness_payment_evidence WHERE order_reference=?").get(reference);
@@ -135,7 +138,7 @@ export async function activateWellnessOrder(reference: string) {
       items.push({ name: item.name, quantity: item.quantity, priceOre: item.priceOre, vatPercent: item.vatPercent,
         totalOre: item.lineTotalOre ?? item.priceOre * item.quantity, validUntil: expires });
     }
-    return newReceipt(order, evidence, items, `purchase:${reference}`, "purchase");
+    return newReceipt(order, evidence, items, `purchase:${reference}`, "purchase", { personalIdentityNumber });
   });
 }
 
@@ -159,6 +162,8 @@ export async function recordManualWellnessPurchase(actorId: number, input: unkno
   return transaction(async () => {
     await assertAdmin(actorId);
     const v = z.object({ operationId: z.uuid(), name: text(100, 3), email: z.email(), address: text(200).default(""),
+      personalIdentityNumber: z.string().trim().regex(/^(?:\d{2})?\d{6}[-+]?\d{4}$|^$/, "Ange personnummer med 10 eller 12 siffror, eller lämna fältet tomt.")
+        .transform(value => value.replace(/^(\d{6}|\d{8})(\d{4})$/, "$1-$2") || undefined).optional(),
       postcode: z.union([z.literal(""), z.string().regex(/^\d{3}\s?\d{2}$/)]).default(""), city: text(100).default(""), paidAt: z.iso.datetime(),
       method: z.enum(["Swish", "Kort", "Kontant", "Banköverföring"]), proofReference: text(150, 5), verified: z.literal(true),
       items: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(99) })).min(1).max(20) }).parse(input);
@@ -183,7 +188,7 @@ export async function recordManualWellnessPurchase(actorId: number, input: unkno
     await getDb().prepare("INSERT INTO wellness_payment_evidence(order_reference,source,reference,paid_at,amount_ore,method,actor_id,created_at) VALUES(?,'manual',?,?,?,?,?,?)")
       .run(reference, v.proofReference, v.paidAt, quote.totalOre, `${v.method}; externt kassaunderlag`, actorId, created);
     await getDb().prepare("INSERT INTO wellness_manual_operations(operation_id,order_reference,request_hash) VALUES(?,?,?)").run(v.operationId, reference, fingerprint);
-    await activateWellnessOrder(reference); return reference;
+    await activateWellnessOrder(reference, v.personalIdentityNumber); return reference;
   });
 }
 function equalManualFingerprint(a: string, b: string) { return a === b; }
@@ -236,7 +241,7 @@ export async function voidDuplicateWellnessOrder(actorId: number, input: unknown
     const items = snapshot.items.map(item => ({ ...item, quantity: -item.quantity, totalOre: -item.totalOre,
       taxOre: item.taxOre === undefined ? undefined : -item.taxOre, validUntil: "" }));
     const correctionId = await newReceipt(order, { ...evidence, method: "Ingen återbetalning", paid_at: timestamp },
-      items, `duplicate:${order.reference}`, "correction", String(original.number), keep.id);
+      items, `duplicate:${order.reference}`, "correction", { originalNumber: String(original.number), duplicateOfOrder: keep.id });
     await getDb().prepare("INSERT INTO wellness_order_voids(order_reference,retained_reference,correction_id,actor_id,reason,created_at) VALUES(?,?,?,?,?,?)")
       .run(order.reference, keep.reference, correctionId, actorId, value.reason, timestamp);
     await getDb().prepare("UPDATE shop_orders SET status='cancelled' WHERE reference=?").run(order.reference);
@@ -331,7 +336,7 @@ export async function correctWellnessRefund(reference: string, eventKey: string,
       items.push({ name: item.name, quantity: -line.quantity, priceOre: item.priceOre, vatPercent: item.vatPercent, totalOre: -line.amountOre, taxOre: line.taxOre === undefined ? undefined : -line.taxOre, validUntil: pass ? String(pass.valid_until) : "" });
     }
     await getDb().prepare("INSERT INTO wellness_provider_events(event_key,created_at) VALUES(?,?)").run(eventKey, now());
-    if (items.length && original && evidence) return newReceipt(order, { ...evidence, reference: eventKey, paid_at: refundedAt }, items, eventKey, "correction", String(original.number));
+    if (items.length && original && evidence) return newReceipt(order, { ...evidence, reference: eventKey, paid_at: refundedAt }, items, eventKey, "correction", { originalNumber: String(original.number) });
   });
 }
 export async function recordManualWellnessRefund(actorId: number, input: unknown) {

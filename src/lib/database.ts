@@ -216,6 +216,9 @@ export class DatabaseAdapter {
             await tx.execute(`ALTER TABLE shop_products ADD COLUMN ${name} ${definition}`);
         }
         await tx.executeMultiple(WELLNESS_SCHEMA);
+        const receiptColumns = await tx.execute("PRAGMA table_info(wellness_receipts)");
+        if (!receiptColumns.rows.some(row => row.name === "static_pdf"))
+          await tx.execute("ALTER TABLE wellness_receipts ADD COLUMN static_pdf BLOB");
         await tx.executeMultiple(SERVICE_PAYMENT_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",

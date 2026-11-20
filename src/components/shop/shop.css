@@ -352,6 +352,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.shop-checkout-savings {
+  color: var(--shop-deep);
+  font-size: .875rem;
+  overflow-wrap: anywhere;
+}
+
 .shop-checkout-items > summary {
   min-height: 44px;
   display: flex;

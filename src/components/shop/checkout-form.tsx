@@ -58,6 +58,7 @@ export function CheckoutForm({
     servicesOnly || (delivery === "shipping" ? settings.shippingEnabled : settings.pickupEnabled);
   const quoteState = useShopQuote({items:cart.lines,delivery,postcode:values.postcode,couponCode:choices.couponCode},products,settings,cart.ready && summary.valid && availableDelivery && settings.enabled);
   const quote = quoteState.quote;
+  const couponDiscount = quote?.discounts.find(discount => discount.kind === "coupon");
   const shippingAddressRequired = delivery === "shipping" && settings.shippingEnabled;
   const receiptAddressRequired = hasWellness && !!quote && quote.totalOre > WELLNESS_ADDRESS_THRESHOLD_ORE;
   const addressRequired = shippingAddressRequired || receiptAddressRequired;
@@ -204,6 +205,11 @@ export function CheckoutForm({
           </div>
           <strong aria-live="polite">{quote ? formatMoney(quote.totalOre) : "Beräknas i kassan"}</strong>
         </div>
+        {couponDiscount && (
+          <p className="shop-checkout-savings" role="status">
+            Rabattkod {couponDiscount.code} · −{formatMoney(couponDiscount.amountOre)}
+          </p>
+        )}
         <details className="shop-checkout-items">
           <summary>Visa beställningen <ChevronDown size={16} aria-hidden="true" /></summary>
           <ul className="shop-checkout-lines">
@@ -294,7 +300,7 @@ export function CheckoutForm({
           </fieldset>
         )}
         <details className="shop-checkout-extra shop-checkout-coupon">
-          <summary>Rabattkod{quote?.couponCode ? " · " + quote.couponCode : ""}</summary>
+          <summary>{quote?.couponCode ? "Rabattkod · " + quote.couponCode : "Har du en rabattkod?"}</summary>
           <CouponEntry
             draft={choices.couponDraft}
             code={choices.couponCode}

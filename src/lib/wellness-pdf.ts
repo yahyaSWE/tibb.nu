@@ -9,7 +9,6 @@ const money = (ore: number) => new Intl.NumberFormat("sv-SE", {
 }).format(ore / 100).replace(/\s/g, " ").replace("−", "-") + " kr";
 const date = (iso: string) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm" }).format(new Date(iso));
 
-const paper = rgb(.96, .96, .93);
 const deep = rgb(.14, .25, .20);
 const secondary = rgb(.27, .36, .30);
 const rule = rgb(.76, .81, .76);
@@ -121,9 +120,12 @@ export async function renderWellnessPdf(receipt: WellnessReceipt, options: { omi
       "Org.nr " + receipt.seller.organizationNumber,
       "Momsreg.nr " + receipt.seller.vatNumber,
       receipt.seller.email,
-      receipt.seller.website,
     ] },
-    { label: "KUND", x: 312, name: receipt.customer.name, details: [address, receipt.customer.email] },
+    { label: "KUND", x: 312, name: receipt.customer.name, details: [
+      address,
+      receipt.customer.email,
+      purchase && receipt.customer.personalIdentityNumber ? "Personnummer: " + receipt.customer.personalIdentityNumber : "",
+    ] },
   ];
   let lowest = y;
   for (const column of columns) {
@@ -138,15 +140,6 @@ export async function renderWellnessPdf(receipt: WellnessReceipt, options: { omi
         text(row, column.x, baseline);
         baseline -= 14;
       }
-    }
-    if (purchase && column.label === "KUND") {
-      text("Personnummer (valfritt)", column.x, baseline - 4, body, 9, secondary);
-      const field = doc.getForm().createTextField("personnummer");
-      field.setMaxLength(13);
-      field.addToPage(page, { x: column.x, y: baseline - 30, width: 141, height: 20, borderWidth: .6, borderColor: rule, backgroundColor: paper, textColor: deep, font: body });
-      field.setFontSize(10);
-      field.updateAppearances(body);
-      baseline -= 38;
     }
     lowest = Math.min(lowest, baseline);
   }
@@ -211,13 +204,13 @@ export async function renderWellnessPdf(receipt: WellnessReceipt, options: { omi
 }
 
 export async function getWellnessPdf(receiptId: string) {
-  const row = await getDb().prepare("SELECT snapshot_json,pdf FROM wellness_receipts WHERE id=?").get(receiptId);
+  const row = await getDb().prepare("SELECT snapshot_json,static_pdf FROM wellness_receipts WHERE id=?").get(receiptId);
   if (!row) throw new Error("Receipt not found");
-  if (row.pdf) return new Uint8Array(row.pdf as ArrayBuffer);
+  if (row.static_pdf) return new Uint8Array(row.static_pdf as ArrayBuffer);
   const pdf = await renderWellnessPdf(JSON.parse(String(row.snapshot_json)));
-  await getDb().prepare("UPDATE wellness_receipts SET pdf=? WHERE id=? AND pdf IS NULL").run(pdf, receiptId);
-  const stored = (await getDb().prepare("SELECT pdf FROM wellness_receipts WHERE id=?").get(receiptId))!;
-  return new Uint8Array(stored.pdf as ArrayBuffer);
+  await getDb().prepare("UPDATE wellness_receipts SET static_pdf=? WHERE id=? AND static_pdf IS NULL").run(pdf, receiptId);
+  const stored = (await getDb().prepare("SELECT static_pdf FROM wellness_receipts WHERE id=?").get(receiptId))!;
+  return new Uint8Array(stored.static_pdf as ArrayBuffer);
 }
 
 export async function regenerateWellnessPdfCopy(receiptId: string, omitCustomerAddress = false) {

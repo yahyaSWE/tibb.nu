@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 import { createFirstAdmin, createUser, getDb } from "../src/lib/db";
 import { hashPassword, randomToken, tokenHash } from "../src/lib/security";
-import { getShopOrderByReference, getShopSettings, getAdminShopProduct, getPublicShopProducts, saveShopProduct, quoteShopCart, reserveShopOrder, expireShopOrders } from "../src/lib/shop";
+import { getShopOrderByReference, getShopSettings, getAdminShopProduct, getPublicShopProducts, saveShopCoupon, saveShopProduct, quoteShopCart, reserveShopOrder, expireShopOrders } from "../src/lib/shop";
 import { changeWellnessPass, createInitialWellnessServices, getPublicWellnessServices, getWellnessAdmin, recordManualWellnessPurchase, recordManualWellnessRefund, recordWellnessPaymentEvidence, saveWellnessSeller, saveWellnessService, wellnessDownloadLink, wellnessExpiry, wellnessTotals } from "../src/lib/wellness";
 import { createKustomCheckout, KustomApiError, kustomOrderLines, reconcileKustomOrder, refundKustomWellness, validateKustomCallback, type KustomClient } from "../src/lib/kustom";
 import { kustomConfiguration } from "../src/lib/shop-payment-config";
@@ -133,8 +133,7 @@ test("verified digital card capture activates each service once, snapshots histo
   assert.ok(pdf.byteLength>1000);
   const document = await PDFDocument.load(pdf);
   assert.equal(document.getPageCount(), 1);
-  assert.equal(document.getForm().getTextField("personnummer").getText(), undefined);
-  assert.equal(document.getForm().getTextField("personnummer").getMaxLength(), 13);
+  assert.deepEqual(document.getForm().getFields(), []);
   assert.deepEqual(await getWellnessPdf(String(receipt.id)),pdf);
   const copy = await regenerateWellnessPdfCopy(String(receipt.id), true);
   assert.equal(copy?.number, snapshot.number);
@@ -216,9 +215,32 @@ test("manual purchases require explicit verified external evidence and cannot do
   const {first}=await fixture([1,0]);
   const input={operationId:randomUUID(),name:"Manuell Testkund",email:"manual@example.test",address:"Testgatan 3",postcode:"12345",city:"Teststad",paidAt:new Date().toISOString(),method:"Swish",proofReference:`cash-register-${randomUUID()}`,verified:true,items:[{productId:first,quantity:2}]};
   await assert.rejects(recordManualWellnessPurchase(adminId,{...input,verified:false}));
-  const reference=await recordManualWellnessPurchase(adminId,input);assert.equal((await receipts(reference)).length,1);
-  assert.equal(await recordManualWellnessPurchase(adminId,input),reference);
+  await assert.rejects(recordManualWellnessPurchase(adminId, {...input, personalIdentityNumber:"19900210"}), /10 eller 12/);
+  const reference=await recordManualWellnessPurchase(adminId,{...input,personalIdentityNumber:"199001010000"});
+  assert.equal(await recordManualWellnessPurchase(adminId,{...input,personalIdentityNumber:"19900101-0000"}),reference);
+  await assert.rejects(recordManualWellnessPurchase(adminId,{...input,personalIdentityNumber:"19900101-0001"}), /annat manuellt köp/);
   await assert.rejects(recordManualWellnessPurchase(adminId,{...input,operationId:randomUUID()}),/redan/);
+  const [receipt] = await receipts(reference);
+  assert.equal((await receipts(reference)).length, 1);
+  assert.equal(JSON.parse(String(receipt.snapshot_json)).customer.personalIdentityNumber, "19900101-0000");
+  const updated = await regenerateWellnessPdfCopy(String(receipt.id));
+  assert.ok(updated);
+  assert.deepEqual((await PDFDocument.load(updated.pdf)).getForm().getFields(), []);
+  await writeFile(join(tmpdir(), "tibb-wellness-static-id-preview.pdf"), updated.pdf);
+});
+
+test("previously cached PDF forms are redrawn from the receipt snapshot on download", async () => {
+  const row = (await getDb().prepare("SELECT id FROM wellness_receipts WHERE kind='purchase' LIMIT 1").get())!;
+  const legacy = await PDFDocument.create();
+  legacy.getForm().createTextField("personnummer").addToPage(legacy.addPage());
+  const original = await legacy.save();
+  await getDb().prepare("UPDATE wellness_receipts SET pdf=?,static_pdf=NULL WHERE id=?").run(original, String(row.id));
+
+  const refreshed = await getWellnessPdf(String(row.id));
+  assert.deepEqual((await PDFDocument.load(refreshed)).getForm().getFields(), []);
+  assert.deepEqual(await getWellnessPdf(String(row.id)), refreshed);
+  const stored = await getDb().prepare("SELECT pdf FROM wellness_receipts WHERE id=?").get(String(row.id));
+  assert.deepEqual(new Uint8Array(stored!.pdf as ArrayBuffer), original);
 });
 test("voiding a duplicate archives its original receipt and blocks only its unused passes", async () => {
   const { first } = await fixture([1, 0]);
@@ -287,8 +309,14 @@ test("Kustom browser retries reuse the exact local order and reject a changed pa
 });
 test("a coupon discounts wellness and physical lines before issuing the receipt, and purchases over 5000 are allowed",async()=>{
   const {input}=await fixture([7,1],true);const code=`WELLNESS-${randomUUID().slice(0,8)}`.toUpperCase();
-  await getDb().prepare("INSERT INTO shop_coupons(code,name,type,value,min_subtotal_ore,active,combine_with_offers) VALUES(?,?,'percent',10,0,1,1)").run(code,"Syntetisk rabatt");
+  await saveShopCoupon(adminId, null, { code, name: "Syntetisk rabatt", type: "percent", value: 10,
+    minSubtotalOre: 0, active: true, combineWithOffers: true, startsAt: null, endsAt: null, maxUses: null });
   const order=await reserveShopOrder({...input,couponCode:code});const fake=gateway(order);await createKustomCheckout(order.reference,fake.client);fake.complete();await reconcileKustomOrder(order.reference,{client:fake.client,capture:true});
+  const sent = fake.calls.find(call => call.path === "/checkout/v3/orders" && call.method === "POST")?.body as {
+    order_amount: number; order_lines: ReturnType<typeof kustomOrderLines>;
+  };
+  assert.equal(sent.order_amount, order.totalOre);
+  assert.equal(sent.order_lines.reduce((sum, line) => sum + line.total_discount_amount, 0), 41990);
   const snapshot=JSON.parse(String((await receipts(order.reference))[0].snapshot_json));assert.equal(snapshot.totalOre,369000);assert.equal(snapshot.vat[0].taxOre,73800);
   assert.equal((await fixture([11,0])).order.totalOre,550000);
 });

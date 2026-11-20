@@ -48,6 +48,7 @@ export async function verifyWellnessPaymentAction(form: FormData) {
 }
 export async function manualWellnessAction(form: FormData) {
   return run(id => recordManualWellnessPurchase(id, { operationId: field(form, "operationId"), name: field(form, "name"), email: field(form, "email"),
+    personalIdentityNumber: field(form, "personalIdentityNumber"),
     address: field(form, "address"), postcode: field(form, "postcode"), city: field(form, "city"), method: field(form, "method"),
     paidAt: stockholmToIso(field(form, "paidAt")), proofReference: field(form, "proofReference"), verified: field(form, "verified") === "on",
     items: form.getAll("productId").map((productId, index) => ({ productId: Number(productId), quantity: Number(form.getAll("quantity")[index]) })).filter(item => item.quantity > 0) }));

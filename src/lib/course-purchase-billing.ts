@@ -203,7 +203,7 @@ export async function createCoursePurchaseCheckout(userId: number, courseId: num
     const { attempt, token } = await reserveAttempt(userId, courseId, consent, true);
     try {
       const url = await openKustomServicePayment({ reference: str(attempt.id), kind: "course", amount: num(attempt.price_ore),
-        vat: num(attempt.vat_percent), email: user.email, deadline: str(attempt.expires_at) });
+        vat: num(attempt.vat_percent), email: user.email, deadline: str(attempt.expires_at), customer: user.name, product: str(attempt.course_title) });
       await getDb().prepare("UPDATE course_purchase_attempts SET status='open',updated_at=? WHERE id=? AND lease_token=? AND status='creating'")
         .run(now(), str(attempt.id), token);
       return url;

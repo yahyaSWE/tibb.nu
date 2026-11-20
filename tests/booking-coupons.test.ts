@@ -27,7 +27,7 @@ before(async () => {
   treatmentId = Number((await getDb().prepare(
     "INSERT INTO treatments(name,duration_minutes,price_ore,active) VALUES(?,?,?,1)",
   ).run("Testbehandling", 30, 39900)).lastInsertRowid);
-  await getDb().prepare("UPDATE settings SET pay_on_site=1,stripe_enabled=1").run();
+  await getDb().prepare("UPDATE settings SET pay_on_site=1,stripe_enabled=1,email=?").run("admin@example.test");
 });
 after(() => getDb().close());
 
@@ -107,6 +107,9 @@ test("Kustom receives the original price, the discount and the discounted amount
     if (path === "/checkout/v3/orders") {
       const payload = JSON.parse(String(init?.body));
       assert.equal(payload.order_amount, 35910);
+      assert.equal(payload.merchant_reference1, customer.name);
+      assert.equal(payload.merchant_reference2, booking.treatmentName);
+      assert.equal(payload.merchant_data, booking.reference);
       assert.deepEqual(payload.order_lines[0], {
         reference: "booking", type: "digital", name: "Behandlingsbokning", quantity: 1,
         unit_price: 39900, total_amount: 35910, total_discount_amount: 3990, tax_rate: 2500, total_tax_amount: 7182,
@@ -116,17 +119,22 @@ test("Kustom receives the original price, the discount and the discounted amount
     }
     if (path === "/hpp/v1/sessions") return Response.json({ session_id: "test-coupon-session", redirect_url: "https://checkout.example.test/coupon" });
     if (path === "/ordermanagement/v1/orders/test-coupon-order") {
+      // Older orders used the visible reference. Provider responses can also omit
+      // payment-method metadata and require a separate capture-list request.
+      const legacy = { ...order, merchant_data: "", merchant_reference1: booking.reference };
       return Response.json({
-        ...order, status: "CAPTURED", fraud_status: "ACCEPTED", captured_amount: 35910, refunded_amount: 0,
-        initial_payment_method: { type: "CARD" }, refunds: [],
-        captures: [{ capture_id: "test-coupon-capture", captured_amount: 35910, captured_at: new Date().toISOString() }],
+        ...legacy, status: "CAPTURED", captured_amount: 35910, refunded_amount: 0,
       });
     }
-    if (path.endsWith("/acknowledge")) return new Response(null, { status: 204 });
+    if (path.endsWith("/captures") && !init?.method?.match(/POST/i)) {
+      return Response.json([{ capture_id: "test-coupon-capture", captured_amount: 35910, captured_at: new Date().toISOString() }]);
+    }
     throw new Error(`Unexpected request ${path}`);
   });
   assert.equal(await openKustomBooking(booking), "https://checkout.example.test/coupon");
-  await reconcileKustomServicePayment(booking.reference);
+  await reconcileKustomServicePayment(booking.reference, undefined, "captured-only");
   const saved = await getDb().prepare("SELECT payment_status FROM bookings WHERE id=?").get(booking.id);
   assert.equal(saved?.payment_status, "paid");
+  const outbox = await getDb().prepare("SELECT audience FROM booking_email_outbox WHERE booking_id=? ORDER BY audience").all(booking.id);
+  assert.deepEqual(outbox.map(job => job.audience), ["admin", "customer"]);
 });

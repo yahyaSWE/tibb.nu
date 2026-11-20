@@ -7,7 +7,7 @@ import { readShopBody } from "@/lib/shop-checkout";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-const callbackBody = z.object({ order_id: z.string().optional(), session: z.object({ order_id: z.string().optional() }).optional() });
+const callbackBody = z.object({ order_id: z.string().nullish(), session: z.object({ order_id: z.string().nullish() }).nullish() });
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -17,9 +17,13 @@ export async function POST(request: Request) {
   if (!/^[a-f0-9]{32}$/.test(reference) || !/^[a-f0-9]{64}$/.test(token)) return new Response(null, { status: 401, headers });
   try {
     let orderId = searchParams.get("order_id") ?? "";
+    if (orderId === "{checkout.order.id}") orderId = "";
     if (!orderId && request.body) {
-      const body = callbackBody.parse(JSON.parse(await readShopBody(request, 8192)));
-      orderId = body.order_id ?? body.session?.order_id ?? "";
+      const raw = await readShopBody(request, 8192);
+      if (raw.trim()) {
+        const body = callbackBody.parse(JSON.parse(raw));
+        orderId = body.order_id ?? body.session?.order_id ?? "";
+      }
     }
     if (!await recordKustomServiceCallback(reference, token, orderId)) return new Response(null, { status: 401, headers });
     after(async () => {

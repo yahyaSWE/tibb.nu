@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getDb, transaction } from "./database";
 import { DomainError, type Booking } from "./db";
-import { KustomApiError, kustomCheckoutSchema, kustomClient, kustomIdentifier, kustomManagedOrderSchema, kustomOperationKey } from "./kustom";
+import { KustomApiError, kustomCaptureSchema, kustomCheckoutSchema, kustomClient, kustomIdentifier, kustomManagedOrderSchema, kustomMerchantReferences, kustomOperationKey, matchesKustomOrder } from "./kustom";
 import { equalSecret, randomToken, tokenHash } from "./security";
 import { bookingVatPercent, kustomConfiguration } from "./shop-payment-config";
 
@@ -10,13 +10,20 @@ type Kind = "booking" | "course";
 type Line = ReturnType<typeof serviceLine>;
 const now = () => new Date().toISOString();
 const payment = (reference: string) => getDb().prepare("SELECT * FROM kustom_service_payments WHERE reference=?").get(reference);
+const serviceOrderSchema = kustomManagedOrderSchema.omit({ initial_payment_method: true }).extend({
+  captures: kustomManagedOrderSchema.shape.captures.nullish(),
+  refunds: kustomManagedOrderSchema.shape.refunds.nullish(),
+  fraud_status: kustomManagedOrderSchema.shape.fraud_status.nullish(),
+});
+const captureListSchema = z.array(kustomCaptureSchema).max(100);
 
 export async function openKustomBooking(booking: Booking) {
   const vat = bookingVatPercent();
   if (booking.paymentMethod !== "kustom" || booking.status !== "pending" || !booking.expiresAt || vat === null)
     throw new DomainError("Bokningen är inte öppen för Kustom-betalning.");
   return openKustomServicePayment({ reference: booking.reference, kind: "booking", amount: booking.priceOre,
-    discountOre: booking.discount?.amountOre, vat, email: booking.email, deadline: booking.expiresAt });
+    discountOre: booking.discount?.amountOre, vat, email: booking.email, deadline: booking.expiresAt,
+    customer: booking.name, product: booking.treatmentName });
 }
 
 export async function getKustomBookingPaymentLink(reference: string) {
@@ -39,12 +46,12 @@ function serviceLine(kind: Kind, amount: number, vat: number, discountOre: numbe
   };
 }
 
-function verify(remote: z.infer<typeof kustomCheckoutSchema>, reference: string, line: Line, id?: string) {
+function verify(remote: z.infer<typeof kustomCheckoutSchema>, reference: string, line: Line, trustedOrderId?: string) {
   const actual = remote.order_lines[0];
-  if ((id && id !== remote.order_id) || remote.merchant_reference1 !== reference || remote.purchase_currency.toUpperCase() !== "SEK" ||
+  if (!matchesKustomOrder(remote, reference, trustedOrderId) || remote.purchase_currency.toUpperCase() !== "SEK" ||
       remote.order_amount !== line.total_amount || remote.order_lines.length !== 1 || actual.reference !== line.reference ||
       actual.quantity !== line.quantity || actual.unit_price !== line.unit_price || actual.total_amount !== line.total_amount ||
-      (actual.total_discount_amount ?? 0) !== line.total_discount_amount ||
+      (actual.total_discount_amount !== undefined && actual.total_discount_amount !== line.total_discount_amount) ||
       actual.tax_rate !== line.tax_rate || actual.total_tax_amount !== line.total_tax_amount) {
     throw new DomainError("Kustoms betalningsuppgifter matchar inte köpet.");
   }
@@ -52,6 +59,7 @@ function verify(remote: z.infer<typeof kustomCheckoutSchema>, reference: string,
 
 export async function openKustomServicePayment(input: {
   reference: string; kind: Kind; amount: number; discountOre?: number; vat: number; email: string; deadline: string;
+  customer: string; product: string;
 }, client = kustomClient) {
   const { reference, kind, amount, discountOre = 0, vat, email, deadline } = input;
   const config = kustomConfiguration();
@@ -75,7 +83,8 @@ export async function openKustomServicePayment(input: {
   const confirmation = kind === "booking" ? `${config.origin}/bokning/bekraftelse?ref=${reference}` : `${config.origin}/kurskop/bekraftelse?session_id=kustom_${reference}`;
   const callback = `${config.origin}/api/kustom/service-push?ref=${reference}&token=${secret}`;
   const request = {
-    purchase_country: "SE", purchase_currency: "SEK", locale: "sv-SE", merchant_reference1: reference,
+    purchase_country: "SE", purchase_currency: "SEK", locale: "sv-SE",
+    ...kustomMerchantReferences(reference, input.customer, input.product),
     order_amount: amount, order_tax_amount: line.total_tax_amount, order_lines: [line], billing_address: { email },
     merchant_urls: { terms: `${config.origin}/villkor`, checkout: confirmation, confirmation, push: `${callback}&order_id={checkout.order.id}` },
     options: { auto_capture: false, verify_national_identification_number: false },
@@ -90,12 +99,12 @@ export async function openKustomServicePayment(input: {
     throw error;
   }
   const order = kustomCheckoutSchema.parse(result);
-  verify(order, reference, line);
+  verify(order, reference, line, order.order_id);
   await getDb().prepare("UPDATE kustom_service_payments SET order_id=? WHERE reference=? AND (candidate_id IS NULL OR candidate_id=?)").run(order.order_id, reference, order.order_id);
   if ((await payment(reference))?.order_id !== order.order_id) throw new DomainError("Betalningsreferensen behöver kontrolleras.");
   const session = z.object({ session_id: kustomIdentifier, redirect_url: z.url() }).parse(await client.request("/hpp/v1/sessions", "POST", {
     payment_session_url: `${config.base}/checkout/v3/orders/${order.order_id}`,
-    merchant_urls: { success: confirmation, cancel: confirmation, error: confirmation, failure: confirmation, status_update: callback },
+    merchant_urls: { success: confirmation, back: confirmation, error: confirmation, failure: confirmation, status_update: callback },
   }));
   const url = new URL(session.redirect_url);
   if (url.protocol !== "https:" || url.username || url.password) throw new Error("Invalid Kustom redirect");
@@ -143,24 +152,29 @@ async function applyResult(reference: string, kind: Kind, status: "paid" | "canc
   });
 }
 
-export async function reconcileKustomServicePayment(reference: string, client = kustomClient, cancel = false) {
+export async function reconcileKustomServicePayment(reference: string, client = kustomClient, mode: "normal" | "cancel" | "captured-only" = "normal") {
   const row = await payment(reference);
   if (!row || ["refunded", "cancelled"].includes(String(row.state))) return;
   if (row.environment !== kustomConfiguration().environment) throw new DomainError("Fel betalningsmiljö.");
-  const orderId = kustomIdentifier.parse(row.order_id || row.candidate_id);
+  const candidate = row.order_id || row.candidate_id;
+  if (!candidate) return;
+  const orderId = kustomIdentifier.parse(candidate);
   const kind = row.kind as Kind;
   const line: Line = JSON.parse(String(row.line_json));
   const path = `/ordermanagement/v1/orders/${orderId}`;
   const read = async () => {
-    const result = kustomManagedOrderSchema.parse(await client.request(path));
-    verify(result, reference, line, orderId);
+    const result = serviceOrderSchema.parse(await client.request(path));
+    if (result.order_id !== orderId) throw new DomainError("Betalningsreferensen matchar inte köpet.");
+    verify(result, reference, line, row.order_id ? orderId : undefined);
     return result;
   };
   const expired = String(row.deadline) <= now();
+  const cancel = mode === "cancel";
   let managed;
   try { managed = await read(); }
   catch (error) {
     if (!(error instanceof KustomApiError && error.status === 404)) throw error;
+    if (mode === "captured-only") return;
     let sessionClosed = false;
     if (row.state === "open" && row.session_id && !cancel && !expired) {
       const sessionId = kustomIdentifier.parse(row.session_id);
@@ -169,7 +183,11 @@ export async function reconcileKustomServicePayment(reference: string, client = 
     }
     if (row.state === "open" && (cancel || expired || sessionClosed)) {
       const checkoutPath = `/checkout/v3/orders/${orderId}`;
-      if (!row.order_id) verify(kustomCheckoutSchema.parse(await client.request(checkoutPath)), reference, line, orderId);
+      if (!row.order_id) {
+        const checkout = kustomCheckoutSchema.parse(await client.request(checkoutPath));
+        if (checkout.order_id !== orderId) throw new DomainError("Betalningsreferensen matchar inte köpet.");
+        verify(checkout, reference, line);
+      }
       const aborted = kustomCheckoutSchema.parse(await client.request(`${checkoutPath}/abort`, "POST", {}));
       verify(aborted, reference, line, orderId);
       await applyResult(reference, kind, "cancelled", orderId);
@@ -180,13 +198,15 @@ export async function reconcileKustomServicePayment(reference: string, client = 
     await applyResult(reference, kind, "cancelled", orderId);
     return;
   }
-  if (managed.refunded_amount > 0 && managed.refunds.reduce((sum, refund) => sum + refund.refunded_amount, 0) === managed.refunded_amount) {
+  if (managed.refunded_amount > 0 && managed.refunds?.reduce((sum, refund) => sum + refund.refunded_amount, 0) === managed.refunded_amount) {
     if (managed.refunded_amount !== line.total_amount || managed.captured_amount !== line.total_amount) return;
     await applyResult(reference, kind, "refunded", orderId);
     return;
   }
   if (row.state === "paid") return;
-  if (managed.fraud_status !== "ACCEPTED" || managed.refunded_amount) return;
+  if ((managed.fraud_status && managed.fraud_status !== "ACCEPTED") || managed.refunded_amount) return;
+  if (managed.status === "AUTHORIZED" && managed.fraud_status !== "ACCEPTED") return;
+  if (managed.status === "AUTHORIZED" && mode === "captured-only") return;
   if (managed.status === "AUTHORIZED" && (cancel || expired)) {
     await client.request(`${path}/cancel`, "POST", {}, kustomOperationKey(reference, "cancel"));
     managed = await read();
@@ -200,12 +220,16 @@ export async function reconcileKustomServicePayment(reference: string, client = 
     await client.request(`${path}/captures`, "POST", { captured_amount: line.total_amount, order_lines: [line] }, String(row.capture_key));
     managed = await read();
   }
-  if (managed.fraud_status !== "ACCEPTED" || managed.refunded_amount || !["CAPTURED", "CLOSED"].includes(managed.status) ||
-      managed.captured_amount !== line.total_amount || managed.captures.reduce((sum, capture) => sum + capture.captured_amount, 0) !== line.total_amount) return;
-  await applyResult(reference, kind, "paid", orderId, managed.captures.map(capture => capture.captured_at).sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1));
+  if ((managed.fraud_status && managed.fraud_status !== "ACCEPTED") || managed.refunded_amount || !["CAPTURED", "CLOSED"].includes(managed.status) ||
+      managed.captured_amount !== line.total_amount) return;
+  const captureTotal = (captures: z.infer<typeof captureListSchema>) => captures.reduce((sum, capture) => sum + capture.captured_amount, 0);
+  const captures = managed.captures && captureTotal(managed.captures) === line.total_amount
+    ? managed.captures : captureListSchema.parse(await client.request(`${path}/captures`));
+  if (captureTotal(captures) !== line.total_amount || new Set(captures.map(capture => capture.capture_id)).size !== captures.length) return;
+  await applyResult(reference, kind, "paid", orderId, captures.map(capture => capture.captured_at).sort((a, b) => Date.parse(a) - Date.parse(b)).at(-1));
 }
 
 export async function cancelKustomServicePayment(reference: string) {
-  await reconcileKustomServicePayment(reference, kustomClient, true);
+  await reconcileKustomServicePayment(reference, kustomClient, "cancel");
   if ((await payment(reference))?.state !== "cancelled") throw new DomainError("Betalningen behöver kontrolleras hos Kustom innan köpet kan avbrytas.");
 }

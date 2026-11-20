@@ -147,7 +147,7 @@ test("Kustom course checkout grants access only after exact capture and revokes 
   });
   assert.equal(await checkout(), "https://hpp.example.test/course");
   assert.equal(checkoutRequests.length, 0);
-  const reference = order!.merchant_reference1;
+  const reference = order!.merchant_data;
   const session = `kustom_${reference}`;
   assert.equal((await getCoursePurchaseConfirmation(studentId, session))?.status, "pending");
   assert.equal(await getCoursePurchaseConfirmation(otherId, session), null);

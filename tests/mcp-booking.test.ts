@@ -82,7 +82,9 @@ test("Kustom MCP checkout keeps the booking private and confirms it once after v
       order = { ...submitted, order_id: "order-kustom-booking", status: "CHECKOUT_INCOMPLETE" };
       assert.equal(submitted.order_lines[0].name, "Behandlingsbokning");
       assert.equal(submitted.order_lines[0].total_tax_amount, 7980);
-      assert.ok(!String(init?.body).includes(treatment.name));
+      assert.equal(submitted.merchant_reference1, input.name);
+      assert.equal(submitted.merchant_reference2, treatment.name);
+      assert.equal(submitted.merchant_data, submitted.merchant_urls.confirmation.split("ref=")[1]);
       return Response.json(order);
     }
     if (path === "/hpp/v1/sessions") return Response.json({ session_id: "session-kustom-booking", redirect_url: "https://hpp.example.test/booking" });

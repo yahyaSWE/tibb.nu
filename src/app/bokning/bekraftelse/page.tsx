@@ -10,6 +10,7 @@ import { cancellationText } from "@/lib/business-config";
 import { getBookingEmailStatus } from "@/lib/email-outbox";
 import { BookingVisitDetails } from "@/components/booking-visit-details";
 import { BookingPreparation } from "@/components/booking-preparation";
+import { BookingPaymentStatus } from "@/components/booking-payment-status";
 import { getKustomBookingPaymentLink, wasKustomBookingCheckoutRejected } from "@/lib/kustom-service-payments";
 
 export const metadata = {
@@ -29,6 +30,7 @@ export default async function ConfirmationPage({
     getSettings(), getBookingEmailStatus(booking.id), getBookingTerms(ref),
   ]);
   const pending = booking.status === "pending";
+  const kustomPending = pending && booking.paymentMethod === "kustom";
   const cancelled = booking.status === "cancelled";
   const checkoutRejected = cancelled && booking.paymentMethod === "kustom" && await wasKustomBookingCheckoutRejected(ref);
   const paymentLink = pending && booking.paymentMethod === "kustom" ? await getKustomBookingPaymentLink(ref) : null;
@@ -60,7 +62,7 @@ export default async function ConfirmationPage({
         </h1>
         <p>
           {pending
-            ? "Bokningen bekräftas när betalningen har verifierats. Uppdatera sidan om en stund."
+            ? kustomPending ? "Vi kontrollerar betalningen automatiskt. Bokningen visas här så snart den har bekräftats." : "Bokningen bekräftas när betalningen har verifierats. Uppdatera sidan om en stund."
             : checkoutRejected ? "Ingen betalning drogs och tiden är inte reserverad. Kontakta oss om du vill ha hjälp med bokningen." : cancelled
               ? "Bokningen har avbokats eller betalningstiden har löpt ut."
               : "Spara den här sidan så att du har alla uppgifter inför ditt besök."}
@@ -136,7 +138,7 @@ export default async function ConfirmationPage({
         </> : <p>Se <Link href="/villkor">aktuella allmänna bokningsvillkor</Link> eller kontakta verksamheten om villkoren för denna bokning.</p>}
         {terms && <p><Link href="/villkor">Aktuella allmänna villkor</Link></p>}
         <div className="form-actions">
-          {pending && (
+          {kustomPending ? <BookingPaymentStatus reference={ref} /> : pending && (
             <a
               className="button button-primary"
               href={`/bokning/bekraftelse?ref=${ref}`}

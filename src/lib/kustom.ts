@@ -13,11 +13,12 @@ export const kustomIdentifier = z.string().regex(/^[a-zA-Z0-9-]{1,255}$/);
 const identifier = kustomIdentifier;
 const lineSchema = z.object({ reference: z.string(), quantity: integer, unit_price: integer, tax_rate: integer,
   total_amount: integer, total_tax_amount: integer, total_discount_amount: integer.optional() });
-const checkoutSchema = z.object({ order_id: identifier, merchant_reference1: z.string(), order_amount: integer,
+const checkoutSchema = z.object({ order_id: identifier, merchant_reference1: z.string().nullish(), merchant_data: z.string().nullish(), order_amount: integer,
   purchase_currency: z.string(), order_lines: z.array(lineSchema).max(100), status: z.string() });
+export const kustomCaptureSchema = z.object({ capture_id: identifier, captured_amount: integer, captured_at: z.iso.datetime({ offset: true }) });
 const managedSchema = checkoutSchema.extend({ captured_amount: integer, refunded_amount: integer,
   fraud_status: z.string(), initial_payment_method: z.object({ type: z.string() }),
-  captures: z.array(z.object({ capture_id: identifier, captured_amount: integer, captured_at: z.iso.datetime({ offset: true }) })).max(100),
+  captures: z.array(kustomCaptureSchema).max(100),
   refunds: z.array(z.object({ refund_id: identifier, refunded_amount: integer, refunded_at: z.string(), order_lines: z.array(lineSchema).optional() })).max(100) });
 type ManagedOrder = z.infer<typeof managedSchema>;
 export { checkoutSchema as kustomCheckoutSchema, managedSchema as kustomManagedOrderSchema, operationKey as kustomOperationKey };
@@ -56,8 +57,19 @@ export function kustomOrderLines(order: ShopOrder) {
     total_amount: order.shippingOre, total_discount_amount: 0, total_tax_amount: Math.round(order.shippingOre / 5) });
   return lines;
 }
-function verifyOrder(order: ShopOrder, remote: z.infer<typeof checkoutSchema>) {
-  if (remote.merchant_reference1 !== order.reference || remote.order_amount !== order.totalOre || remote.purchase_currency.toUpperCase() !== "SEK") throw new Error("Kustom order mismatch");
+export function kustomMerchantReferences(reference: string, customer: string, product: string) {
+  return { merchant_reference1: customer.trim().slice(0, 255), merchant_reference2: product.trim().slice(0, 255), merchant_data: reference };
+}
+
+export function matchesKustomOrder(remote: z.infer<typeof checkoutSchema>, reference: string, trustedOrderId?: string) {
+  if (trustedOrderId && remote.order_id !== trustedOrderId) return false;
+  return !remote.merchant_data
+    ? remote.merchant_reference1 === reference || remote.order_id === trustedOrderId
+    : remote.merchant_data === reference;
+}
+
+function verifyOrder(order: ShopOrder, remote: z.infer<typeof checkoutSchema>, trustedOrderId?: string) {
+  if (!matchesKustomOrder(remote, order.reference, trustedOrderId) || remote.order_amount !== order.totalOre || remote.purchase_currency.toUpperCase() !== "SEK") throw new Error("Kustom order mismatch");
   const expected = kustomOrderLines(order);
   if (remote.order_lines.length !== expected.length || new Set(remote.order_lines.map(line => line.reference)).size !== expected.length) throw new Error("Kustom line count mismatch");
   for (const line of expected) {
@@ -91,7 +103,8 @@ export async function createKustomCheckout(reference: string, client = kustomCli
     // Checkout POST has no provider idempotency support. Never repeat an
     // ambiguous create; the persisted intent quarantines it for reconciliation.
     const remote = checkoutSchema.parse(await client.request("/checkout/v3/orders", "POST", {
-      purchase_country: "SE", purchase_currency: "SEK", locale: "sv-SE", merchant_reference1: reference,
+      purchase_country: "SE", purchase_currency: "SEK", locale: "sv-SE",
+      ...kustomMerchantReferences(reference, order.name, order.items.map(item => item.name).join(", ")),
       order_amount: order.totalOre, order_tax_amount: lines.reduce((sum, line) => sum + line.total_tax_amount, 0), order_lines: lines,
       billing_address: { given_name: given, family_name: family.join(" "), email: order.email, country: "SE",
         ...(order.address ? { street_address: order.address, postal_code: order.postcode, city: order.city } : {}) },
@@ -99,7 +112,7 @@ export async function createKustomCheckout(reference: string, client = kustomCli
         push: `${callback}&order_id={checkout.order.id}` },
       options: { auto_capture: false, verify_national_identification_number: false },
     }));
-    verifyOrder(order, remote);
+    verifyOrder(order, remote, remote.order_id);
     await getDb().prepare("UPDATE kustom_checkouts SET provider_id=?,updated_at=? WHERE order_reference=? AND provider_id IS NULL")
       .run(remote.order_id, new Date().toISOString(), reference);
     const session = z.object({ session_id: identifier, redirect_url: z.url(), expires_at: z.string().optional() }).parse(await client.request("/hpp/v1/sessions", "POST", {
@@ -137,7 +150,7 @@ export async function reconcileKustomOrder(reference: string, options: { client?
   let managed: ManagedOrder;
   try { managed = managedSchema.parse(await client.request(`/ordermanagement/v1/orders/${providerId}`)); }
   catch (error) { if (error instanceof KustomApiError && error.status === 404) return { status: "checkout_incomplete" }; throw error; }
-  verifyOrder(order, managed);
+  verifyOrder(order, managed, record.provider_id ? providerId : undefined);
   if (managed.order_id !== providerId || managed.fraud_status !== "ACCEPTED") {
     await getDb().prepare("UPDATE wellness_passes SET status='blocked' WHERE order_reference=?").run(reference);
     throw new DomainError("Betalningen väntar på Kustoms kontroll.");
@@ -157,7 +170,7 @@ export async function reconcileKustomOrder(reference: string, options: { client?
       captured_amount: order.totalOre, order_lines: kustomOrderLines(order), reference,
     }, String(record.capture_key));
     managed = managedSchema.parse(await client.request(`/ordermanagement/v1/orders/${providerId}`));
-    verifyOrder(order, managed);
+    verifyOrder(order, managed, providerId);
     if (managed.order_id !== providerId || managed.fraud_status !== "ACCEPTED") throw new DomainError("Debiteringen behöver kontrolleras hos Kustom.");
   }
   if (managed.refunded_amount < Number(record.refunded_ore)) throw new DomainError("Betalningssvaret är äldre än en redan verifierad återbetalning. Kontrollera igen.");

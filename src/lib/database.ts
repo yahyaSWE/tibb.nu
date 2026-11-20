@@ -14,6 +14,7 @@ import {
   SLOT_SCHEDULE_SCHEMA,
   COURSE_ACTIVITY_SCHEMA,
   ACCOUNT_EMAIL_SCHEMA,
+  BOOKING_CANCELLATION_SCHEMA,
 } from "./schema";
 import { databaseConfigured } from "./database-config";
 import { SHOP_SCHEMA } from "./shop-schema";
@@ -167,6 +168,7 @@ export class DatabaseAdapter {
         if (!userColumns.rows.some((row) => row.name === "email_verified_at"))
           await tx.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
         await tx.executeMultiple(ACCOUNT_EMAIL_SCHEMA);
+        await tx.executeMultiple(BOOKING_CANCELLATION_SCHEMA);
         const visitAdditions: Record<string, Record<string, string>> = {
           settings: { kustom_booking_enabled: "INTEGER NOT NULL DEFAULT 1 CHECK(kustom_booking_enabled IN (0,1))" },
           treatments: { delivery_mode: "TEXT NOT NULL DEFAULT 'onsite' CHECK(delivery_mode IN ('onsite','remote'))" },

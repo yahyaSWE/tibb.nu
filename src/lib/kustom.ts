@@ -35,7 +35,7 @@ export const kustomClient: KustomClient = {
         ...(idempotencyKey ? { "Kustom-Idempotency-Key": idempotencyKey } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}) });
     if (!response.ok) throw new KustomApiError(response.status);
-    if (response.status === 204) return {};
+    if (response.status === 204 || (response.status === 201 && method === "POST" && path.endsWith("/refunds"))) return {};
     return response.json();
   },
 };

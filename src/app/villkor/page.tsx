@@ -29,7 +29,7 @@ export default async function TermsPage() {
         skickas när verksamhetens e-posttjänst är ansluten.
       </p>
       <h2>Återbud</h2>
-      <p>{cancellationText(business.cancellationHours)} Kontakta oss och ange din bokningsreferens.</p>
+      <p>{cancellationText(business.cancellationHours)} Du avbokar via den privata länken i bokningsbekräftelsen.</p>
       {business.cancellationDetails && <TextContent text={business.cancellationDetails} />}
       <h2>Kursåtkomst</h2>
       <p>

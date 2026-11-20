@@ -2,10 +2,12 @@ import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById } from "@/lib/db";
-import { updateBookingAction, saveBookingMeetingLinkAction } from "@/lib/actions";
+import { handleCancelledBookingPaymentAction, updateBookingAction, saveBookingMeetingLinkAction } from "@/lib/actions";
 import { getBookingEmailStatus, type BookingEmailState } from "@/lib/email-outbox";
 import { retryBookingEmailsAction } from "@/lib/account-actions";
 import { SubmitButton } from "@/components/admin/submit-button";
+import { getBookingCancellation, getBookingCancellationHours } from "@/lib/booking-cancellations";
+import { bookingCancellationDecision, bookingCancellationText } from "@/lib/booking-cancellation-policy";
 import {
   AdminHeading,
   AdminNotice,
@@ -29,7 +31,13 @@ export default async function BookingDetailPage({
   const { id } = await params;
   const booking = await getBookingById(Number(id));
   if (!booking) notFound();
-  const email = await getBookingEmailStatus(booking.id);
+  const [email, cancellation] = await Promise.all([getBookingEmailStatus(booking.id), getBookingCancellation(booking.id)]);
+  const cancellationEmail = cancellation ? await getBookingEmailStatus(booking.id, "cancellation") : null;
+  const canCancel = booking.status === "pending" || booking.status === "confirmed";
+  const decision = canCancel ? bookingCancellationDecision(booking, await getBookingCancellationHours(booking.reference), Date.now()) : null;
+  const paymentAction = cancellation?.decision === "refund" && booking.paymentStatus === "paid"
+    ? booking.paymentMethod === "onsite" ? "refunded" : "check"
+    : cancellation?.decision === "collect" && booking.paymentMethod === "onsite" && booking.paymentStatus === "pending" ? "paid" : null;
   const emailLabel: Record<BookingEmailState, string> = {
     pending: "Väntar på utskick", sending: "Utskick pågår", sent: "Accepterat av Resend",
     failed: "Utskicket kunde inte slutföras", skipped: "Utskicket stoppades",
@@ -139,11 +147,23 @@ export default async function BookingDetailPage({
         </section>
         <section id="hantera-bokning" tabIndex={-1} className="panel admin-section-target">
           <SectionHeading title="Hantera bokningen" />
-          {booking.status === "cancelled" ? (
-            <div className="notice">
-              Bokningen är avbokad och kan inte återaktiveras. Kunden kan göra
-              en ny bokning.
-            </div>
+          {booking.status === "cancelled" ? <>
+            <p className="notice">
+              {booking.paymentStatus === "refunded" ? "Hela det betalda bokningsbeloppet har återbetalats."
+                : cancellation ? bookingCancellationText(cancellation.decision, booking.priceOre) : "Bokningen är avbokad."}
+            </p>
+            {paymentAction && <form action={handleCancelledBookingPaymentAction} className="stack">
+              <ReturnTo path={`/admin/bokningar/${id}`} />
+              <input type="hidden" name="id" value={booking.id} />
+              <input type="hidden" name="paymentAction" value={paymentAction} />
+              {paymentAction === "refunded" && <p>Återbetala till kunden via det ursprungliga betalningssättet innan du markerar det som klart här.</p>}
+              {paymentAction === "paid" && <p>Registrera betalningen när du har tagit emot den.</p>}
+              <div><SubmitButton className="button button-secondary">
+                {paymentAction === "check" ? "Kontrollera återbetalning" : paymentAction === "paid" ? "Markera som betald" : "Registrera genomförd återbetalning"}
+              </SubmitButton></div>
+            </form>}
+          </> : waitingForPayment ? (
+            <p className="notice">Bokningen bekräftas automatiskt när betalningen har verifierats.</p>
           ) : (
             <form action={updateBookingAction} className="stack">
               <ReturnTo path={`/admin/bokningar/${id}`} />
@@ -155,15 +175,6 @@ export default async function BookingDetailPage({
                   value={booking.paymentStatus}
                 />
               ) : null}
-              {waitingForPayment ? (
-                <>
-                  <div className="notice">
-                    Kortbetalningen har ännu inte bekräftats. Bokningen
-                    bekräftas automatiskt när betalningen är klar.
-                  </div>
-                  <input type="hidden" name="status" value="cancelled" />
-                </>
-              ) : (
                 <Field label="Bokningsstatus" name="status">
                   <select
                     id="status"
@@ -173,10 +184,8 @@ export default async function BookingDetailPage({
                   >
                     <option value="confirmed">Bekräftad</option>
                     <option value="completed">Genomförd</option>
-                    <option value="cancelled">Avbokad</option>
                   </select>
                 </Field>
-              )}
               {booking.paymentMethod === "onsite" ? (
                 <Field
                   label="Betalningsstatus"
@@ -195,20 +204,30 @@ export default async function BookingDetailPage({
                 </Field>
               ) : (
                 <p className="muted">
-                  Betalningsstatus uppdateras automatiskt. En eventuell
-                  återbetalning hanteras hos betalningsleverantören.
+                  Betalningsstatus uppdateras när betalningsleverantören bekräftar betalningen eller återbetalningen.
                 </p>
               )}
               <div>
                 <button
-                  className={`button ${waitingForPayment ? "button-secondary delete-button" : "button-primary"}`}
+                  className="button button-primary"
                   type="submit"
                 >
-                  {waitingForPayment ? "Avboka reservation" : "Spara bokning"}
+                  Spara bokning
                 </button>
               </div>
             </form>
           )}
+          {decision && <details className="notice">
+            <summary>Avboka bokningen</summary>
+            <form action={updateBookingAction} className="stack">
+              <ReturnTo path={`/admin/bokningar/${id}`} />
+              <input type="hidden" name="id" value={booking.id} />
+              <input type="hidden" name="status" value="cancelled" />
+              <input type="hidden" name="decision" value={decision} />
+              <p>{bookingCancellationText(decision, booking.priceOre)}</p>
+              <div><SubmitButton pendingLabel="Avbokar…" className="button button-danger">Bekräfta avbokning</SubmitButton></div>
+            </form>
+          </details>}
         </section>
       </div>
       {booking.deliveryMode === "remote" && <section id="distansmote" tabIndex={-1} className="panel form-panel admin-section-target">
@@ -236,6 +255,15 @@ export default async function BookingDetailPage({
             </div>
           ))}
         </dl>
+        {cancellationEmail && <dl className="detail-list">
+          <div><dt>Avbokningsmejl till kunden</dt><dd>{cancellationEmail.customer ? emailLabel[cancellationEmail.customer.status] : "Inget utskick registrerat"}</dd></div>
+          <div><dt>Avbokningsmejl till verksamheten</dt><dd>{cancellationEmail.admin ? emailLabel[cancellationEmail.admin.status] : "Inget utskick registrerat"}</dd></div>
+        </dl>}
+        {cancellationEmail?.configured && <form action={retryBookingEmailsAction}>
+          <input type="hidden" name="bookingId" value={booking.id} />
+          <input type="hidden" name="event" value="cancellation" />
+          <button className="button button-secondary" type="submit">Behandla avbokningsmejl</button>
+        </form>}
         {email.configured && booking.status === "confirmed" && Date.parse(booking.start) > Date.now() && (
           <form action={retryBookingEmailsAction}>
             <input type="hidden" name="bookingId" value={booking.id} />

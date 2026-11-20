@@ -4,12 +4,13 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 import { createSession, destroySession, getCurrentUser, requireAdmin } from "./auth";
-import { DomainError, transaction } from "./db";
+import { DomainError, getBookingById, transaction } from "./db";
 import { sendVerificationEmail, requestPasswordReset, resetPassword, verifyEmail, RESET_REQUEST_MESSAGE } from "./account-email";
 import { EmailConfigurationError, EmailDeliveryError, requireEmailConfiguration } from "./email-provider";
 import { enforceRequestLimit } from "./request-rate-limit";
 import { field, idField } from "./validation";
-import { dispatchBookingEmailOutbox, queueBookingEmails } from "./email-outbox";
+import { dispatchBookingEmailOutbox, queueBookingCancellationEmails, queueBookingEmails } from "./email-outbox";
+import { getBookingCancellation } from "./booking-cancellations";
 import { revalidatePath } from "next/cache";
 import type { AccountActionState } from "./account-action-state";
 import { accountAuthHref, accountReturnWithMessage, safeAccountReturnTo } from "./account-return";
@@ -68,8 +69,14 @@ export async function resetPasswordAction(_previous: AccountActionState, form: F
 export async function retryBookingEmailsAction(form: FormData): Promise<void> {
   await requireAdmin();
   const bookingId = idField(form, "bookingId");
-  await queueBookingEmails(bookingId);
-  const result = await dispatchBookingEmailOutbox({ bookingId, limit: 2 });
+  const event = field(form, "event") === "cancellation" ? "cancellation" : "confirmation";
+  if (event === "confirmation") await queueBookingEmails(bookingId);
+  else {
+    const [booking, cancellation] = await Promise.all([getBookingById(bookingId), getBookingCancellation(bookingId)]);
+    if (booking?.status === "cancelled" && cancellation)
+      await queueBookingCancellationEmails(booking, cancellation.decision, cancellation.requestedAt);
+  }
+  const result = await dispatchBookingEmailOutbox({ bookingId, limit: 2, event });
   revalidatePath(`/admin/bokningar/${bookingId}`);
   redirect(`/admin/bokningar/${bookingId}?${result.configured ? "success" : "error"}=` + encodeURIComponent(
     !result.configured ? "E-post är inte ansluten. Bokningen finns kvar; inga meddelanden har skickats." :

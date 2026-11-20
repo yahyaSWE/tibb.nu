@@ -1,8 +1,46 @@
 // Increase this version whenever schema definitions or migrations change.
 // It is recorded in app_meta (and local SQLite's user_version) only when the
 // complete migration and initial seed commit successfully.
-export const SCHEMA_VERSION = 20;
+export const SCHEMA_VERSION = 21;
 export const SCHEMA_VERSION_KEY = "schema_version";
+
+const bookingEmailColumns = `
+    id TEXT PRIMARY KEY, booking_id INTEGER NOT NULL REFERENCES bookings(id),
+    audience TEXT NOT NULL CHECK(audience IN ('customer','admin')),
+    recipient TEXT NOT NULL, sender TEXT, subject TEXT NOT NULL, body TEXT NOT NULL, html TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed','skipped')),
+    attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, first_attempt_at TEXT,
+    next_attempt_at TEXT NOT NULL, lease_until TEXT, lease_token TEXT, sent_at TEXT, provider_id TEXT,
+    UNIQUE(booking_id,audience)
+`;
+
+export const BOOKING_CANCELLATION_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS booking_payment_evidence (
+    booking_id INTEGER PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+    paid_at TEXT NOT NULL
+  );
+  CREATE TRIGGER IF NOT EXISTS booking_payment_evidence_paid AFTER UPDATE OF payment_status ON bookings
+    WHEN NEW.payment_status='paid' AND OLD.payment_status!='paid'
+    BEGIN
+      INSERT OR IGNORE INTO booking_payment_evidence(booking_id,paid_at)
+      VALUES(NEW.id,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+    END;
+  CREATE TABLE IF NOT EXISTS booking_cancellations (
+    booking_id INTEGER PRIMARY KEY REFERENCES bookings(id) ON DELETE CASCADE,
+    source TEXT NOT NULL CHECK(source IN ('customer','admin')),
+    decision TEXT NOT NULL CHECK(decision IN ('refund','retain','unpaid','collect')),
+    requested_at TEXT NOT NULL, refund_key TEXT NOT NULL UNIQUE,
+    refund_first_attempt_at TEXT, refund_next_attempt_at TEXT,
+    refund_lease_token TEXT, refund_lease_until TEXT, refund_attempts INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS booking_cancellation_email_outbox (${bookingEmailColumns});
+  CREATE INDEX IF NOT EXISTS booking_cancellation_email_due ON booking_cancellation_email_outbox(status,next_attempt_at);
+  CREATE TRIGGER IF NOT EXISTS booking_cancellation_cleanup BEFORE DELETE ON bookings BEGIN
+    DELETE FROM booking_cancellation_email_outbox WHERE booking_id=OLD.id;
+    DELETE FROM booking_cancellations WHERE booking_id=OLD.id;
+    DELETE FROM booking_payment_evidence WHERE booking_id=OLD.id;
+  END;
+`;
 
 export const ACCOUNT_EMAIL_SCHEMA = `
   CREATE TABLE IF NOT EXISTS auth_tokens (
@@ -17,15 +55,7 @@ export const ACCOUNT_EMAIL_SCHEMA = `
   CREATE TRIGGER IF NOT EXISTS users_auth_tokens_cleanup BEFORE DELETE ON users BEGIN
     DELETE FROM auth_tokens WHERE user_id=OLD.id;
   END;
-  CREATE TABLE IF NOT EXISTS booking_email_outbox (
-    id TEXT PRIMARY KEY, booking_id INTEGER NOT NULL REFERENCES bookings(id),
-    audience TEXT NOT NULL CHECK(audience IN ('customer','admin')),
-    recipient TEXT NOT NULL, sender TEXT, subject TEXT NOT NULL, body TEXT NOT NULL, html TEXT,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','failed','skipped')),
-    attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, first_attempt_at TEXT,
-    next_attempt_at TEXT NOT NULL, lease_until TEXT, lease_token TEXT, sent_at TEXT, provider_id TEXT,
-    UNIQUE(booking_id,audience)
-  );
+  CREATE TABLE IF NOT EXISTS booking_email_outbox (${bookingEmailColumns});
   CREATE INDEX IF NOT EXISTS booking_email_due ON booking_email_outbox(status,next_attempt_at);
   CREATE TRIGGER IF NOT EXISTS booking_email_reference BEFORE INSERT ON booking_email_outbox
     WHEN NOT EXISTS(SELECT 1 FROM bookings WHERE id=NEW.booking_id)

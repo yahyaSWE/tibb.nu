@@ -138,6 +138,7 @@ async function applyResult(reference: string, kind: Kind, status: "paid" | "canc
         const updated = await getDb().prepare(`UPDATE bookings SET status='confirmed',payment_status='paid',expires_at=NULL
           WHERE reference=? AND online_payment_provider='kustom' AND status='pending' AND julianday(start)>julianday(?) RETURNING id`).get(reference, paidAt);
         if (!updated) throw new DomainError("Debiteringen behöver granskas innan bokningen kan bekräftas.");
+        await getDb().prepare("UPDATE booking_payment_evidence SET paid_at=? WHERE booking_id=?").run(paidAt, Number(updated.id));
         const { queueBookingEmails } = await import("./email-outbox");
         await queueBookingEmails(Number(updated.id));
       } else if (status === "cancelled") {
@@ -232,4 +233,33 @@ export async function reconcileKustomServicePayment(reference: string, client = 
 export async function cancelKustomServicePayment(reference: string) {
   await reconcileKustomServicePayment(reference, kustomClient, "cancel");
   if ((await payment(reference))?.state !== "cancelled") throw new DomainError("Betalningen behöver kontrolleras hos Kustom innan köpet kan avbrytas.");
+}
+
+export async function refundKustomBooking(booking: Booking, key: string, allowWrite: boolean, client = kustomClient) {
+  const row = await payment(booking.reference);
+  if (!row || row.kind !== "booking" || row.environment !== kustomConfiguration().environment || !row.order_id)
+    throw new DomainError("Kustom-betalningen behöver kontrolleras innan den kan återbetalas.");
+  const orderId = kustomIdentifier.parse(row.order_id);
+  const line: Line = JSON.parse(String(row.line_json));
+  if (line.total_amount !== booking.priceOre) throw new DomainError("Betalningen matchar inte bokningens pris.");
+  const path = `/ordermanagement/v1/orders/${orderId}`;
+  async function read() {
+    const remote = serviceOrderSchema.parse(await client.request(path));
+    verify(remote, booking.reference, line, orderId);
+    if (!["CAPTURED", "CLOSED"].includes(remote.status) || remote.captured_amount !== booking.priceOre)
+      throw new DomainError("Kustom har inte bekräftat hela bokningsbeloppet.");
+    return remote;
+  }
+  let remote = await read();
+  if (remote.refunded_amount === 0 && allowWrite) {
+    await client.request(`${path}/refunds`, "POST", {
+      refunded_amount: booking.priceOre,
+      description: "Återbetalning av avbokad behandling",
+      reference: key,
+    }, key);
+    remote = await read();
+  }
+  if (remote.refunded_amount !== booking.priceOre) return false;
+  await applyResult(booking.reference, "booking", "refunded", orderId);
+  return true;
 }

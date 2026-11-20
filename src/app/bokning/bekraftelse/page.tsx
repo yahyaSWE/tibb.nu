@@ -12,6 +12,10 @@ import { BookingVisitDetails } from "@/components/booking-visit-details";
 import { BookingPreparation } from "@/components/booking-preparation";
 import { BookingPaymentStatus } from "@/components/booking-payment-status";
 import { getKustomBookingPaymentLink, wasKustomBookingCheckoutRejected } from "@/lib/kustom-service-payments";
+import { getBookingCancellation, getBookingCancellationHours } from "@/lib/booking-cancellations";
+import { bookingCancellationDecision, bookingCancellationText } from "@/lib/booking-cancellation-policy";
+import { cancelCustomerBookingAction } from "@/lib/actions";
+import { SubmitButton } from "@/components/admin/submit-button";
 
 export const metadata = {
   ...PRIVATE_METADATA,
@@ -20,20 +24,23 @@ export const metadata = {
 export default async function ConfirmationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ref?: string }>;
+  searchParams: Promise<{ ref?: string; error?: string }>;
 }) {
-  const { ref } = await searchParams;
+  const { ref, error } = await searchParams;
   if (!ref || !/^[a-f0-9]{32}$/.test(ref)) notFound();
   const booking = await getBookingByReference(ref);
   if (!booking) notFound();
-  const [settings, email, terms] = await Promise.all([
-    getSettings(), getBookingEmailStatus(booking.id), getBookingTerms(ref),
+  const [settings, email, terms, cancellation] = await Promise.all([
+    getSettings(), getBookingEmailStatus(booking.id), getBookingTerms(ref), getBookingCancellation(booking.id),
   ]);
   const pending = booking.status === "pending";
   const kustomPending = pending && booking.paymentMethod === "kustom";
   const cancelled = booking.status === "cancelled";
   const checkoutRejected = cancelled && booking.paymentMethod === "kustom" && await wasKustomBookingCheckoutRejected(ref);
   const paymentLink = pending && booking.paymentMethod === "kustom" ? await getKustomBookingPaymentLink(ref) : null;
+  const canCancel = booking.status === "confirmed" && Date.parse(booking.start) > Date.now();
+  const decision = canCancel ? bookingCancellationDecision(booking, terms?.cancellationHours ?? await getBookingCancellationHours(ref), Date.now()) : null;
+  const hasReceipt = booking.priceOre > 0 && (booking.paymentStatus === "paid" || booking.paymentStatus === "refunded");
   return (
     <section className="section container narrow">
       <div className="panel confirmation-panel">
@@ -57,16 +64,18 @@ export default async function ConfirmationPage({
           {pending
             ? "Din betalning behandlas."
             : checkoutRejected ? "Kustom-kassan kunde inte öppnas." : cancelled
-              ? "Din tid är inte reserverad."
+              ? cancellation ? "Din bokning är avbokad." : "Din tid är inte reserverad."
               : "Du har en tid bokad."}
         </h1>
         <p>
           {pending
             ? kustomPending ? "Vi kontrollerar betalningen automatiskt. Bokningen visas här så snart den har bekräftats." : "Bokningen bekräftas när betalningen har verifierats. Uppdatera sidan om en stund."
             : checkoutRejected ? "Ingen betalning drogs och tiden är inte reserverad. Kontakta oss om du vill ha hjälp med bokningen." : cancelled
-              ? "Bokningen har avbokats eller betalningstiden har löpt ut."
+              ? cancellation ? booking.paymentStatus === "refunded" ? "Hela det betalda bokningsbeloppet har återbetalats."
+                : bookingCancellationText(cancellation.decision, booking.priceOre) : "Bokningen har avbokats eller betalningstiden har löpt ut."
               : "Spara den här sidan så att du har alla uppgifter inför ditt besök."}
         </p>
+        {error && <p className="notice notice-error" role="alert">{error}</p>}
         {paymentLink && <a href={paymentLink} className="button button-secondary" rel="noreferrer">Tillbaka till Kustom</a>}
         <dl className="detail-list">
           <div>
@@ -138,6 +147,7 @@ export default async function ConfirmationPage({
         </> : <p>Se <Link href="/villkor">aktuella allmänna bokningsvillkor</Link> eller kontakta verksamheten om villkoren för denna bokning.</p>}
         {terms && <p><Link href="/villkor">Aktuella allmänna villkor</Link></p>}
         <div className="form-actions">
+          {hasReceipt && <a className="button button-secondary" href={`/api/bokning/kvitto?ref=${ref}`}>Ladda ner kvitto (PDF)</a>}
           {kustomPending ? <BookingPaymentStatus reference={ref} /> : pending && (
             <a
               className="button button-primary"
@@ -153,6 +163,15 @@ export default async function ConfirmationPage({
             {cancelled ? "Välj en ny tid" : "Till startsidan"}
           </Link>
         </div>
+        {decision && <details className="notice">
+          <summary>Avboka behandling</summary>
+          <form action={cancelCustomerBookingAction} className="stack">
+            <input type="hidden" name="reference" value={ref} />
+            <input type="hidden" name="decision" value={decision} />
+            <p>{bookingCancellationText(decision, booking.priceOre)}</p>
+            <div><SubmitButton className="button button-secondary" pendingLabel="Avbokar…">Bekräfta avbokning</SubmitButton></div>
+          </form>
+        </details>}
       </div>
     </section>
   );

@@ -15,6 +15,7 @@ import {
   cancelPendingBooking,
   createFirstAdmin,
   getBookingById,
+  getDb,
   getUserByEmail,
   hasAdmin,
   quoteBookingCoupon,
@@ -37,8 +38,9 @@ import {
   signupSchema,
   text,
 } from "./validation";
-import { createCheckout, getStripe } from "./stripe";
-import { cancelKustomServicePayment, openKustomBooking } from "./kustom-service-payments";
+import { createCheckout } from "./stripe";
+import { openKustomBooking } from "./kustom-service-payments";
+import { dispatchBookingRefund, getBookingCancellation, processBookingCancellation, requestBookingCancellation } from "./booking-cancellations";
 import { enforceRequestLimit } from "./request-rate-limit";
 import { sendVerificationEmail } from "./account-email";
 import { dispatchBookingEmailOutbox } from "./email-outbox";
@@ -367,22 +369,14 @@ export async function updateBookingAction(form: FormData): Promise<void> {
   const user = await requireAdmin();
   await formAction(form, "/admin/bokningar", async () => {
     const id = idField(form);
-    const booking = await getBookingById(id);
-    if (booking?.paymentMethod === "kustom" && booking.status === "pending" && field(form, "status") === "cancelled")
-      await cancelKustomServicePayment(booking.reference);
-    if (
-      booking?.paymentMethod === "stripe" &&
-      booking.status === "pending" &&
-      field(form, "status") === "cancelled" &&
-      booking.checkoutSessionId
-    ) {
-      try {
-        await getStripe().checkout.sessions.expire(booking.checkoutSessionId);
-      } catch {
-        throw new DomainError(
-          "Kortbetalningen kunde inte avslutas. Kontrollera betalningen i Stripe innan du avbokar.",
-        );
-      }
+    if (field(form, "status") === "cancelled") {
+      const booking = await getBookingById(id);
+      if (!booking) throw new DomainError("Bokningen finns inte.");
+      const preview = field(form, "decision");
+      const decision = preview ? z.enum(["refund", "retain", "unpaid", "collect"]).parse(preview) : undefined;
+      await requestBookingCancellation(booking.reference, "admin", booking.status === "confirmed" ? decision : undefined);
+      after(() => processBookingCancellation(id));
+      return `/admin/bokningar/${id}?success=${encodeURIComponent("Bokningen är avbokad.")}`;
     }
     await admin.updateBooking(
       user.id,
@@ -390,6 +384,45 @@ export async function updateBookingAction(form: FormData): Promise<void> {
       field(form, "status"),
       field(form, "paymentStatus"),
     );
+  });
+}
+export async function cancelCustomerBookingAction(form: FormData): Promise<void> {
+  const reference = field(form, "reference");
+  if (!/^[a-f0-9]{32}$/.test(reference)) redirect("/boka");
+  const page = `/bokning/bekraftelse?ref=${reference}`;
+  let destination = page;
+  try {
+    await requestLimit("booking-cancellation", reference, 10);
+    const decision = z.enum(["refund", "retain", "unpaid", "collect"]).parse(field(form, "decision"));
+    const bookingId = await requestBookingCancellation(reference, "customer", decision);
+    after(() => processBookingCancellation(bookingId));
+  } catch (error) {
+    destination += "&error=" + encodeURIComponent(message(error));
+  }
+  redirect(destination);
+}
+
+export async function handleCancelledBookingPaymentAction(form: FormData): Promise<void> {
+  await requireAdmin();
+  await formAction(form, "/admin/bokningar", async () => {
+    const id = idField(form);
+    const action = z.enum(["check", "paid", "refunded"]).parse(field(form, "paymentAction"));
+    if (action === "check") {
+      if (await dispatchBookingRefund(id, true)) {
+        return `/admin/bokningar/${id}?success=${encodeURIComponent("Återbetalningen har verifierats.")}`;
+      }
+      after(() => processBookingCancellation(id));
+      return `/admin/bokningar/${id}?success=${encodeURIComponent("Betalningsleverantören har ännu inte bekräftat återbetalningen.")}`;
+    }
+    await transaction(async () => {
+      const booking = await getBookingById(id);
+      const cancellation = await getBookingCancellation(id);
+      if (!booking || booking.status !== "cancelled" || booking.paymentMethod !== "onsite" ||
+          (action === "paid" ? cancellation?.decision !== "collect" || booking.paymentStatus !== "pending"
+            : cancellation?.decision !== "refund" || booking.paymentStatus !== "paid"))
+        throw new DomainError("Betalningsstatus kan inte ändras för avbokningen.");
+      await getDb().prepare("UPDATE bookings SET payment_status=? WHERE id=?").run(action, id);
+    });
   });
 }
 export async function saveBookingMeetingLinkAction(form: FormData): Promise<void> {

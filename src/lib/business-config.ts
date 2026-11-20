@@ -42,7 +42,7 @@ export const EMPTY_COURSE_INFORMATION: CourseInformation = {
 };
 
 export function cancellationText(hours: number) {
-  return `Återbud ska lämnas minst ${hours} timmar före din bokade tid.`;
+  return `Vid avbokning minst ${hours} timmar före besöket återbetalas hela det betalda beloppet. Vid senare avbokning debiteras hela bokningsbeloppet.`;
 }
 
 export function missingPrivacyInformation(value: BusinessSettings) {

@@ -10,18 +10,12 @@
 /* The route scope keeps these refinements out of other booking views. */
 .inner-page .booking-page :is(h1, h3, h4, legend) { text-wrap: balance; overflow-wrap: anywhere; }
 .inner-page .booking-page :is(p, label) { text-wrap: pretty; }
-.inner-page .booking-page .booking-heading h1 { font-size: 4.25rem; font-weight: 600; line-height: 1.12; }
-.inner-page .booking-page .booking-heading > p { max-width: 65ch; font-size: 1rem; line-height: 1.7; }
+.inner-page .booking-page .booking-heading { margin: 0 0 28px; }
+.inner-page .booking-page .booking-heading h1 { font-size: 3.25rem; font-weight: 600; line-height: 1.1; }
+.inner-page .booking-page .booking-heading em { font-style: normal; }
 .inner-page .booking-page .booking-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 36px; }
 .inner-page .booking-page .booking-layout > div { min-width: 0; }
 
-.inner-page .booking-page .booking-steps { display: block; padding: 0 0 26px; margin-bottom: 34px; border-color: var(--green); }
-.inner-page .booking-page .booking-steps ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; list-style: none; margin: 0; padding: 0; }
-.inner-page .booking-page .booking-steps li { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 13px 10px; border: 1px solid var(--line); font-size: .875rem; line-height: 1.4; }
-.inner-page .booking-page .booking-steps b { flex: 0 0 27px; height: 27px; background: transparent; font-size: .8125rem; font-variant-numeric: tabular-nums; }
-.inner-page .booking-page .booking-steps .complete { color: var(--green); background: var(--sage); }
-.inner-page .booking-page .booking-steps [aria-current="step"] { color: var(--paper); background: var(--green); border-color: var(--green); font-weight: 600; }
-.inner-page .booking-page .booking-steps [aria-current="step"] b { background: var(--peach); border-color: var(--peach); color: var(--deep); }
 .inner-page .booking-page .booking-form fieldset { min-width: 0; margin-bottom: 36px; }
 .inner-page .booking-page .booking-form legend { max-width: 100%; padding: 0; margin-bottom: 20px; font-size: 2.25rem; font-weight: 600; line-height: 1.2; color: var(--deep); }
 .inner-page .booking-page :is(.treatment-options, .practitioner-options):has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
@@ -56,7 +50,6 @@
 .inner-page .booking-page .calendar-times { background: var(--sage); padding: 26px 22px; }
 .inner-page .booking-page .calendar-times > h4 { margin-top: 0; font-size: 1.75rem; font-weight: 600; }
 .inner-page .booking-page .calendar-selected-date { margin-top: 14px; color: var(--deep); font-weight: 600; }
-.inner-page .booking-page .calendar-times-count { font-size: .875rem; line-height: 1.6; margin-top: 8px; }
 .inner-page .booking-page :is(.calendar-key, .calendar-empty-month, .calendar-date-prompt p) { font-size: .875rem; line-height: 1.65; }
 .inner-page .booking-page .calendar-empty-month .text-link { min-height: 44px; font-size: .875rem; }
 .inner-page .booking-page .calendar-date-prompt h4 { font-size: 1.75rem; line-height: 1.2; }
@@ -70,6 +63,21 @@
 .inner-page .booking-page .summary-total { align-items: center; gap: 16px; font-size: 1rem; }
 .inner-page .booking-page .summary-total strong { font-size: 2.5rem; font-variant-numeric: tabular-nums; }
 .inner-page .booking-page .booking-summary > p { font-size: .875rem; line-height: 1.7; }
+.inner-page .booking-page :is(.booking-mobile-choices, .booking-mobile-recap, .booking-date-select) { display: none; }
+.inner-page .booking-page .booking-form > .notice { margin-bottom: 16px; }
+.inner-page .booking-page .booking-extra > summary {
+  min-height: 44px;
+  padding-block: 9px;
+  color: var(--green);
+  cursor: pointer;
+  font-weight: 600;
+}
+.inner-page .booking-page .booking-extra > p {
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+.inner-page .booking-page #booking-contact { scroll-margin-top: 24px; }
+.inner-page .booking-page .booking-visit-note { font-size: .875rem; color: var(--muted); margin-bottom: 8px; }
 .inner-page .booking-page .booking-form .field { min-width: 0; font-size: 1rem; font-weight: 600; }
 .inner-page .booking-page .field > input { min-height: 56px; border-color: var(--booking-control-border); font-size: 1rem; font-weight: 400; caret-color: var(--green); }
 .inner-page .booking-page .field > input:focus { border-color: var(--green); box-shadow: none; }
@@ -89,7 +97,7 @@
 .inner-page .booking-page .notice { font-size: 1rem; line-height: 1.7; }
 .inner-page .booking-page :is(.treatment-option, .practitioner-option, .payment-option):has(input:focus-visible) { outline: 2px solid var(--green); outline-offset: 4px; }
 .inner-page .booking-page :is(.treatment-option, .practitioner-option, .payment-option) input:focus-visible { outline: none; }
-.inner-page .booking-page :is(.calendar-day, .calendar-nav, .calendar-month-heading select, .field input, .slot-option span, .button, .consent-check input):focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+.inner-page .booking-page :is(.calendar-day, .calendar-nav, .calendar-month-heading select, .field input, .field select, .booking-extra summary, .slot-option span, .button, .consent-check input):focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
 .inner-page .booking-page .slot-option:has(input:focus-visible) span { outline: 2px solid var(--green); outline-offset: 4px; }
 
 @media (max-width: 1100px) {
@@ -101,27 +109,71 @@
   .inner-page .booking-page .summary-total { margin: 0; padding-top: 12px; border-top: 1px solid var(--peach); }
   .inner-page .booking-page .booking-summary > p { display: none; }
 }
-@media (max-width: 760px) {
-  .inner-page .booking-page .booking-heading h1 { font-size: 3rem; }
-  .inner-page .booking-page .booking-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 24px; }
-  .inner-page .booking-page .summary-total { grid-column: 1 / -1; }
-  .inner-page .booking-page .booking-steps ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .inner-page .booking-page .booking-form legend { font-size: 2rem; }
-  .inner-page .booking-page :is(.treatment-options, .practitioner-options, .form-grid) { grid-template-columns: minmax(0, 1fr); }
-  .inner-page .booking-page :is(.treatment-option, .practitioner-option) { padding: 22px; }
-  .inner-page .booking-page .booking-calendar-layout { grid-template-columns: minmax(0, 1fr); }
-  .inner-page .booking-page .booking-calendar { padding: 22px 16px; }
-  .inner-page .booking-page .calendar-times { border-left: 0; border-top: 1px solid var(--line); padding: 24px 20px; }
-  .inner-page .booking-page .calendar-date-prompt { min-height: 0; }
-  .inner-page .booking-page .calendar-date-prompt > svg { display: none; }
-  .inner-page .booking-page .empty-state { padding: 30px 20px; }
-  .inner-page .booking-page .booking-form > .button { width: 100%; }
-}
-@media (max-width: 380px) {
-  .inner-page .booking-page .booking-steps li { flex-direction: column; align-items: flex-start; }
-  .inner-page .booking-page .booking-calendar { padding-inline: 12px; }
-  .inner-page .booking-page :is(.calendar-days, .calendar-weekdays) { gap: 3px; }
-  .inner-page .booking-page .calendar-nav { width: 40px; height: 44px; }
-  .inner-page .booking-page .practitioner-option { gap: 10px; padding: 18px; }
-  .inner-page .booking-page .practitioner-avatar { width: 48px; height: 48px; }
+@media (max-width: 850px) {
+  .inner-page > .booking-page.section { padding-block: 22px 44px; }
+  .inner-page .booking-page .booking-heading { margin-bottom: 20px; }
+  .inner-page .booking-page .booking-heading h1 { font-size: 2.25rem; }
+  .inner-page .booking-page .booking-heading + .notice { margin-bottom: 18px; }
+  .inner-page .booking-page :is(.booking-summary, .booking-desktop-choices) { display: none; }
+  .inner-page .booking-page .booking-mobile-choices {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .inner-page .booking-page .booking-mobile-choices .field { gap: 6px; }
+  .inner-page .booking-page .booking-mobile-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+    font-size: .875rem;
+  }
+  .inner-page .booking-page .booking-mobile-meta strong { color: var(--deep); white-space: nowrap; }
+  .inner-page .booking-page .booking-single-treatment { font-size: 1.375rem; }
+  .inner-page .booking-page .booking-single-practitioner { display: flex; align-items: center; gap: 8px; font-size: .875rem; }
+  .inner-page .booking-page .booking-mobile-choices .booking-extra {
+    margin-top: -3px;
+    font-size: .875rem;
+  }
+  .inner-page .booking-page .booking-form fieldset { margin-bottom: 20px; }
+  .inner-page .booking-page .booking-form legend { font-size: 1.625rem; margin-bottom: 8px; }
+  .inner-page .booking-page .booking-timezone { margin-bottom: 10px; }
+  .inner-page .booking-page .booking-form .field > :is(select, input) {
+    width: 100%;
+    min-height: 48px;
+    padding: 9px 12px;
+    border-color: var(--booking-control-border);
+    font-size: 1rem;
+    font-weight: 400;
+  }
+  .inner-page .booking-page .booking-form .form-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .inner-page .booking-page .booking-calendar-layout { display: block; }
+  .inner-page .booking-page .booking-calendar { display: none; }
+  .inner-page .booking-page .booking-date-select { display: flex; margin-bottom: 12px; }
+  .inner-page .booking-page .calendar-times { border: 0; padding: 14px; background: transparent; }
+  .inner-page .booking-page .calendar-times h4 { font: inherit; font-weight: 600; }
+  .inner-page .booking-page .calendar-times .calendar-selected-date { display: none; }
+  .inner-page .booking-page .calendar-times .slot-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .inner-page .booking-page .slot-option span { min-width: 0; width: 100%; }
+  .inner-page .booking-page .booking-mobile-recap {
+    display: grid;
+    gap: 2px;
+    padding: 14px;
+    margin-bottom: 22px;
+    border: 1px solid var(--line);
+    background: var(--sage);
+    border-radius: 14px;
+    font-size: .875rem;
+  }
+  .inner-page .booking-page .booking-mobile-recap p:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; }
+  .inner-page .booking-page .booking-mobile-recap .text-link { min-height: 44px; justify-self: start; }
+  .inner-page .booking-page .empty-state { padding: 22px 16px; }
+  .inner-page .booking-page .booking-form > .button { width: 100%; justify-content: center; }
 }

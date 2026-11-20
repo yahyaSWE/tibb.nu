@@ -67,11 +67,12 @@ export function BookingCalendar({
       : requestedMonth > lastMonth
         ? lastMonth
         : requestedMonth;
-  const [selectedDate, setSelectedDate] = useState("");
+  const monthDates = dates.filter((date) => date.startsWith(month));
+  const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
   const activeDate =
     selectedDate.startsWith(month) && byDate.has(selectedDate)
       ? selectedDate
-      : "";
+      : monthDates[0] ?? "";
   const [year, number] = month.split("-").map(Number);
   const offset = (new Date(Date.UTC(year, number - 1, 1)).getUTCDay() + 6) % 7;
   const daysInMonth = new Date(Date.UTC(year, number, 0)).getUTCDate();
@@ -79,13 +80,17 @@ export function BookingCalendar({
   const months: string[] = [];
   for (let value = firstMonth; value <= lastMonth; value = moveMonth(value, 1))
     months.push(value);
-  const monthDates = dates.filter((date) => date.startsWith(month));
   const daySlots = byDate.get(activeDate) || [];
   const nextAvailableDate = dates.find((date) => date.slice(0, 7) > month);
   function changeMonth(value: string) {
     setMonth(value);
     setSelectedDate("");
     onSelect(undefined);
+  }
+  function chooseDate(date: string) {
+    setMonth(date.slice(0, 7));
+    setSelectedDate(date);
+    if (date !== activeDate) onSelect(undefined);
   }
   return (
     <div className="booking-calendar-layout">
@@ -153,10 +158,7 @@ export function BookingCalendar({
                 aria-pressed={activeDate === date}
                 aria-controls={timesId}
                 aria-label={`${dateLabel(date)}, ${count === 1 ? "1 ledig tid" : count ? `${count} lediga tider` : "inga lediga tider"}`}
-                onClick={() => {
-                  setSelectedDate(date);
-                  onSelect(undefined);
-                }}
+                onClick={() => chooseDate(date)}
               >
                 <span>{day}</span>
                 {count > 0 && <i aria-hidden="true" />}
@@ -185,16 +187,21 @@ export function BookingCalendar({
       <section
         className="calendar-times"
         id={timesId}
-        aria-live="polite"
         aria-label="Lediga tider för valt datum"
       >
+        {dates.length > 1 ? (
+          <label className="field booking-date-select">
+            Datum
+            <select value={activeDate} onChange={(event) => chooseDate(event.target.value)}>
+              {!activeDate && <option value="" disabled>Välj ett datum</option>}
+              {dates.map((date) => <option key={date} value={date}>{dateLabel(date)}</option>)}
+            </select>
+          </label>
+        ) : activeDate && <p className="booking-date-select"><strong>{dateLabel(activeDate)}</strong></p>}
         {activeDate ? (
           <>
             <h4>Välj klockslag</h4>
             <p className="calendar-selected-date">{dateLabel(activeDate)}</p>
-            <p className="calendar-times-count">
-              {daySlots.length === 1 ? "1 ledig tid" : `${daySlots.length} lediga tider`} · svensk tid
-            </p>
             <div className="slot-options">
               {daySlots.map((slot) => (
                 <label className="slot-option" key={slot.id}>

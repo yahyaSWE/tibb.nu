@@ -16,7 +16,7 @@ export default function QuestionsPage() {
       </div>
       <div className="questions-list">
         <details open><summary>Hur bokar jag en behandling?</summary>
-          <p>På <Link href="/boka">bokningssidan</Link> väljer du behandling och behandlare. Kalendern visar tillgängliga dagar månadsvis. Välj ett datum och därefter ett av dagens lediga klockslag. Fyll i dina uppgifter och bekräfta bokningen. Alla tider visas i svensk tid.</p>
+          <p>På <Link href="/boka">bokningssidan</Link> väljer du behandling, datum och ett ledigt klockslag. Du kan byta behandlare om flera finns att välja på. Fyll i dina uppgifter och följ betalningssteget för att boka. Alla tider visas i svensk tid.</p>
         </details>
         <details><summary>Vad kostar behandlingarna och hur länge tar de?</summary>
           <p>Aktuellt pris och längd visas vid varje behandling på <Link href="/boka">bokningssidan</Link> och i sammanställningen innan du bekräftar. De betalningsalternativ som verksamheten har aktiverat visas när du bokar.</p>

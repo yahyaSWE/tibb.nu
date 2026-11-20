@@ -1042,38 +1042,6 @@ textarea.field {
   gap: 32px;
   align-items: start;
 }
-.booking-steps {
-  display: flex;
-  gap: 24px;
-  margin-block: 0 30px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 11px;
-}
-.booking-steps span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.booking-steps b {
-  height: 23px;
-  width: 23px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 500;
-}
-.booking-steps .current {
-  color: var(--green);
-}
-.booking-steps .current b {
-  background: var(--green);
-  color: white;
-  border-color: var(--green);
-}
 .booking-form fieldset {
   border: 0;
   padding: 0;
@@ -2309,19 +2277,6 @@ textarea.field {
   }
   .treatment-options {
     grid-template-columns: 1fr;
-  }
-  .booking-steps {
-    gap: 15px;
-    font-size: 10px;
-    flex-wrap: wrap;
-  }
-  .booking-steps span {
-    gap: 5px;
-  }
-  .booking-steps b {
-    height: 20px;
-    width: 20px;
-    font-size: 9px;
   }
   .booking-form legend {
     font-size: 28px;

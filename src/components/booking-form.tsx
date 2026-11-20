@@ -17,11 +17,11 @@ import { formatDateTime, formatMoney } from "@/lib/time";
 import { createBookingAction } from "@/lib/actions";
 import { BookingCalendar } from "./booking-calendar";
 
-function SubmitBooking() {
+function SubmitBooking({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
     <button type="submit" disabled={pending} className="button button-primary">
-      {pending ? "Din bokning behandlas…" : "Bekräfta bokning"}
+      {pending ? "Din bokning behandlas…" : label}
       <ArrowRight size={17} aria-hidden="true" />
     </button>
   );
@@ -31,8 +31,9 @@ export function BookingForm({
   practitioners,
   slots,
   initialTreatment,
+  initialPractitioner,
   payOnSite,
-  stripeEnabled,
+  onlineEnabled,
   onlineProvider = "stripe",
   location,
   contactEmail,
@@ -42,22 +43,29 @@ export function BookingForm({
   practitioners: Practitioner[];
   slots: Slot[];
   initialTreatment?: number;
+  initialPractitioner?: number;
   payOnSite: boolean;
-  stripeEnabled: boolean;
+  onlineEnabled: boolean;
   onlineProvider?: "stripe" | "kustom";
   location: string;
   contactEmail: string;
   cancellationNotice?: string;
 }) {
-  const [treatmentId, setTreatmentId] = useState(
+  const [treatmentId, setTreatmentId] = useState(() =>
     treatments.some((t) => t.id === initialTreatment)
       ? initialTreatment
-      : treatments[0]?.id,
+      : treatments.find(t => slots.some(slot => slot.treatmentId === t.id))?.id ?? treatments[0]?.id,
   );
+  function firstAvailablePractitioner(id: number | undefined) {
+    return practitioners.find(person => slots.some(slot => slot.treatmentId === id && slot.practitionerId === person.id))?.id
+      ?? practitioners[0]?.id;
+  }
   const [slotId, setSlotId] = useState<number | undefined>();
-  const [practitionerId, setPractitionerId] = useState(practitioners[0]?.id);
+  const [practitionerId, setPractitionerId] = useState(() =>
+    practitioners.some(person => person.id === initialPractitioner) ? initialPractitioner : firstAvailablePractitioner(treatmentId),
+  );
   const [payment, setPayment] = useState(
-    payOnSite ? "onsite" : stripeEnabled ? onlineProvider : "",
+    payOnSite ? "onsite" : onlineEnabled ? onlineProvider : "",
   );
   const treatment = treatments.find((t) => t.id === treatmentId);
   const practitioner = practitioners.find((p) => p.id === practitionerId);
@@ -65,7 +73,22 @@ export function BookingForm({
     (s) => s.treatmentId === treatmentId && s.practitionerId === practitionerId,
   );
   const chosenSlot = treatmentSlots.find((s) => s.id === slotId);
-  const currentStep = chosenSlot ? 3 : practitioner ? 2 : treatment ? 1 : 0;
+  const canPay = payOnSite || onlineEnabled;
+  const bookingReady = !!chosenSlot && canPay;
+  const place = treatment?.deliveryMode === "remote" ? "Distans · digitalt möte" : location;
+
+  function chooseTreatment(id: number) {
+    setTreatmentId(id);
+    if (!slots.some(slot => slot.treatmentId === id && slot.practitionerId === practitionerId)) {
+      setPractitionerId(firstAvailablePractitioner(id));
+    }
+    setSlotId(undefined);
+  }
+
+  function choosePractitioner(id: number) {
+    setPractitionerId(id);
+    setSlotId(undefined);
+  }
   if (!treatments.length)
     return (
       <div className="empty-state">
@@ -88,17 +111,43 @@ export function BookingForm({
   return (
     <div className="booking-layout">
       <div>
-        <nav className="booking-steps" aria-label="Bokningens steg">
-          <ol>
-            {["Behandling", "Behandlare", "Tid", "Dina uppgifter"].map((label, index) => (
-              <li key={label} className={index < currentStep ? "complete" : undefined} aria-current={index === currentStep ? "step" : undefined}>
-                <b aria-hidden="true">{index + 1}</b><span>{label}</span>
-              </li>
-            ))}
-          </ol>
-        </nav>
         <form className="booking-form" action={createBookingAction}>
-          <fieldset>
+          <input type="hidden" name="returnTo" value={`/boka?behandling=${treatmentId ?? ""}&behandlare=${practitionerId ?? ""}`} />
+          {!canPay && <p className="notice">Bokningen öppnar när ett betalningsalternativ har aktiverats.</p>}
+          <div className="booking-mobile-choices">
+            {treatments.length > 1 ? <label className="field">
+              Behandling
+              <select value={treatmentId} onChange={event => chooseTreatment(Number(event.target.value))}>
+                {treatments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </label> : <h2 className="booking-single-treatment">{treatment?.name}</h2>}
+            {treatment && (
+              <p className="booking-mobile-meta">
+                {treatment.durationMinutes} min · {treatment.deliveryMode === "remote" ? "Distans" : "På plats"}
+                <strong>{formatMoney(treatment.priceOre)}</strong>
+              </p>
+            )}
+            {practitioners.length > 1 ? (
+              <label className="field">
+                Behandlare
+                <select value={practitionerId} onChange={event => choosePractitioner(Number(event.target.value))}>
+                  {practitioners.map(person => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}{!slots.some(slot => slot.practitionerId === person.id && slot.treatmentId === treatmentId) ? " · inga lediga tider" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : practitioner && <p className="booking-single-practitioner"><UserRound size={17} aria-hidden="true" />{practitioner.name}</p>}
+            {(treatment?.description || practitioner?.description) && (
+              <details className="booking-extra">
+                <summary>Mer om besöket</summary>
+                {treatment?.description && <p>{treatment.description}</p>}
+                {practitioner?.description && <p>{practitioner.description}</p>}
+              </details>
+            )}
+          </div>
+          <fieldset className="booking-desktop-choices">
             <legend>Välj behandling</legend>
             <div className="treatment-options">
               {treatments.map((t) => (
@@ -110,10 +159,7 @@ export function BookingForm({
                       name="treatment"
                       value={t.id}
                       checked={treatmentId === t.id}
-                      onChange={() => {
-                        setTreatmentId(t.id);
-                        setSlotId(undefined);
-                      }}
+                      onChange={() => chooseTreatment(t.id)}
                     />
                   </div>
                   <p>{t.description}</p>
@@ -127,8 +173,7 @@ export function BookingForm({
               ))}
             </div>
           </fieldset>
-          {treatment?.deliveryMode === "remote" && <div className="notice"><p>Besöket sker på distans. Behandlaren lägger till en möteslänk på din privata bokningssida. Spara bekräftelsen efter bokningen.</p></div>}
-          <fieldset>
+          <fieldset className="booking-desktop-choices">
             <legend>Välj behandlare</legend>
             {practitioners.length ? (
               <div className="practitioner-options">
@@ -164,10 +209,7 @@ export function BookingForm({
                         name="practitioner"
                         value={person.id}
                         checked={practitionerId === person.id}
-                        onChange={() => {
-                          setPractitionerId(person.id);
-                          setSlotId(undefined);
-                        }}
+                        onChange={() => choosePractitioner(person.id)}
                         aria-label={person.name}
                       />
                     </label>
@@ -181,9 +223,9 @@ export function BookingForm({
             )}
           </fieldset>
           <fieldset>
-            <legend>Hitta en ledig tid</legend>
+            <legend>Välj tid</legend>
             <p className="booking-timezone">
-              Alla tider visas i svensk tid (Europe/Stockholm).
+              Tiderna visas i svensk tid.
             </p>
             {treatmentSlots.length ? (
               <BookingCalendar
@@ -195,7 +237,7 @@ export function BookingForm({
             ) : (
               <div className="empty-state">
                 <CalendarDays strokeWidth={1.3} />
-                <h3>Inga lediga tider just nu.</h3>
+                <h3>Inga lediga tider</h3>
                 <p>
                   Välj en annan behandlare eller behandling, eller återkom när
                   nya tider har publicerats.
@@ -208,49 +250,37 @@ export function BookingForm({
               </div>
             )}
           </fieldset>
-          {chosenSlot && (
+          {bookingReady && chosenSlot && treatment && (
+            <section className="booking-mobile-recap" aria-label="Vald bokning">
+              <p><strong>{formatDateTime(chosenSlot.start)}</strong><strong>{formatMoney(treatment.priceOre)}</strong></p>
+              <p>{treatment.name} · {treatment.durationMinutes} min</p>
+              {place && <p>{place}</p>}
+              <a className="text-link" href="#booking-contact">Fyll i dina uppgifter <ArrowRight size={16} aria-hidden="true" /></a>
+            </section>
+          )}
+          <fieldset id="booking-contact" tabIndex={-1} hidden={!bookingReady} disabled={!bookingReady}>
+            <legend>Dina uppgifter</legend>
+            <div className="form-grid">
+              <label className="field">
+                För- och efternamn
+                <input name="name" required minLength={2} maxLength={100} autoComplete="name" />
+              </label>
+              <label className="field">
+                E-postadress
+                <input name="email" type="email" required autoComplete="email" maxLength={254} />
+              </label>
+              <details className="booking-extra full-width">
+                <summary>Lägg till telefonnummer (valfritt)</summary>
+                <label className="field">
+                  Telefonnummer
+                  <input name="phone" type="tel" autoComplete="tel" maxLength={30} />
+                </label>
+              </details>
+            </div>
+          </fieldset>
+          {bookingReady && (
             <>
-              <fieldset>
-                <legend>Dina uppgifter</legend>
-                <div className="form-grid">
-                  <label className="field">
-                    Namn
-                    <input
-                      name="name"
-                      required
-                      minLength={2}
-                      maxLength={100}
-                      autoComplete="name"
-                      placeholder="Ditt för- och efternamn"
-                    />
-                  </label>
-                  <label className="field">
-                    E-postadress
-                    <input
-                      name="email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      maxLength={254}
-                      placeholder="namn@exempel.se"
-                    />
-                  </label>
-                  <label className="field full-width">
-                    Telefonnummer
-                    <input
-                      name="phone"
-                      type="tel"
-                      autoComplete="tel"
-                      maxLength={30}
-                      placeholder="Ditt telefonnummer"
-                    />
-                    <small>
-                      Används om vi behöver kontakta dig om ditt besök.
-                    </small>
-                  </label>
-                </div>
-              </fieldset>
-              <fieldset>
+              {payOnSite && onlineEnabled ? <fieldset>
                 <legend>Betalning</legend>
                 <div className="payment-options">
                   {payOnSite && (
@@ -267,7 +297,7 @@ export function BookingForm({
                       <span>Betala vid besöket</span>
                     </label>
                   )}
-                  {stripeEnabled && (
+                  {onlineEnabled && (
                     <label className="payment-option">
                       <input
                         type="radio"
@@ -282,20 +312,10 @@ export function BookingForm({
                     </label>
                   )}
                 </div>
-                {!payOnSite && !stripeEnabled && (
-                  <p className="notice">
-                    Bokningen öppnar när mottagningen har aktiverat ett
-                    betalningsalternativ.
-                  </p>
-                )}
-              </fieldset>
+              </fieldset> : <input type="hidden" name="paymentMethod" value={payment} />}
+              {treatment?.deliveryMode === "remote" && <p className="booking-visit-note">Möteslänken läggs till på din privata bokningssida.</p>}
               {cancellationNotice && (
-                <div className="notice booking-terms">
-                  <p>{cancellationNotice}</p>
-                  <Link href="/villkor" target="_blank" rel="noopener noreferrer" className="inline-link">
-                    Läs bokningsvillkoren
-                  </Link>
-                </div>
+                <p className="booking-visit-note">{cancellationNotice}</p>
               )}
               <label className="consent-check">
                 <input type="checkbox" name="consent" required />
@@ -307,7 +327,7 @@ export function BookingForm({
                   och <Link href="/villkor" target="_blank" rel="noopener noreferrer">bokningsvillkoren</Link>.
                 </span>
               </label>
-              {payment && <SubmitBooking />}
+              {payment && <SubmitBooking label={payment === onlineProvider && treatment ? `Till betalning · ${formatMoney(treatment.priceOre)}` : "Bekräfta bokning"} />}
               <p className="booking-payment-note">
                 {payment === onlineProvider
                   ? `Du går vidare till ${onlineProvider === "kustom" ? "Kustom" : "Stripe"} för att slutföra din betalning.`
@@ -341,10 +361,10 @@ export function BookingForm({
               : "Välj en ledig tid"}
           </strong>
         </div>
-        {(treatment?.deliveryMode === "remote" || location) && (
+        {place && (
           <div className="summary-item">
             <span>Plats</span>
-            <strong>{treatment?.deliveryMode === "remote" ? "Distans · digitalt möte" : location}</strong>
+            <strong>{place}</strong>
           </div>
         )}
         <div className="summary-total">

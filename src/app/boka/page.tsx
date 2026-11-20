@@ -17,7 +17,7 @@ export const metadata = createPageMetadata({
 export default async function BookingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; behandling?: string }>;
+  searchParams: Promise<{ error?: string; behandling?: string; behandlare?: string }>;
 }) {
   const params = await searchParams;
   const [treatments, practitioners, publishedSlots, settings, business] =
@@ -30,6 +30,7 @@ export default async function BookingPage({
     ]);
   const ids = new Set(treatments.map((t) => t.id));
   const practitionerIds = new Set(practitioners.map((p) => p.id));
+  const onlineProvider = shopPaymentProvider();
   const slots = publishedSlots.filter(
     (s) =>
       !s.booked &&
@@ -38,15 +39,11 @@ export default async function BookingPage({
   );
   return (
     <section className="section container booking-page">
-      <div className="page-heading booking-heading">
+      <header className="booking-heading">
         <h1>
           Boka en <em>behandling</em>
         </h1>
-        <p>
-          Välj behandling, behandlare och en ledig tid. Längd och pris visas
-          innan du bekräftar din bokning.
-        </p>
-      </div>
+      </header>
       {params.error && (
         <div className="notice notice-error" role="alert">
           {params.error}
@@ -57,9 +54,10 @@ export default async function BookingPage({
         practitioners={practitioners}
         slots={slots}
         initialTreatment={Number(params.behandling) || undefined}
-        payOnSite={shopPaymentProvider() !== "kustom" && settings.payOnSite}
-        stripeEnabled={shopPaymentProvider() === "kustom" ? settings.kustomBookingEnabled && kustomBookingReady() : settings.stripeEnabled && stripeReady()}
-        onlineProvider={shopPaymentProvider()}
+        initialPractitioner={Number(params.behandlare) || undefined}
+        payOnSite={onlineProvider !== "kustom" && settings.payOnSite}
+        onlineEnabled={onlineProvider === "kustom" ? settings.kustomBookingEnabled && kustomBookingReady() : settings.stripeEnabled && stripeReady()}
+        onlineProvider={onlineProvider}
         location={[settings.location, settings.address].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index).join(" · ")}
         contactEmail={settings.email}
         cancellationNotice={cancellationText(business.cancellationHours)}

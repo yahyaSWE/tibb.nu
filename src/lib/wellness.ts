@@ -10,6 +10,7 @@ import { appUrl } from "./stripe";
 import { randomToken, tokenHash } from "./security";
 import { text } from "./validation";
 import type { ShopOrder, ShopOrderItem } from "./shop-types";
+import { WELLNESS_ADDRESS_THRESHOLD_ORE } from "./shop-types";
 
 export type WellnessSeller = { legalName: string; organizationNumber: string; vatNumber: string; address: string; email: string; website: string };
 export type WellnessReceipt = {
@@ -85,8 +86,15 @@ export async function createInitialWellnessServices(actorId: number) {
 }
 export async function snapshotWellnessOrder(order: ShopOrder) {
   if (!order.items.some(item => item.wellness)) return;
-  if (order.name.trim().split(/\s+/).length < 2 || order.address.length < 3 || !/^\d{5}$/.test(order.postcode) || order.city.length < 2)
-    throw new DomainError("Ange för- och efternamn samt fakturaadress för det personliga friskvårdskvittot. Personnummer behövs inte.");
+  if (order.name.trim().split(/\s+/).length < 2)
+    throw new DomainError("Ange för- och efternamn för det personliga friskvårdskvittot.");
+  const hasAddress = Boolean(order.address || order.postcode || order.city);
+  if ((hasAddress || order.totalOre > WELLNESS_ADDRESS_THRESHOLD_ORE) &&
+      (order.address.length < 3 || !/^\d{5}$/.test(order.postcode) || order.city.length < 2)) {
+    throw new DomainError(order.totalOre > WELLNESS_ADDRESS_THRESHOLD_ORE
+      ? "Ange fullständig kundadress för köp över 4 000 kr."
+      : "Fyll i hela kundadressen eller lämna samtliga adressfält tomma.");
+  }
   const seller = await getWellnessSeller(true);
   await getDb().prepare("INSERT INTO wellness_order_snapshots(order_reference,seller_json) VALUES(?,?) ON CONFLICT DO NOTHING").run(order.reference, JSON.stringify(seller));
 }
@@ -103,7 +111,7 @@ async function newReceipt(order: ShopOrder, evidence: Record<string, unknown>,
   const number = `FV-${year}-${String(sequence).padStart(5, "0")}`; const id = randomUUID();
   const snapshot: WellnessReceipt = { number, kind, originalNumber, orderNumber: order.id, orderReference: order.reference,
     issuedAt: issued, paidAt: String(evidence.paid_at), paymentMethod: String(evidence.method), paymentReference: String(evidence.reference),
-    seller: JSON.parse(String(seller.seller_json)), customer: { name: order.name, email: order.email, address: `${order.address}, ${order.postcode} ${order.city}` },
+    seller: JSON.parse(String(seller.seller_json)), customer: { name: order.name, email: order.email, address: order.address ? `${order.address}, ${order.postcode} ${order.city}` : "" },
     items, totalOre: items.reduce((sum, item) => sum + item.totalOre, 0), vat: wellnessTotals(items) };
   await getDb().prepare("INSERT INTO wellness_receipts(id,number,order_reference,event_key,kind,snapshot_json,amount_ore,created_at) VALUES(?,?,?,?,?,?,?,?)")
     .run(id, number, order.reference, eventKey, kind, JSON.stringify(snapshot), snapshot.totalOre, issued);
@@ -149,8 +157,8 @@ export async function recordWellnessPaymentEvidence(actorId: number, input: unkn
 export async function recordManualWellnessPurchase(actorId: number, input: unknown) {
   return transaction(async () => {
     await assertAdmin(actorId);
-    const v = z.object({ operationId: z.uuid(), name: text(100, 3), email: z.email(), address: text(200, 3),
-      postcode: z.string().regex(/^\d{3}\s?\d{2}$/), city: text(100, 2), paidAt: z.iso.datetime(),
+    const v = z.object({ operationId: z.uuid(), name: text(100, 3), email: z.email(), address: text(200).default(""),
+      postcode: z.union([z.literal(""), z.string().regex(/^\d{3}\s?\d{2}$/)]).default(""), city: text(100).default(""), paidAt: z.iso.datetime(),
       method: z.enum(["Swish", "Kort", "Kontant", "Banköverföring"]), proofReference: text(150, 5), verified: z.literal(true),
       items: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(99) })).min(1).max(20) }).parse(input);
     const operation = await getDb().prepare("SELECT * FROM wellness_manual_operations WHERE operation_id=?").get(v.operationId);
@@ -206,7 +214,9 @@ export async function getWellnessAdmin(actorId: number, search = "") {
   const needle = `%${search.slice(0, 100).replace(/[!%_]/g, "!$&")}%`;
   const passes = await getDb().prepare("SELECT p.*,o.name,o.email,e.source AS evidence_source FROM wellness_passes p JOIN shop_orders o ON o.reference=p.order_reference LEFT JOIN wellness_payment_evidence e ON e.order_reference=p.order_reference WHERE o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!' ORDER BY p.created_at DESC LIMIT 200").all(needle, needle);
   const orders = await getDb().prepare("SELECT o.*,k.method,k.captured,CASE WHEN e.order_reference IS NOT NULL THEN 1 ELSE k.customer_paid END AS customer_paid FROM shop_orders o LEFT JOIN kustom_checkouts k ON k.order_reference=o.reference LEFT JOIN wellness_payment_evidence e ON e.order_reference=o.reference WHERE EXISTS(SELECT 1 FROM wellness_order_snapshots s WHERE s.order_reference=o.reference) AND (o.name LIKE ? ESCAPE '!' OR o.email LIKE ? ESCAPE '!') ORDER BY o.created_at DESC LIMIT 200").all(needle, needle);
-  const receipts = await getDb().prepare("SELECT id,number,order_reference,kind,created_at,amount_ore,(SELECT status FROM wellness_email_outbox e WHERE e.receipt_id=wellness_receipts.id ORDER BY e.created_at DESC LIMIT 1) AS email_status FROM wellness_receipts ORDER BY created_at DESC LIMIT 200").all();
+  const receipts = await getDb().prepare(`SELECT r.id,r.number,r.order_reference,r.kind,r.created_at,r.amount_ore,o.total_ore AS order_total_ore,
+    (SELECT status FROM wellness_email_outbox e WHERE e.receipt_id=r.id ORDER BY e.created_at DESC LIMIT 1) AS email_status
+    FROM wellness_receipts r JOIN shop_orders o ON o.reference=r.order_reference ORDER BY r.created_at DESC LIMIT 200`).all();
   const history = await getDb().prepare("SELECT r.*,p.service_name FROM wellness_redemptions r JOIN wellness_passes p ON p.id=r.pass_id ORDER BY r.created_at DESC LIMIT 100").all();
   return { passes, orders, receipts, history };
 }

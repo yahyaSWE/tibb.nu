@@ -5,6 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CreditCard, MapPin, Truck } from "lucide-react";
 import type { ShopProduct, ShopSettings } from "@/lib/shop-types";
+import { WELLNESS_ADDRESS_THRESHOLD_ORE } from "@/lib/shop-types";
 import { formatMoney } from "@/lib/time";
 import { TextContent } from "@/components/learning/cards";
 import { cartSummary, checkoutDestination } from "./cart-data";
@@ -57,6 +58,9 @@ export function CheckoutForm({
     !availableDelivery && (settings.shippingEnabled || settings.pickupEnabled);
   const quoteState = useShopQuote({items:cart.lines,delivery,postcode:values.postcode,couponCode:choices.couponCode},products,settings,cart.ready && summary.valid && availableDelivery && settings.enabled);
   const quote = quoteState.quote;
+  const shippingAddressRequired = delivery === "shipping" && settings.shippingEnabled;
+  const receiptAddressRequired = hasWellness && !!quote && quote.totalOre > WELLNESS_ADDRESS_THRESHOLD_ORE;
+  const addressRequired = shippingAddressRequired || receiptAddressRequired;
   const couponEdited = normalizedCoupon(choices.couponDraft) !== choices.couponCode;
   const canCheckout = summary.valid && availableDelivery && settings.enabled && !!quote && !quoteState.pending && !couponEdited;
   const changeDelivery = (next:"shipping"|"pickup") => {setDelivery(next);choices.update({delivery:next});};
@@ -99,7 +103,8 @@ export function CheckoutForm({
     setPending(true);
     setError(null);
     try {
-      const payload = { items: cart.lines, ...values, delivery, consent, couponCode: choices.couponCode, expectedQuote: quote!.fingerprint };
+      const contact = !addressRequired && !values.address.trim() && !values.city.trim() ? { ...values, postcode: "" } : values;
+      const payload = { items: cart.lines, ...contact, delivery, consent, couponCode: choices.couponCode, expectedQuote: quote!.fingerprint };
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)));
       const key = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
       if (!checkoutAttempt.current) {
@@ -111,12 +116,7 @@ export function CheckoutForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: cart.lines,
-          ...values,
-          delivery,
-          consent,
-          couponCode: choices.couponCode,
-          expectedQuote: quote!.fingerprint,
+          ...payload,
           checkoutAttemptId: checkoutAttempt.current.id,
         }),
       });
@@ -275,27 +275,27 @@ export function CheckoutForm({
               </label>
             )}
           </div>
-          {((delivery === "shipping" && settings.shippingEnabled) || hasWellness) && (
+          {(shippingAddressRequired || hasWellness) && (
             <div className="form-grid shop-address-fields">
-              {field("address", hasWellness ? "Gatuadress för kvittot" : "Gatuadress", {
-                required: true,
+              {field("address", addressRequired ? "Gatuadress" : "Gatuadress för kvittot (valfritt)", {
+                required: addressRequired,
                 autoComplete: "shipping street-address",
                 minLength: 3,
                 maxLength: 200,
               })}
               {field("postcode", "Postnummer", {
-                required: true,
+                required: addressRequired,
                 autoComplete: "shipping postal-code",
                 maxLength: 6,
                 pattern: "[0-9]{3} ?[0-9]{2}",
               })}
               {field("city", "Ort", {
-                required: true,
+                required: addressRequired,
                 autoComplete: "shipping address-level2",
                 minLength: 2,
                 maxLength: 100,
               })}
-              <p className="muted">Leveransland: Sverige.</p>
+              {shippingAddressRequired ? <p className="muted">Leveransland: Sverige.</p> : hasWellness && <p className="muted">Kundadress behövs vid köp över 4 000 kr.</p>}
             </div>
           )}
           {!servicesOnly && delivery === "pickup" && settings.pickupEnabled && (

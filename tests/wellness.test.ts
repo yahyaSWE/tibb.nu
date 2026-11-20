@@ -11,7 +11,7 @@ import { getShopOrderByReference, getShopSettings, getAdminShopProduct, getPubli
 import { changeWellnessPass, createInitialWellnessServices, getPublicWellnessServices, getWellnessAdmin, recordManualWellnessPurchase, recordManualWellnessRefund, recordWellnessPaymentEvidence, saveWellnessSeller, saveWellnessService, wellnessDownloadLink, wellnessExpiry, wellnessTotals } from "../src/lib/wellness";
 import { createKustomCheckout, KustomApiError, kustomOrderLines, reconcileKustomOrder, refundKustomWellness, validateKustomCallback, type KustomClient } from "../src/lib/kustom";
 import { kustomConfiguration } from "../src/lib/shop-payment-config";
-import { getWellnessPdf } from "../src/lib/wellness-pdf";
+import { getWellnessPdf, regenerateWellnessPdfCopy } from "../src/lib/wellness-pdf";
 import { dispatchWellnessEmails } from "../src/lib/wellness-email";
 import { saveBusinessSettings } from "../src/lib/business-settings";
 import { DEFAULT_BUSINESS_SETTINGS } from "../src/lib/business-config";
@@ -128,9 +128,32 @@ test("verified digital card capture activates each service once, snapshots histo
   await saveWellnessService(adminId,{id:first,name:"Nytt namn",description:product.description,priceOre:65000,vatPercent:25,validityMonths:6,active:true,eligibilityConfirmed:true});
   assert.equal(String((await receipts(order.reference))[0].snapshot_json),String(receipt.snapshot_json));
   const pdf = await getWellnessPdf(String(receipt.id));
-  assert.ok(pdf.byteLength>1000); assert.equal((await PDFDocument.load(pdf)).getPageCount(),1);
+  assert.ok(pdf.byteLength>1000);
+  const document = await PDFDocument.load(pdf);
+  assert.equal(document.getPageCount(), 1);
+  assert.equal(document.getForm().getTextField("personnummer").getText(), undefined);
+  assert.equal(document.getForm().getTextField("personnummer").getMaxLength(), 13);
   assert.deepEqual(await getWellnessPdf(String(receipt.id)),pdf);
+  const copy = await regenerateWellnessPdfCopy(String(receipt.id), true);
+  assert.equal(copy?.number, snapshot.number);
+  assert.equal((await PDFDocument.load(copy!.pdf)).getPageCount(), 1);
+  assert.deepEqual(await getWellnessPdf(String(receipt.id)), pdf);
   await writeFile(join(tmpdir(),"tibb-wellness-preview.pdf"),pdf);
+});
+
+test("digital wellness checkout accepts a blank address at 4 000 kr and requires a complete one above it", async () => {
+  const { first, second, input } = await fixture([8, 0]);
+  const noAddress = { ...input, address: "", postcode: "", city: "" };
+  const order = await reserveShopOrder(noAddress);
+  assert.equal(order.totalOre, 400000);
+  const fake = gateway(order);
+  await createKustomCheckout(order.reference, fake.client);
+  assert.ok(!("street_address" in (fake.calls[0].body as {billing_address: object}).billing_address));
+  fake.complete();
+  await reconcileKustomOrder(order.reference, { client: fake.client });
+  assert.equal(JSON.parse(String((await receipts(order.reference))[0].snapshot_json)).customer.address, "");
+  await assert.rejects(reserveShopOrder({ ...noAddress, items: [{ productId: first, quantity: 7 }, { productId: second, quantity: 1 }] }), /kundadress för köp över/);
+  await assert.rejects(reserveShopOrder({ ...noAddress, address: "Delvis angiven" }), /samtliga adressfält/);
 });
 test("invoice capture is not customer payment; verified documentary payment activates it later", async () => {
   const { order }=await fixture([1,0]); const fake=gateway(order,"INVOICE");

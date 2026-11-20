@@ -62,9 +62,11 @@ Fysisk leverans får hanteras när Kustom-capture är styrkt, även om en faktur
 
 ## Kvitton, klippkort och återbetalning
 
-Varje friskvårdsköp behåller en ögonblicksbild av säljaren, kundens fullständiga namn/adress, orderrader, moms och villkor. Kundadress krävs även för tjänster utan frakt så att underlaget har fullständiga fakturauppgifter även över 4 000 kr. Personnummer efterfrågas inte för kvittot och sparas inte från Kustoms kundobjekt. Medicinska uppgifter, anamneser och journalanteckningar ska aldrig läggas i tjänstenamn, kvitton, administrativa noteringar eller betalningsreferenser.
+Varje friskvårdsköp behåller en ögonblicksbild av säljaren, kundens namn och angivna adress, orderrader, moms och villkor. Kundadress är frivillig vid köp utan frakt upp till 4 000 kr. Över den gränsen krävs fullständig kundadress. PDF-kvittot har ett frivilligt personnummerfält som kunden fyller i lokalt efter nedladdning. Webbplatsen sparar inget personnummer och skickar det inte till Kustom. Medicinska uppgifter, anamneser och journalanteckningar ska aldrig läggas i tjänstenamn, kvitton, administrativa noteringar eller betalningsreferenser.
 
 Kvittonummer i formatet `FV-ÅÅÅÅ-00001` tilldelas i en databastransaktion. Det går inte att skapa ett andra ursprungskvitto för samma köp genom att leverera callbacken igen. PDF genereras på servern i A4, sparas som en **privat BLOB i den befintliga databasen**, och återanvänds byte för byte. Inga offentliga filadresser skapas och en separat fillagringstjänst behövs inte för dessa små dokument. Kvittot är ett kompletterande underlag till orderns försäljning, inte en ny försäljning att bokföra en gång till.
+
+I **Admin → Friskvård → Kvitton och korrigeringar** skapar **Generera ny PDF-kopia** en ny presentation av samma historiska uppgifter och kvittonummer. Admin kan även välja **Ny kopia utan kundadress** för köp upp till 4 000 kr. Originalet ligger kvar och en ny kopia utlöser inget e-postutskick.
 
 Endast markerade friskvårdsrader tas med. Rabatter och rabattkoder beräknas först i den befintliga prisberäkningen; kvittot använder dessa faktiskt betalda radbelopp. Vanliga produkter och frakt ingår inte. Totalt inklusive moms, nettobelopp och moms per momssats visas. Korrigeringsunderlag har ett eget nummer och hänvisar till ursprungskvittot. Det gamla kvittot ändras aldrig.
 

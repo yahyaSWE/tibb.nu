@@ -93,8 +93,8 @@ export async function createKustomCheckout(reference: string, client = kustomCli
     const remote = checkoutSchema.parse(await client.request("/checkout/v3/orders", "POST", {
       purchase_country: "SE", purchase_currency: "SEK", locale: "sv-SE", merchant_reference1: reference,
       order_amount: order.totalOre, order_tax_amount: lines.reduce((sum, line) => sum + line.total_tax_amount, 0), order_lines: lines,
-      billing_address: { given_name: given, family_name: family.join(" "), email: order.email, street_address: order.address,
-        postal_code: order.postcode, city: order.city, country: "SE" },
+      billing_address: { given_name: given, family_name: family.join(" "), email: order.email, country: "SE",
+        ...(order.address ? { street_address: order.address, postal_code: order.postcode, city: order.city } : {}) },
       merchant_urls: { terms: `${config.origin}/butik/villkor`, checkout: `${config.origin}/butik/kassa`, confirmation,
         push: `${callback}&order_id={checkout.order.id}` },
       options: { auto_capture: false, verify_national_identification_number: false },

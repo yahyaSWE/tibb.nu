@@ -102,3 +102,4 @@ export type ShopQuote = {
   discounts: ShopDiscount[]; couponCode: string | null; fingerprint: string;
 };
 export type ShopQuoteInput = { items: ShopCartLine[]; delivery: "shipping" | "pickup"; postcode?: string; couponCode?: string };
+export const WELLNESS_ADDRESS_THRESHOLD_ORE = 400_000;
